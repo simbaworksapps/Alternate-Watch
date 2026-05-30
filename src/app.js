@@ -385,7 +385,7 @@ function formatVisibilityDisplay(period) {
   const source = period.visibilitySource;
   if (source === "9999M") return "Unlimited";
   if (/^\d{4}M$/.test(source || "")) {
-    return `${Number(source.slice(0, 4)).toLocaleString("en-US")} meters`;
+    return `${Number(source.slice(0, 4)).toLocaleString("en-US")}m / ${period.visibilitySm.toFixed(1)}SM`;
   }
   return source || `${period.visibilitySm} SM`;
 }
