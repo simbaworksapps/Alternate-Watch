@@ -445,6 +445,16 @@ button:disabled {
   cursor: not-allowed;
 }
 
+#check-mission-button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  line-height: 1.12;
+  min-height: 60px;
+  text-align: center;
+  white-space: normal;
+}
+
 .button-searching {
   background:
     linear-gradient(var(--gold), var(--gold)) padding-box,
@@ -1477,11 +1487,6 @@ dd {
   gap: 8px;
 }
 
-.metar-age,
-.taf-age {
-  font-size: 0.66rem;
-}
-
 .vis-separator {
   color: var(--muted);
   font-weight: 1000;
@@ -1698,6 +1703,8 @@ ul {
 @media (min-width: 980px) {
   .mission-panel {
     left: max(24px, calc((100vw - 1120px) / 2 + 24px));
+    max-height: none;
+    overflow: visible;
     position: fixed;
     top: 24px;
     width: 360px;

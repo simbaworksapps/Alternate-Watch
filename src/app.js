@@ -1722,9 +1722,12 @@ function decodeMetarLine(line) {
 
   const visibility = decodeVisibilityToken(tokens);
   if (visibility) items.push({ label: "Visibility", value: visibility });
+  if (tokens.includes("CAVOK")) items.push({ label: "Conditions", value: "Ceiling and visibility OK: visibility 10 km or more, no significant weather, and no significant cloud below criteria." });
 
   const rvr = decodeRvrTokens(tokens);
   if (rvr.length) items.push({ label: "Runway Visibility", value: rvr.join("; ") });
+  const runwayState = decodeRunwayStateTokens(tokens);
+  if (runwayState.length) items.push({ label: "Runway State", value: runwayState.join("; ") });
 
   const weather = decodeWeatherTokens(tokens);
   if (weather.length) items.push({ label: "Weather", value: weather.join("; ") });
@@ -1742,6 +1745,9 @@ function decodeMetarLine(line) {
   if (altimeter) items.push({ label: "Altimeter", value: `${altimeter.slice(1, 3)}.${altimeter.slice(3)} inHg.` });
   const qnh = tokens.find((token) => /^Q\d{4}$/.test(token));
   if (qnh) items.push({ label: "Altimeter", value: `${qnh.slice(1)} hPa.` });
+
+  const trends = decodeMetarTrends(tokens);
+  if (trends.length) items.push({ label: "Trend", value: trends.join("; ") });
 
   const remarks = decodeMetarRemarks(tokens);
   if (remarks.length) items.push({ label: "Remarks", value: remarks.join("; ") });
@@ -1781,9 +1787,13 @@ function isKnownMetarToken(token, index, tokens) {
   if (isWeatherToken(token)) return true;
   if (/^(METAR|SPECI|AUTO|COR|RMK|CAVOK|NIL|NSC)$/.test(token)) return true;
   if (/^(AO1|AO2|TSNO|FZRANO|\$)$/.test(token)) return true;
-  if (/^(NOSIG|OBST|OBSC|BIRD|HAZARD|RWY)$/.test(token)) return true;
+  if (/^(NOSIG|OBST|OBSC|BIRD|HAZARD|RWY|MT|PT)$/.test(token)) return true;
+  if (/^(TEMPO|BECMG|INTER|WIND)$/.test(token)) return true;
   if (/^R\d{2}[LCR]?\/\d{6}$/.test(token)) return true;
   if (/^PP\d{3}$/.test(token)) return true;
+  if (/^QFE\d{3,4}\/\d{3,4}$/.test(token)) return true;
+  if (matchCompactVisibilityWeatherToken(token)) return true;
+  if (/^\d{3,4}FT$/.test(token) && (tokens[index - 1] === "WIND" || matchWindToken(tokens[index + 1]))) return true;
   if (/^\d{2}\/\d{2}$/.test(token) && tokens[index - 1] === "RWY") return true;
   if (/^SLP\d{3}$/.test(token)) return true;
   if (/^T[01]\d{3}[01]\d{3}$/.test(token)) return true;
@@ -1809,7 +1819,8 @@ function isCommonAviationToken(token) {
     || /^\d{1,2}(?:\/\d)?SM$/.test(token)
     || /^\d{4}$/.test(token)
     || /^R\d{2}[LCR]?\/[PM]?\d{4}V?[PM]?\d{4}FT$/.test(token)
-    || /^(FEW|SCT|BKN|OVC|VV)\d{3}(CB|TCU)?$/.test(token)
+    || /^(FEW|SCT|BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU)?$/.test(token)
+    || /^\/\/\/(CB|TCU)$/.test(token)
     || /^(CLR|SKC|NSC)$/.test(token)
     || /^(M?\d{2}|M)\/(M?\d{2}|M|M?\/\/)$/.test(token)
     || /^A\d{4}$/.test(token)
@@ -1864,11 +1875,14 @@ function decodeWindToken(match) {
 
 function decodeVisibilityToken(tokens) {
   const token = tokens.find((item) => item === "P6SM" || /^\d{1,2}(?:\/\d)?SM$/.test(item) || /^\d{4}$/.test(item));
-  if (!token) return null;
-  if (token === "P6SM") return "Greater than 6 statute miles.";
-  if (/^\d{4}$/.test(token)) {
-    return token === "9999" ? "Unlimited." : `${Number(token).toLocaleString("en-US")} meters, equivalent to ${metersToStatuteMiles(Number(token)).toFixed(1)} statute miles.`;
+  const compact = tokens.find(matchCompactVisibilityWeatherToken);
+  if (!token && !compact) return null;
+  if (!token && compact) {
+    const match = matchCompactVisibilityWeatherToken(compact);
+    return decodeMetersVisibility(match[1]);
   }
+  if (token === "P6SM") return "Greater than 6 statute miles.";
+  if (/^\d{4}$/.test(token)) return decodeMetersVisibility(token);
   return `${token.replace("SM", "")} statute miles.`;
 }
 
@@ -1883,14 +1897,27 @@ function decodeRvrTokens(tokens) {
     });
 }
 
+function decodeRunwayStateTokens(tokens) {
+  return tokens
+    .filter((token) => /^R\d{2}[LCR]?\/\d{6}$/.test(token))
+    .map((token) => decodeRunwayState(token.match(/^R(\d{2}[LCR]?)\/([0-9/])([0-9/])([0-9/]{2})([0-9/]{2})$/)));
+}
+
+function decodeMetersVisibility(value) {
+  return value === "9999" ? "Unlimited." : `${Number(value).toLocaleString("en-US")} meters, equivalent to ${metersToStatuteMiles(Number(value)).toFixed(1)} statute miles.`;
+}
+
 function metersToStatuteMiles(meters) {
   return Math.round((meters / 1609.344) * 10) / 10;
 }
 
 function decodeWeatherTokens(tokens) {
   return tokens
-    .filter(isWeatherToken)
-    .map(decodeWeatherToken);
+    .flatMap((token) => {
+      const compact = matchCompactVisibilityWeatherToken(token);
+      if (compact) return [decodeWeatherToken(compact[2])];
+      return isWeatherToken(token) ? [decodeWeatherToken(token)] : [];
+    });
 }
 
 function isWeatherToken(token) {
@@ -1910,18 +1937,36 @@ function decodeWeatherToken(token) {
   const parts = [];
   const codes = [
     ["VC", "in the vicinity"],
+    ["MI", "shallow"],
+    ["PR", "partial"],
+    ["BC", "patches"],
+    ["DR", "low drifting"],
+    ["BL", "blowing"],
     ["SH", "showers"],
     ["TS", "thunderstorm"],
+    ["FZ", "freezing"],
     ["RA", "rain"],
     ["SN", "snow"],
     ["DZ", "drizzle"],
+    ["SG", "snow grains"],
+    ["IC", "ice crystals"],
+    ["PL", "ice pellets"],
+    ["GR", "hail"],
+    ["GS", "small hail"],
+    ["UP", "unknown precipitation"],
     ["BR", "mist"],
     ["FG", "fog"],
     ["HZ", "haze"],
     ["FU", "smoke"],
-    ["GR", "hail"],
-    ["GS", "small hail"],
-    ["PL", "ice pellets"]
+    ["VA", "volcanic ash"],
+    ["DU", "dust"],
+    ["SA", "sand"],
+    ["PY", "spray"],
+    ["PO", "dust/sand whirls"],
+    ["SQ", "squalls"],
+    ["FC", "funnel cloud"],
+    ["SS", "sandstorm"],
+    ["DS", "duststorm"]
   ];
   codes.forEach(([code, label]) => {
     if (clean.includes(code)) parts.push(label);
@@ -1929,15 +1974,66 @@ function decodeWeatherToken(token) {
   return `${intensity}${parts.join(" ")}.`.trim();
 }
 
+function matchCompactVisibilityWeatherToken(token) {
+  const match = String(token || "").match(/^(\d{4})([A-Z]{2,})$/);
+  return match && isWeatherToken(match[2]) ? match : null;
+}
+
 function decodeCloudTokens(tokens) {
   return tokens
-    .filter((token) => /^(FEW|SCT|BKN|OVC|VV)\d{3}(CB|TCU)?$/.test(token))
+    .filter((token) => /^(FEW|SCT|BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU)?$/.test(token) || /^\/\/\/(CB|TCU)$/.test(token))
     .map((token) => {
-      const match = token.match(/^(FEW|SCT|BKN|OVC|VV)(\d{3})(CB|TCU)?$/);
+      const bareType = token.match(/^\/\/\/(CB|TCU)$/);
+      if (bareType) return `${bareType[1] === "CB" ? "Cumulonimbus" : "Towering cumulus"}, base not reported.`;
+      const match = token.match(/^(FEW|SCT|BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU)?$/);
       const coverage = { FEW: "Few", SCT: "Scattered", BKN: "Broken", OVC: "Overcast", VV: "Vertical visibility" }[match[1]];
       const cloudType = match[3] === "CB" ? " cumulonimbus" : match[3] === "TCU" ? " towering cumulus" : "";
+      if (match[2] === "///") return `${coverage}${cloudType}, base not reported.`;
       return `${coverage}${cloudType} at ${(Number(match[2]) * 100).toLocaleString("en-US")} ft AGL.`;
     });
+}
+
+function decodeMetarTrends(tokens) {
+  const rmkIndex = tokens.indexOf("RMK");
+  const endIndex = rmkIndex === -1 ? tokens.length : rmkIndex;
+  const trends = [];
+  if (tokens.slice(0, endIndex).includes("NOSIG")) trends.push("No significant change expected.");
+
+  for (let index = 0; index < endIndex; index += 1) {
+    const token = tokens[index];
+    if (!/^(TEMPO|BECMG|INTER)$/.test(token)) continue;
+
+    const nextTrend = tokens.findIndex((candidate, candidateIndex) => candidateIndex > index && candidateIndex < endIndex && /^(TEMPO|BECMG|INTER)$/.test(candidate));
+    const trendTokens = tokens.slice(index + 1, nextTrend === -1 ? endIndex : nextTrend);
+    const parts = [decodeMetarTrendType(token)];
+    const windToken = trendTokens.find((candidate) => matchWindToken(candidate));
+    const visibility = decodeVisibilityToken(trendTokens);
+    const weather = decodeWeatherTokens(trendTokens);
+    const clouds = decodeCloudTokens(trendTokens);
+
+    if (windToken) parts.push(`Wind ${stripPeriod(decodeWindToken(matchWindToken(windToken)))}.`);
+    if (visibility) parts.push(`Visibility ${stripPeriod(visibility)}.`);
+    if (weather.length) parts.push(`Weather ${weather.map(stripPeriod).join("; ")}.`);
+    if (clouds.length) parts.push(`Clouds ${clouds.map(stripPeriod).join("; ")}.`);
+    trends.push(parts.join(" "));
+  }
+
+  return trends;
+}
+
+function decodeMetarTrendType(token) {
+  if (token === "TEMPO") return "Temporary trend condition.";
+  if (token === "BECMG") return "Becoming trend condition.";
+  if (token === "INTER") return "Intermittent trend condition.";
+  return "Trend condition.";
+}
+
+function matchWindToken(token) {
+  return String(token || "").match(/^((?:\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS))$/);
+}
+
+function stripPeriod(value) {
+  return String(value || "").replace(/\.$/, "");
 }
 
 function decodeTafRemarks(tokens) {
@@ -1979,19 +2075,28 @@ function decodeMetarRemarks(tokens) {
     if (minTemp) remarks.push(`Six-hour minimum temperature ${decodeTenthsTemp(minTemp[1], minTemp[2])}C.`);
     const pressureTendency = token.match(/^5(\d)(\d{3})$/);
     if (pressureTendency) remarks.push(`Three-hour pressure tendency code ${pressureTendency[1]}, change ${Number(pressureTendency[2]) / 10} hPa.`);
-    const runwayState = token.match(/^R(\d{2}[LCR]?)\/(\d{2})(\d{2})(\d{2})$/);
+    const runwayState = token.match(/^R(\d{2}[LCR]?)\/([0-9/])([0-9/])([0-9/]{2})([0-9/]{2})$/);
     if (runwayState) remarks.push(decodeRunwayState(runwayState));
     const pressurePrecip = token.match(/^PP(\d{3})$/);
     if (pressurePrecip) remarks.push(`Pressure tendency or precipitation group ${token} retained for reference.`);
+    const qfe = token.match(/^QFE(\d{3,4})\/(\d{3,4})$/);
+    if (qfe) remarks.push(`QFE ${qfe[1]} mmHg / ${qfe[2]} hPa.`);
     if (/^DZB\d{2}E\d{2}$/.test(token)) remarks.push(`Drizzle began and ended during the hour: ${token}.`);
     const rainEvent = token.match(/^RA(B|E)(\d{2})(\d{2})?$/);
     if (rainEvent) remarks.push(`Rain ${rainEvent[1] === "B" ? "began" : "ended"} at ${rainEvent[2]}${rainEvent[3] || ""}Z.`);
     if (/^TSNO$/.test(token)) remarks.push("Thunderstorm information not available.");
     if (token === "FZRANO") remarks.push("Freezing rain sensor not available.");
+    if (token === "TEMPO") remarks.push("Temporary trend condition follows.");
+    if (token === "WIND" && /^\d{3,4}FT$/.test(rmk[index + 1] || "") && /^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)$/.test(rmk[index + 2] || "")) {
+      const height = Number(rmk[index + 1].replace("FT", "")).toLocaleString("en-US");
+      remarks.push(`Wind at ${height} ft: ${decodeWindToken(matchWindToken(rmk[index + 2]))}`);
+    }
     if (token === "LTG" && rmk[index + 1] === "DSNT") remarks.push(`Lightning distant ${decodeDirection(rmk[index + 2] || "")}.`);
     if (token === "$") remarks.push("Automated station maintenance check indicator.");
     if (token === "PK" && rmk[index + 1] === "WND") remarks.push(decodePeakWind(rmk[index + 2], rmk[index + 3]));
     if (token === "OBST" && rmk[index + 1] === "OBSC") remarks.push("Obstruction obscuring observed.");
+    if (token === "MT" && rmk[index + 1] === "OBSC") remarks.push("Mountains obscured.");
+    if (token === "MT" && rmk[index + 1] === "PT" && rmk[index + 2] === "OBSC") remarks.push("Mountains partially obscured.");
     if (token === "NOSIG") remarks.push("No significant change expected.");
     if (token === "BIRD" && rmk[index + 1] === "HAZARD") {
       const runway = rmk[index + 2] === "RWY" ? ` runway ${rmk[index + 3] || ""}` : "";
@@ -2002,7 +2107,7 @@ function decodeMetarRemarks(tokens) {
 }
 
 function decodeRunwayState(match) {
-  return `Runway ${match[1]} state group: deposit code ${match[2]}, contamination/friction code ${match[3]}, depth/braking code ${match[4]}.`;
+  return `Runway ${match[1]} state group: deposit code ${match[2]}, contamination code ${match[3]}, depth code ${match[4]}, braking/friction code ${match[5]}.`;
 }
 
 function decodePeakWind(wind, time) {
