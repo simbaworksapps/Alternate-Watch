@@ -43,20 +43,21 @@ function init() {
   document.querySelector("#landing-plus-eight").addEventListener("click", () => {
     setZuluOffsetField("landingTime", 8);
   });
-  document.querySelector("#clear-alternates").addEventListener("click", () => {
+  document.querySelector("#clear-alternates").addEventListener("click", async () => {
     clearMissionInputs();
-    render();
+    await render();
   });
-  document.querySelector("#reset-alternates").addEventListener("click", () => {
+  document.querySelector("#reset-alternates").addEventListener("click", async () => {
     resetMissionDefaults();
-    render();
+    await render();
   });
-  document.querySelector("#random-mission").addEventListener("click", () => {
+  document.querySelector("#random-mission").addEventListener("click", async () => {
     generateRandomMission();
-    render();
+    await render(true);
   });
   document.querySelector("#practice-weather").addEventListener("click", generatePracticeWeatherMission);
   document.querySelector("#rulebook-toggle").addEventListener("click", toggleRulebook);
+  document.querySelector("#rulebook-close").addEventListener("click", closeRulebook);
   document.querySelector("#reset-alternates").textContent = "R";
   document.querySelector("#expand-all").addEventListener("click", () => setAllCardsOpen(true));
   document.querySelector("#collapse-all").addEventListener("click", () => setAllCardsOpen(false));
@@ -73,6 +74,9 @@ function init() {
   });
   banner.addEventListener("click", handleSummaryIssueClick);
   banner.addEventListener("keydown", handleSummaryIssueKeydown);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeRulebook();
+  });
 }
 
 function setupBrandAnimation() {
@@ -126,6 +130,7 @@ async function generatePracticeWeatherMission() {
   const button = document.querySelector("#practice-weather");
   button.disabled = true;
   button.textContent = "...";
+  setSubmitButtonStatus("searching");
 
   try {
     const takeoff = new Date();
@@ -151,7 +156,7 @@ async function generatePracticeWeatherMission() {
     }
 
     applyMissionFields(selected[0], selected[1], [selected[2]], takeoff, landing);
-    await render();
+    await render(true);
   } finally {
     button.disabled = false;
     button.textContent = "!";
@@ -418,6 +423,15 @@ function toggleRulebook() {
   const isOpen = panel.hidden;
   panel.hidden = !isOpen;
   button.setAttribute("aria-expanded", String(isOpen));
+  document.body.classList.toggle("rulebook-open", isOpen);
+}
+
+function closeRulebook() {
+  const panel = document.querySelector("#rulebook-panel");
+  const button = document.querySelector("#rulebook-toggle");
+  panel.hidden = true;
+  button.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("rulebook-open");
 }
 
 function setSubmitButtonStatus(status) {
@@ -447,7 +461,7 @@ function setSubmitButtonStatus(status) {
   submitFeedbackTimer = window.setTimeout(() => {
     submitButton.classList.remove("button-success", "button-unable");
     submitButton.textContent = "Check Mission";
-  }, 1400);
+  }, 2400);
 }
 
 function formatMissionSummary(inputs) {
@@ -604,9 +618,7 @@ function renderHighlightedTaf(result) {
 
   return lines
     .map((line, index) => {
-      const applicable = isApplicableTafLine(line, result.period.raw)
-        || (result.applicablePeriods || []).some((period) => isApplicableTafLine(line, period.raw))
-        || tafLineApplies(lines, index, result);
+      const applicable = isApplicableTafLine(line, result.period.raw) || tafLineApplies(lines, index, result);
       return renderTafLine(line, applicable, applicable ? tafMarker(result) : "");
     })
     .join("");
@@ -717,7 +729,7 @@ function nextTafLineStart(lines, startIndex, referenceDate) {
     }
 
     const window = tafLineWindow(line, referenceDate);
-    if (window) return window.start;
+    if (window) return line.startsWith("BECMG") ? window.end : window.start;
   }
 
   return null;

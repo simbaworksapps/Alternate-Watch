@@ -50,6 +50,7 @@ input {
 }
 
 .app-shell {
+  align-items: start;
   display: grid;
   gap: 16px;
   margin: 0 auto;
@@ -343,20 +344,58 @@ button:active {
   background: #0b111b;
   border: 1px solid rgba(245, 197, 66, 0.34);
   border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), 0 0 30px rgba(245, 197, 66, 0.18);
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.4;
+  left: 50%;
+  max-height: min(78vh, 620px);
+  max-width: 520px;
+  overflow-y: auto;
   padding: 12px;
+  position: fixed;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100vw - 32px);
+  z-index: 50;
+}
+
+.rulebook-panel[hidden] {
+  display: none;
+}
+
+body.rulebook-open::before {
+  background: rgba(0, 0, 0, 0.58);
+  content: "";
+  inset: 0;
+  position: fixed;
+  z-index: 49;
+}
+
+.rulebook-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
 }
 
 .rulebook-panel h2 {
   color: var(--ink);
   font-size: 0.9rem;
-  margin-bottom: 6px;
+  margin-bottom: 0;
   text-transform: uppercase;
 }
 
+.rulebook-close {
+  font-size: 0.9rem;
+  font-weight: 1000;
+  min-height: 34px;
+  min-width: 42px;
+  padding: 6px 10px;
+}
+
 .rulebook-panel p {
+  margin-top: 8px;
   margin-bottom: 8px;
 }
 
