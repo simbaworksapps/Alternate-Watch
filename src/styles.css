@@ -631,6 +631,7 @@ body.search-open::before {
 .airfield-search-panel {
   display: grid;
   gap: 10px;
+  z-index: 1120;
 }
 
 .airfield-search-panel[hidden] {
@@ -1183,17 +1184,14 @@ body.search-open::before {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 6px;
 }
 
 .summary-icao {
   color: var(--ink);
   font-size: 1.5rem;
   font-weight: 900;
-}
-
-.summary-chips {
-  margin: 0;
 }
 
 .decision-reason,
@@ -1387,6 +1385,18 @@ body.search-open::before {
   box-shadow: 0 0 0 3px rgba(46, 212, 122, 0.82), 0 0 24px rgba(46, 212, 122, 0.34);
 }
 
+.source-focus.scroll-focus-red summary {
+  box-shadow: 0 0 0 3px rgba(255, 95, 86, 0.82), 0 0 24px rgba(255, 95, 86, 0.34);
+}
+
+.source-focus.scroll-focus-yellow summary {
+  box-shadow: 0 0 0 3px rgba(243, 178, 60, 0.82), 0 0 24px rgba(243, 178, 60, 0.34);
+}
+
+.source-focus.scroll-focus-green summary {
+  box-shadow: 0 0 0 3px rgba(46, 212, 122, 0.82), 0 0 24px rgba(46, 212, 122, 0.34);
+}
+
 .notam-item {
   border-radius: 6px;
   margin: 4px 0;
@@ -1427,6 +1437,31 @@ body.search-open::before {
   border: 1px solid rgba(245, 197, 66, 0.12);
   border-radius: 8px;
   padding: 10px;
+}
+
+.wx-source-tile {
+  cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 120ms ease;
+}
+
+.wx-source-tile:hover,
+.wx-source-tile:focus-visible {
+  box-shadow: 0 0 0 2px rgba(74, 163, 255, 0.18), 0 0 18px rgba(74, 163, 255, 0.18);
+  outline: none;
+}
+
+.wx-source-tile:active {
+  transform: scale(0.99);
+}
+
+.wx-source-tile.impact-red:hover,
+.wx-source-tile.impact-red:focus-visible {
+  box-shadow: 0 0 0 2px rgba(255, 95, 86, 0.28), 0 0 18px rgba(255, 95, 86, 0.26);
+}
+
+.wx-source-tile.impact-yellow:hover,
+.wx-source-tile.impact-yellow:focus-visible {
+  box-shadow: 0 0 0 2px rgba(243, 178, 60, 0.28), 0 0 18px rgba(243, 178, 60, 0.24);
 }
 
 .wx-grid .impact-yellow {
@@ -1636,8 +1671,10 @@ mark.taf-applicable {
   align-items: center;
   display: inline-flex;
   flex: 0 0 auto;
+  float: right;
   gap: 4px;
   margin-left: 6px;
+  margin-top: 1px;
   vertical-align: text-bottom;
 }
 
@@ -1664,6 +1701,26 @@ mark.taf-applicable {
   background: rgba(255, 95, 86, 0.2);
   border-color: var(--red);
   color: #ffd8d5;
+}
+
+.taf-source-focus {
+  border-radius: 4px;
+  padding: 1px 2px;
+}
+
+.taf-source-focus.scroll-focus-red {
+  background: rgba(255, 95, 86, 0.34);
+  box-shadow: 0 0 0 1px var(--red);
+}
+
+.taf-source-focus.scroll-focus-yellow {
+  background: rgba(243, 178, 60, 0.3);
+  box-shadow: 0 0 0 1px var(--yellow);
+}
+
+.taf-source-focus.scroll-focus-green {
+  background: rgba(46, 212, 122, 0.24);
+  box-shadow: 0 0 0 1px var(--green);
 }
 
 h4 {
@@ -1735,12 +1792,31 @@ ul {
   .app-shell {
     gap: 10px;
     max-width: 100%;
-    padding: 10px;
+    padding: 6px;
   }
 
   .mission-panel,
   .results-panel {
-    padding: 12px;
+    padding: 8px;
+  }
+
+  .decision-banner,
+  .result-card {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .mission-summary {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .raw-line,
+  .taf-line,
+  .taf-decode,
+  .wx-grid div {
+    padding-left: 6px;
+    padding-right: 6px;
   }
 
   .brand-row {
@@ -1784,15 +1860,22 @@ ul {
     align-items: start;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
+    position: relative;
   }
 
   .card-meta {
     grid-column: 1 / -1;
     min-width: 0;
+    padding-right: 74px;
   }
 
   .card-status {
+    grid-column: 2;
+    grid-row: 1;
     min-width: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
   }
 
   .mission-summary,
@@ -1814,6 +1897,21 @@ ul {
 
   .details-block[open] summary {
     margin-bottom: 8px;
+  }
+
+  .airfield-search-panel {
+    left: 6px;
+    max-height: min(68vh, calc(100dvh - 18px));
+    max-width: none;
+    top: 8px;
+    transform: none;
+    width: calc(100vw - 12px);
+  }
+
+  .airfield-search-results {
+    max-height: min(38vh, 280px);
+    overflow-y: auto;
+    padding-right: 2px;
   }
 }
 

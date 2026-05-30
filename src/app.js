@@ -135,7 +135,8 @@ function init() {
   });
   document.querySelector("#takeoffTime").addEventListener("blur", normalizeZuluField);
   document.querySelector("#landingTime").addEventListener("blur", normalizeZuluField);
-  document.querySelector("#alternates").addEventListener("input", updateAlternatesCount);
+  setupAlternateListInput("#alternates", updateAlternatesCount);
+  setupAlternateListInput("#default-alternates", updateDefaultAlternatesCount);
   document.querySelector("#takeoff-plus-three").addEventListener("click", () => {
     setZuluOffsetField("takeoffTime", 3);
   });
@@ -170,10 +171,14 @@ function init() {
   document.querySelector("#collapse-all").addEventListener("click", () => setAllCardsOpen(false));
   banner.addEventListener("click", scrollToHighestPriorityItem);
   filterButtons.forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      const scrollY = window.scrollY;
       currentFilter = currentFilter === button.dataset.filter ? "all" : button.dataset.filter;
       updateFilterButtons();
       renderCards();
+      button.blur();
+      window.requestAnimationFrame(() => window.scrollTo(0, scrollY));
     });
   });
   document.querySelectorAll("button, .decision-banner[role='button']").forEach((element) => {
@@ -181,6 +186,8 @@ function init() {
   });
   banner.addEventListener("click", handleSummaryIssueClick);
   banner.addEventListener("keydown", handleSummaryIssueKeydown);
+  cards.addEventListener("click", handleWeatherSourceClick);
+  cards.addEventListener("keydown", handleWeatherSourceKeydown);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeRulebook();
@@ -680,7 +687,7 @@ function renderDecisionBanner() {
   const itemMarkup = items.map((item) => `
     <div class="summary-issue">
       <span class="summary-icao">${escapeHtml(item.icao)}</span>
-      <div class="issue-chips summary-chips">${item.chips.map((chip) => renderIssueChip(chip, item.icao)).join("")}</div>
+      ${item.chips.map((chip) => renderIssueChip(chip, item.icao)).join("")}
     </div>
   `).join("");
 
@@ -726,17 +733,17 @@ function handleSummaryIssueClick(event) {
   const chip = event.target.closest("[data-issue-icao]");
   if (!chip) return;
   event.stopPropagation();
-  scrollToIssue(chip.dataset.issueIcao, chip.dataset.issueLabel);
+  scrollToIssue(chip.dataset.issueIcao, chip.dataset.issueLabel, chip.dataset.issueStatus);
 }
 
 function handleSummaryIssueKeydown(event) {
   const chip = event.target.closest("[data-issue-icao]");
   if (!chip || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
-  scrollToIssue(chip.dataset.issueIcao, chip.dataset.issueLabel);
+  scrollToIssue(chip.dataset.issueIcao, chip.dataset.issueLabel, chip.dataset.issueStatus);
 }
 
-function scrollToIssue(icao, label) {
+function scrollToIssue(icao, label, status = "") {
   if (currentFilter !== "all") {
     currentFilter = "all";
     updateFilterButtons();
@@ -750,7 +757,7 @@ function scrollToIssue(icao, label) {
   details.open = true;
   const target = findIssueTarget(card, label) || card;
   target.scrollIntoView({ behavior: "smooth", block: "center" });
-  const focusClass = getIssueFocusClass(label);
+  const focusClass = getIssueFocusClass(label, status);
   target.classList.add("scroll-focus", focusClass);
   window.setTimeout(() => target.classList.remove("scroll-focus", focusClass), 1400);
 }
@@ -761,11 +768,14 @@ function findIssueTarget(card, label) {
   if (normalizedLabel.includes("VIS")) return card.querySelector(".wx-grid div:nth-child(2)");
   if (normalizedLabel.includes("WIND")) return card.querySelector(".wx-grid div:nth-child(3)");
   if (normalizedLabel.includes("CLOSED") || normalizedLabel.includes("NOTAM")) return card.querySelector(".notam-closed, .notam-limiting");
-  if (normalizedLabel.includes("OCONUS")) return card.querySelector("h3.impact-red");
+  if (normalizedLabel.includes("OCONUS")) return [...card.querySelectorAll(".issue-chip")].find((chip) => chip.textContent.trim().toUpperCase() === "OCONUS");
   return null;
 }
 
-function getIssueFocusClass(label) {
+function getIssueFocusClass(label, status = "") {
+  if (status === "red") return "scroll-focus-red";
+  if (status === "yellow") return "scroll-focus-yellow";
+  if (status === "green") return "scroll-focus-green";
   const normalizedLabel = label.toUpperCase();
   if (normalizedLabel.includes("LOW") || normalizedLabel.includes("CLOSED") || normalizedLabel.includes("OCONUS")) {
     return "scroll-focus-red";
@@ -774,6 +784,43 @@ function getIssueFocusClass(label) {
     return "scroll-focus-yellow";
   }
   return "scroll-focus-green";
+}
+
+function handleWeatherSourceClick(event) {
+  const tile = event.target.closest("[data-source-kind]");
+  if (!tile) return;
+  event.stopPropagation();
+  jumpToWeatherSource(tile);
+}
+
+function handleWeatherSourceKeydown(event) {
+  const tile = event.target.closest("[data-source-kind]");
+  if (!tile || !["Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+  jumpToWeatherSource(tile);
+}
+
+function jumpToWeatherSource(tile) {
+  const card = tile.closest(".result-card");
+  if (!card) return;
+  const details = card.querySelector(".card-disclosure");
+  if (details) details.open = true;
+
+  const sourceKey = tile.dataset.sourceKey;
+  const kind = tile.dataset.sourceKind;
+  const status = tile.dataset.sourceStatus || "green";
+  const line = card.querySelector(`.taf-decode-row[data-taf-key="${sourceKey}"]`)
+    || card.querySelector(".taf-decode-row.taf-applicable, .taf-decode-row.taf-window");
+  if (!line) return;
+
+  line.scrollIntoView({ behavior: "smooth", block: "center" });
+  const focusClass = getIssueFocusClass("", status);
+  line.classList.add("source-focus", focusClass);
+  line.querySelectorAll(`.taf-source-${kind}`).forEach((token) => token.classList.add("taf-source-focus", focusClass));
+  window.setTimeout(() => {
+    line.classList.remove("source-focus", focusClass);
+    line.querySelectorAll(".taf-source-focus").forEach((token) => token.classList.remove("taf-source-focus", focusClass));
+  }, 1800);
 }
 
 function getInputs() {
@@ -889,6 +936,7 @@ function populateDefaultsPanel(defaults) {
   document.querySelector("#default-departure").value = normalized.departure;
   document.querySelector("#default-destination").value = normalized.destination;
   document.querySelector("#default-alternates").value = normalized.alternates;
+  updateDefaultAlternatesCount();
   setDiceRegionButtons(normalized.diceRegions);
 }
 
@@ -1189,6 +1237,7 @@ function selectAirfield(icao) {
   if (activeAirfieldTarget === "alternates" || activeAirfieldTarget === "default-alternates") {
     addAirfieldToCommaList(field, icao);
     if (activeAirfieldTarget === "alternates") updateAlternatesCount();
+    if (activeAirfieldTarget === "default-alternates") updateDefaultAlternatesCount();
     document.querySelector("#airfield-search-input").value = "";
     renderAirfieldSearchResults();
     document.querySelector("#airfield-search-input").focus();
@@ -1200,12 +1249,57 @@ function selectAirfield(icao) {
 }
 
 function addAirfieldToCommaList(field, icao) {
-  const alternates = field.value
-    .split(",")
-    .map(normalizeIcao)
-    .filter(Boolean);
+  const alternates = parseAlternateList(field.value);
   if (!alternates.includes(icao)) alternates.push(icao);
   field.value = alternates.join(", ");
+}
+
+function setupAlternateListInput(selector, countUpdater) {
+  const field = document.querySelector(selector);
+  if (!field) return;
+  field.addEventListener("keydown", (event) => {
+    if (event.key !== " ") return;
+    const beforeCaret = field.value.slice(0, field.selectionStart || 0);
+    const currentToken = beforeCaret.split(/[\s,;]+/).pop();
+    if (!/^[A-Za-z0-9]{4}$/.test(currentToken || "")) return;
+    event.preventDefault();
+    formatAlternateListField(field, true);
+    countUpdater();
+  });
+  field.addEventListener("input", () => {
+    const previous = field.value;
+    const shouldFormat = /[\s;]/.test(previous) || /[a-z]/.test(previous) || /[A-Za-z0-9]{5,}/.test(previous.replace(/[\s,;]+/g, ""));
+    if (shouldFormat) formatAlternateListField(field, /[\s,;]$/.test(previous));
+    countUpdater();
+  });
+  field.addEventListener("blur", () => {
+    formatAlternateListField(field, false);
+    countUpdater();
+  });
+}
+
+function formatAlternateListField(field, keepTrailingSeparator = false) {
+  const raw = field.value;
+  const alternates = parseAlternateList(raw);
+  field.value = alternates.join(", ") + (keepTrailingSeparator && alternates.length ? ", " : "");
+}
+
+function parseAlternateList(value) {
+  const chunks = String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return chunks.flatMap((chunk) => {
+    const parts = [];
+    for (let index = 0; index < chunk.length; index += 4) {
+      const part = chunk.slice(index, index + 4);
+      if (part.length === 4) parts.push(part);
+    }
+    return parts;
+  });
 }
 
 function setupDefaultsKeyboardFlow() {
@@ -1224,11 +1318,17 @@ function setupDefaultsKeyboardFlow() {
 }
 
 function updateAlternatesCount() {
-  const count = document.querySelector("#alternates").value
-    .split(",")
-    .map(normalizeIcao)
-    .filter(Boolean).length;
-  const badge = document.querySelector("#alternates-count");
+  updateCommaListCount("#alternates", "#alternates-count");
+}
+
+function updateDefaultAlternatesCount() {
+  updateCommaListCount("#default-alternates", "#default-alternates-count");
+}
+
+function updateCommaListCount(fieldSelector, badgeSelector) {
+  const field = document.querySelector(fieldSelector);
+  const count = parseAlternateList(field.value).length;
+  const badge = document.querySelector(badgeSelector);
   if (badge) badge.textContent = String(count);
 }
 
@@ -1346,9 +1446,9 @@ function renderCard(result) {
   const period = result.period
     ? `
       <dl class="wx-grid">
-        <div class="${impactClass(result.weatherImpacts.ceiling)}"><dt>Ceiling</dt><dd>${formatCeilingDisplay(result.period)}</dd></div>
-        <div class="${impactClass(result.weatherImpacts.visibility)}"><dt>Visibility</dt><dd>${formatVisibilityDisplay(result.period)}</dd></div>
-        <div class="${impactClass(result.weatherImpacts.wind)}"><dt>Wind</dt><dd>${formatWindDisplay(result.period.wind)}</dd></div>
+        ${renderWeatherSourceTile("ceiling", "Ceiling", formatCeilingDisplay(result.period), result)}
+        ${renderWeatherSourceTile("visibility", "Visibility", formatVisibilityDisplay(result.period), result)}
+        ${renderWeatherSourceTile("wind", "Wind", formatWindDisplay(result.period.wind), result)}
       </dl>
     `
     : `<p class="raw-line">${result.tafRaw ? "Selected time is outside this TAF valid window." : "No TAF available from AWC for this airfield."}</p>`;
@@ -1361,7 +1461,7 @@ function renderCard(result) {
             <div class="card-main">
               <p class="role">${result.role}</p>
               <div class="airport-row">
-                <h3 class="${impactClass(result.locationImpact)}">${result.icao}</h3>
+                <h3>${result.icao}</h3>
                 <p class="airport-name">${result.name || "Airfield"}</p>
               </div>
             </div>
@@ -1401,9 +1501,20 @@ function renderCard(result) {
 
 function renderIssueChip(chip, icao = "") {
   const attrs = icao
-    ? ` role="button" tabindex="0" data-issue-icao="${escapeHtml(icao)}" data-issue-label="${escapeHtml(chip.label)}"`
+    ? ` role="button" tabindex="0" data-issue-icao="${escapeHtml(icao)}" data-issue-label="${escapeHtml(chip.label)}" data-issue-status="${escapeHtml(chip.status)}"`
     : "";
   return `<span class="issue-chip chip-${chip.status}"${attrs}>${escapeHtml(chip.label)}</span>`;
+}
+
+function renderWeatherSourceTile(kind, label, value, result) {
+  const status = result.weatherImpacts?.[kind] || "green";
+  const sourceKey = encodeTafKey(result.period?.raw || "");
+  return `
+    <div class="${impactClass(status)} wx-source-tile" role="button" tabindex="0" data-source-kind="${kind}" data-source-status="${status}" data-source-key="${escapeHtml(sourceKey)}" title="Jump to ${escapeHtml(label.toLowerCase())} source">
+      <dt>${escapeHtml(label)}</dt>
+      <dd>${value}</dd>
+    </div>
+  `;
 }
 
 function getWeatherProductChips(result) {
@@ -1520,15 +1631,42 @@ function renderTafLine(line, state, markers) {
     STATUS_RANK[marker.status] > STATUS_RANK[current] ? marker.status : current
   , "green");
   const statusClass = markers.length ? ` taf-status-${status}` : "";
+  const tafKey = encodeTafKey(line);
   return `
-    <details class="taf-decode-row${stateClass}${statusClass}">
+    <details class="taf-decode-row${stateClass}${statusClass}" data-taf-key="${escapeHtml(tafKey)}">
       <summary title="Tap to decode this TAF line">
-        <span>${escapeHtml(line)}</span>
+        <span>${renderTafSourceTokens(line)}</span>
         ${markers.length ? `<span class="taf-markers">${markers.map((marker) => `<span class="taf-marker marker-${marker.status}">${escapeHtml(marker.label)}</span>`).join("")}</span>` : ""}
       </summary>
       <div class="taf-decode">${renderTafDecode(line)}</div>
     </details>
   `;
+}
+
+function encodeTafKey(value) {
+  return encodeURIComponent(String(value || "").trim());
+}
+
+function renderTafSourceTokens(line) {
+  return String(line || "")
+    .trim()
+    .split(/(\s+)/)
+    .map((part) => {
+      if (/^\s+$/.test(part)) return part;
+      const classes = getTafSourceTokenClasses(part);
+      return classes.length
+        ? `<span class="${classes.join(" ")}">${escapeHtml(part)}</span>`
+        : escapeHtml(part);
+    })
+    .join("");
+}
+
+function getTafSourceTokenClasses(token) {
+  const classes = [];
+  if (/^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)$/.test(token)) classes.push("taf-source-wind");
+  if (token === "P6SM" || /^\d{1,2}(?:\/\d)?SM$/.test(token) || /^\d{4}$/.test(token) || matchCompactVisibilityWeatherToken(token)) classes.push("taf-source-visibility");
+  if (/^(BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU)?$/.test(token)) classes.push("taf-source-ceiling");
+  return classes;
 }
 
 function getTafLineStatus(line, target, result) {
