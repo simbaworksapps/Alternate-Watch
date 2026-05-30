@@ -1945,6 +1945,9 @@ ul {
     align-items: flex-start;
     display: grid;
     gap: 6px;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+    width: 100%;
   }
 
   #pulled-at {
@@ -1952,6 +1955,7 @@ ul {
     display: grid;
     gap: 6px;
     grid-template-columns: minmax(0, 1fr) auto;
+    justify-self: stretch;
     width: 100%;
   }
 
