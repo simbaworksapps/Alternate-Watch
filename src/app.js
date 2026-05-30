@@ -246,7 +246,7 @@ function updateNowReference() {
   const element = document.querySelector("#now-reference");
   if (!element) return;
   const now = new Date();
-  element.textContent = `${formatLocalNowReference(now)} | ${formatZuluTime(now)} (${formatUtcOffsetLabel(now)})`;
+  element.textContent = formatNowReference(now);
 }
 
 function setupBrandAnimation() {
@@ -2744,13 +2744,36 @@ function formatZuluTime(date) {
   return `${String(date.getUTCHours()).padStart(2, "0")}${String(date.getUTCMinutes()).padStart(2, "0")}Z`;
 }
 
-function formatLocalNowReference(date) {
+function formatNowReference(date) {
+  const localDate = formatLocalNowDate(date);
+  const zuluDate = formatZuluNowDate(date);
+  const localTime = formatLocalTime(date);
+  const zuluTime = formatZuluTime(date);
+  const offset = formatUtcOffsetLabel(date);
+  if (localDate === zuluDate) {
+    return `${localDate} ${localTime} | ${zuluTime} (${offset})`;
+  }
+  return `${localDate} ${localTime} | ${zuluDate} ${zuluTime} (${offset})`;
+}
+
+function formatLocalNowDate(date) {
   const day = String(date.getDate()).padStart(2, "0");
   const month = date.toLocaleString("en-US", { month: "short" });
   const year = date.getFullYear();
+  return `${day} ${month} ${year}`;
+}
+
+function formatZuluNowDate(date) {
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  const year = date.getUTCFullYear();
+  return `${day} ${month} ${year}`;
+}
+
+function formatLocalTime(date) {
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${day} ${month} ${year}, ${hours}${minutes}L`;
+  return `${hours}${minutes}L`;
 }
 
 function formatUtcOffsetLabel(date) {
