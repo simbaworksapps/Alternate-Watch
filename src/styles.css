@@ -483,6 +483,7 @@ button:disabled {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), 0 0 30px rgba(245, 197, 66, 0.18);
   color: var(--muted);
   font-size: 0.82rem;
+  isolation: isolate;
   line-height: 1.4;
   left: 50%;
   max-height: min(78vh, 620px);
@@ -503,12 +504,7 @@ button:disabled {
 body.rulebook-open::before,
 body.defaults-open::before,
 body.search-open::before {
-  background: rgba(0, 0, 0, 0.42);
-  content: "";
-  inset: 0;
-  pointer-events: none;
-  position: fixed;
-  z-index: 1000;
+  content: none;
 }
 
 .rulebook-header {
@@ -572,6 +568,45 @@ body.search-open::before {
 .defaults-actions button {
   min-height: 42px;
   padding: 8px;
+}
+
+.dice-region-setting {
+  align-items: center;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 10px;
+}
+
+.dice-region-icons {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.dice-region-icons .dice-icon {
+  flex: 0 0 auto;
+}
+
+.dice-region-buttons {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.region-toggle {
+  min-height: 38px;
+  padding: 8px;
+}
+
+.region-toggle[aria-pressed="true"] {
+  background: rgba(245, 197, 66, 0.18);
+  border-color: rgba(245, 197, 66, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(245, 197, 66, 0.16);
+  color: #ffe0a3;
 }
 
 .settings-button:hover,
@@ -639,6 +674,33 @@ body.search-open::before {
   width: 100%;
 }
 
+.airfield-result-wx {
+  display: flex;
+  gap: 5px;
+  grid-column: 2;
+}
+
+.wx-capability {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 1000;
+  padding: 2px 6px;
+}
+
+.wx-capability-on {
+  background: rgba(46, 212, 122, 0.12);
+  border-color: rgba(46, 212, 122, 0.5);
+  color: #bff5d8;
+}
+
+.wx-capability-off {
+  background: rgba(255, 95, 86, 0.1);
+  border-color: rgba(255, 95, 86, 0.32);
+  color: #c9a6a3;
+  opacity: 0.66;
+}
+
 .airfield-result-history {
   border-color: rgba(74, 163, 255, 0.5);
 }
@@ -648,7 +710,7 @@ body.search-open::before {
   content: "Recent";
   font-size: 0.68rem;
   font-weight: 1000;
-  grid-column: 2;
+  grid-column: 1 / -1;
   text-transform: uppercase;
 }
 

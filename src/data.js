@@ -535,7 +535,7 @@ function tafWindowFromGroup(group, issuedAt) {
 }
 
 function extractWind(raw) {
-  return raw.match(/\b(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?KT\b/)?.[0] || null;
+  return raw.match(/\b(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)\b/)?.[0] || null;
 }
 
 function extractVisibility(raw) {

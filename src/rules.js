@@ -101,7 +101,7 @@ function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulle
 function buildIssueChips(weatherStatus, notamStatus, locationStatus, notams) {
   const chips = [];
   const impacts = weatherStatus.impacts || {};
-  if (impacts.taf) chips.push({ label: weatherStatus.tafLabel || "TAF TIME", status: impacts.taf });
+  if (impacts.taf && weatherStatus.tafLabel !== "NO TAF") chips.push({ label: weatherStatus.tafLabel || "TAF TIME", status: impacts.taf });
   if (impacts.ceiling) chips.push({ label: "LOW CEILING", status: impacts.ceiling });
   if (impacts.visibility) chips.push({ label: "LOW VIS", status: impacts.visibility });
   if (impacts.wind) chips.push({ label: "HIGH WIND", status: impacts.wind });
@@ -262,10 +262,11 @@ function evaluateWind(wind) {
 }
 
 function getMaxWindSpeed(wind) {
-  const match = String(wind).match(/(?:\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT/);
+  const match = String(wind).match(/(?:\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)/);
   if (!match) return 0;
-  const sustained = Number(match[1]);
-  const gust = match[2] ? Number(match[2]) : sustained;
+  const multiplier = match[3] === "MPS" ? 1.94384 : 1;
+  const sustained = Math.round(Number(match[1]) * multiplier);
+  const gust = match[2] ? Math.round(Number(match[2]) * multiplier) : sustained;
   return Math.max(sustained, gust);
 }
 

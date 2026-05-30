@@ -10,7 +10,8 @@ const defaultAlternates = "KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI,
 const appDefaultMission = {
   departure: "KMCF",
   destination: "KMCF",
-  alternates: defaultAlternates
+  alternates: defaultAlternates,
+  diceRegions: { conus: true, oconus: true }
 };
 const missionDefaultsStorageKey = "alternateWatchMissionDefaults";
 const airfieldHistoryStorageKey = "alternateWatchAirfieldHistory";
@@ -117,6 +118,7 @@ let lastLiveRedPractice = null;
 let activeDiceAction = null;
 let activeAirfieldTarget = null;
 let airfieldSearchIndex = null;
+let weatherCapabilitySets = null;
 const scenarioHistory = [];
 
 init();
@@ -159,6 +161,8 @@ function init() {
   document.querySelector("#defaults-use-current").addEventListener("click", populateDefaultsFromCurrent);
   document.querySelector("#defaults-factory").addEventListener("click", populateFactoryDefaults);
   document.querySelector("#defaults-save").addEventListener("click", saveDefaultsFromPanel);
+  setupDiceRegionToggles();
+  setupDefaultsKeyboardFlow();
   setupAirfieldSearch();
   resetPracticeWeatherButton();
   updateAlternatesCount();
@@ -193,7 +197,9 @@ function init() {
     if (document.body.classList.contains("defaults-open")) {
       const panel = document.querySelector("#defaults-panel");
       const toggle = document.querySelector("#defaults-toggle");
-      if (!panel.contains(event.target) && !toggle.contains(event.target)) closeDefaultsPanel();
+      const searchPanel = document.querySelector("#airfield-search-panel");
+      const clickedSearchPanel = searchPanel && searchPanel.contains(event.target);
+      if (!panel.contains(event.target) && !toggle.contains(event.target) && !clickedSearchPanel) closeDefaultsPanel();
     }
     if (document.body.classList.contains("search-open")) {
       const panel = document.querySelector("#airfield-search-panel");
@@ -290,12 +296,12 @@ async function rollRandomMission() {
       return;
     }
 
-    await render(true);
+    await render({ showSubmitFeedback: true, preserveButtonMessage: true });
     if (!isActiveDiceAction(action)) {
       setRawInputValues(previousInputs);
       scenarioHistory.pop();
       updatePreviousScenarioButton();
-      await render();
+      await render({ preserveButtonMessage: true });
     }
   } finally {
     button.classList.remove("dice-thinking");
@@ -350,19 +356,17 @@ async function generatePracticeWeatherMission() {
     if (selected.count > 0) {
       missionDataOverride = null;
       lastLiveRedPractice = selected;
-      missionNotice = selected.count === 3
-        ? "Live red-weather practice mission loaded."
-        : `Only found ${selected.count}/3 live red-weather fields; live partial practice mission loaded.`;
+      missionNotice = selected.count === 3 ? "" : `Only found ${selected.count}/3 red-weather fields.`;
     } else if (lastLiveRedPractice) {
       selected = lastLiveRedPractice;
       missionDataOverride = null;
-      missionNotice = "No new live red-weather fields found; last live red practice mission reused.";
+      missionNotice = "Last red-weather practice reused.";
     } else {
       const practiceData = getRedPracticeMissionData();
       selected = findRedPracticeSelection(practiceData, takeoff, landing, Object.keys(practiceData.airports));
       selected.sample = true;
       missionDataOverride = practiceData;
-      missionNotice = "No live red-weather fields found; sample red practice fields loaded.";
+      missionNotice = "Sample red-weather practice loaded.";
     }
 
     pushScenarioHistory(previousInputs);
@@ -373,12 +377,12 @@ async function generatePracticeWeatherMission() {
       updatePreviousScenarioButton();
       return;
     }
-    await render(true);
+    await render({ showSubmitFeedback: false, preserveButtonMessage: true });
     if (!isActiveDiceAction(action)) {
       setRawInputValues(previousInputs);
       scenarioHistory.pop();
       updatePreviousScenarioButton();
-      await render();
+      await render({ preserveButtonMessage: true });
       return;
     }
     const finalStatus = selected.sample ? "partial" : selected.count === 3 ? "success" : selected.count > 0 ? "partial" : "unable";
@@ -582,9 +586,12 @@ function pickUnique(values, count) {
   return pool.slice(0, count);
 }
 
-async function render(showSubmitFeedback = false) {
+async function render(options = false) {
+  const renderOptions = typeof options === "boolean"
+    ? { showSubmitFeedback: options, preserveButtonMessage: false }
+    : { showSubmitFeedback: false, preserveButtonMessage: false, ...options };
   const inputs = getInputs();
-  setSubmitButtonStatus("searching");
+  if (!renderOptions.preserveButtonMessage) setSubmitButtonStatus("searching");
   const missionData = missionDataOverride || await getLiveMissionData(getRequestedIcaos(inputs));
   if (missionDataOverride) {
     rulesMetadata.weatherSource = "Practice";
@@ -620,9 +627,9 @@ async function render(showSubmitFeedback = false) {
   renderCards();
   updateFilterButtons();
   updateFilterCounts();
-  if (showSubmitFeedback) {
+  if (renderOptions.showSubmitFeedback) {
     setSubmitButtonStatus(rulesMetadata.weatherSource === "AWC" ? "success" : "unable");
-  } else {
+  } else if (!renderOptions.preserveButtonMessage) {
     setSubmitButtonStatus("idle");
   }
 }
@@ -855,8 +862,18 @@ function normalizeMissionDefaults(defaults) {
   return {
     departure: normalizeIcao(defaults.departure || appDefaultMission.departure) || appDefaultMission.departure,
     destination: normalizeIcao(defaults.destination || appDefaultMission.destination) || appDefaultMission.destination,
-    alternates: normalizeAlternates(defaults.alternates || appDefaultMission.alternates) || appDefaultMission.alternates
+    alternates: normalizeAlternates(defaults.alternates || appDefaultMission.alternates) || appDefaultMission.alternates,
+    diceRegions: normalizeDiceRegions(defaults.diceRegions)
   };
+}
+
+function normalizeDiceRegions(regions) {
+  const normalized = {
+    conus: regions?.conus !== false,
+    oconus: regions?.oconus !== false
+  };
+  if (!normalized.conus && !normalized.oconus) normalized.conus = true;
+  return normalized;
 }
 
 function normalizeAlternates(value) {
@@ -872,13 +889,15 @@ function populateDefaultsPanel(defaults) {
   document.querySelector("#default-departure").value = normalized.departure;
   document.querySelector("#default-destination").value = normalized.destination;
   document.querySelector("#default-alternates").value = normalized.alternates;
+  setDiceRegionButtons(normalized.diceRegions);
 }
 
 function populateDefaultsFromCurrent() {
   populateDefaultsPanel({
     departure: document.querySelector("#departure").value,
     destination: document.querySelector("#destination").value,
-    alternates: document.querySelector("#alternates").value
+    alternates: document.querySelector("#alternates").value,
+    diceRegions: getDiceRegionsFromButtons()
   });
 }
 
@@ -890,7 +909,8 @@ function saveDefaultsFromPanel() {
   const defaults = normalizeMissionDefaults({
     departure: document.querySelector("#default-departure").value,
     destination: document.querySelector("#default-destination").value,
-    alternates: document.querySelector("#default-alternates").value
+    alternates: document.querySelector("#default-alternates").value,
+    diceRegions: getDiceRegionsFromButtons()
   });
   try {
     localStorage.setItem(missionDefaultsStorageKey, JSON.stringify(defaults));
@@ -902,6 +922,31 @@ function saveDefaultsFromPanel() {
   document.querySelector("#alternates").value = defaults.alternates;
   updateAlternatesCount();
   closeDefaultsPanel();
+}
+
+function setupDiceRegionToggles() {
+  document.querySelectorAll(".region-toggle").forEach((button) => {
+    button.addEventListener("click", () => {
+      const next = {
+        ...getDiceRegionsFromButtons(),
+        [button.dataset.region]: button.getAttribute("aria-pressed") !== "true"
+      };
+      setDiceRegionButtons(normalizeDiceRegions(next));
+    });
+  });
+}
+
+function getDiceRegionsFromButtons() {
+  return {
+    conus: document.querySelector("#dice-conus-toggle")?.getAttribute("aria-pressed") === "true",
+    oconus: document.querySelector("#dice-oconus-toggle")?.getAttribute("aria-pressed") === "true"
+  };
+}
+
+function setDiceRegionButtons(regions) {
+  const normalized = normalizeDiceRegions(regions);
+  document.querySelector("#dice-conus-toggle")?.setAttribute("aria-pressed", String(normalized.conus));
+  document.querySelector("#dice-oconus-toggle")?.setAttribute("aria-pressed", String(normalized.oconus));
 }
 
 function setupAirfieldSearch() {
@@ -926,14 +971,15 @@ function setupAirfieldSearch() {
 }
 
 function openAirfieldSearch(target) {
-  if (!["departure", "destination", "alternates"].includes(target)) return;
+  const searchableTargets = ["departure", "destination", "alternates", "default-departure", "default-destination", "default-alternates"];
+  if (!searchableTargets.includes(target)) return;
   closeRulebook();
-  closeDefaultsPanel();
+  if (!target.startsWith("default-")) closeDefaultsPanel();
   activeAirfieldTarget = target;
 
   const panel = document.querySelector("#airfield-search-panel");
   const input = document.querySelector("#airfield-search-input");
-  document.querySelector("#airfield-search-title").textContent = `Search ${target === "departure" ? "Departure" : target === "destination" ? "Destination" : "Alternates"}`;
+  document.querySelector("#airfield-search-title").textContent = getAirfieldSearchTitle(target);
   input.value = "";
   panel.hidden = false;
   document.body.classList.add("search-open");
@@ -957,6 +1003,18 @@ function setSearchButtonsExpanded(isExpanded) {
   });
 }
 
+function getAirfieldSearchTitle(target) {
+  const titles = {
+    departure: "Search Departure",
+    destination: "Search Destination",
+    alternates: "Search Alternates",
+    "default-departure": "Search Default Departure",
+    "default-destination": "Search Default Destination",
+    "default-alternates": "Search Default Alternates"
+  };
+  return titles[target] || "Search Airfield";
+}
+
 function renderAirfieldSearchResults() {
   const results = document.querySelector("#airfield-search-results");
   const query = document.querySelector("#airfield-search-input").value.trim();
@@ -967,12 +1025,19 @@ function renderAirfieldSearchResults() {
   }
 
   results.innerHTML = matches
-    .map((record) => `
+    .map((record) => {
+      const capability = getWeatherCapability(record.icao);
+      return `
       <button type="button" class="airfield-result ${record.recent ? "airfield-result-history" : ""}" data-icao="${escapeHtml(record.icao)}" role="option">
         <span class="airfield-result-code">${escapeHtml(record.icao)}</span>
         <span class="airfield-result-name">${escapeHtml(record.name || record.icao)}</span>
+        <span class="airfield-result-wx">
+          <span class="wx-capability ${capability.metar ? "wx-capability-on" : "wx-capability-off"}">METAR</span>
+          <span class="wx-capability ${capability.taf ? "wx-capability-on" : "wx-capability-off"}">TAF</span>
+        </span>
       </button>
-    `)
+    `;
+    })
     .join("");
 }
 
@@ -1029,7 +1094,8 @@ function buildAirfieldSearchIndex() {
       city,
       country,
       type,
-      aliases: ""
+      aliases: "",
+      ...getWeatherCapability(icao)
     });
   });
 
@@ -1042,7 +1108,8 @@ function buildAirfieldSearchIndex() {
       name: sample.name || airportNameFallbacks[icao] || icao,
       city: getAirfieldCityAlias(icao),
       country: sample.conus === false || !isLikelyConus(icao) ? "OCONUS" : "CONUS",
-      aliases: getAirfieldCityAlias(icao)
+      aliases: getAirfieldCityAlias(icao),
+      ...getWeatherCapability(icao)
     });
   });
 
@@ -1052,10 +1119,36 @@ function buildAirfieldSearchIndex() {
 
 function getDiceAirfieldPool() {
   const knownTrainingFields = [...globalRandomMissionFields, ...globalPracticeWeatherFields];
+  const regions = getMissionDefaults().diceRegions;
   const databaseFields = buildAirfieldSearchIndex()
-    .filter((record) => ["large", "medium"].includes(record.type))
+    .filter((record) => ["large", "medium"].includes(record.type) && record.metar && record.taf)
+    .filter((record) => diceRegionAllows(record.icao, regions))
     .map((record) => record.icao);
-  return [...new Set([...knownTrainingFields, ...databaseFields])].filter((icao) => /^[A-Z][A-Z0-9]{3}$/.test(icao));
+  return [...new Set([...knownTrainingFields, ...databaseFields])]
+    .filter((icao) => /^[A-Z][A-Z0-9]{3}$/.test(icao))
+    .filter((icao) => diceRegionAllows(icao, regions))
+    .filter((icao) => {
+      const capability = getWeatherCapability(icao);
+      return capability.metar && capability.taf;
+    });
+}
+
+function diceRegionAllows(icao, regions) {
+  return isLikelyConus(icao) ? regions.conus : regions.oconus;
+}
+
+function getWeatherCapability(icao) {
+  if (!weatherCapabilitySets) {
+    const source = window.WEATHER_STATION_CAPABILITIES || {};
+    weatherCapabilitySets = {
+      metar: new Set(source.metar || []),
+      taf: new Set(source.taf || [])
+    };
+  }
+  return {
+    metar: weatherCapabilitySets.metar.has(icao),
+    taf: weatherCapabilitySets.taf.has(icao)
+  };
 }
 
 function getAirfieldCityAlias(icao) {
@@ -1093,8 +1186,9 @@ function selectAirfield(icao) {
   if (!activeAirfieldTarget) return;
   const field = document.querySelector(`#${activeAirfieldTarget}`);
   saveRecentAirfield(icao);
-  if (activeAirfieldTarget === "alternates") {
-    addAlternateAirfield(icao);
+  if (activeAirfieldTarget === "alternates" || activeAirfieldTarget === "default-alternates") {
+    addAirfieldToCommaList(field, icao);
+    if (activeAirfieldTarget === "alternates") updateAlternatesCount();
     document.querySelector("#airfield-search-input").value = "";
     renderAirfieldSearchResults();
     document.querySelector("#airfield-search-input").focus();
@@ -1105,15 +1199,28 @@ function selectAirfield(icao) {
   field.focus();
 }
 
-function addAlternateAirfield(icao) {
-  const field = document.querySelector("#alternates");
+function addAirfieldToCommaList(field, icao) {
   const alternates = field.value
     .split(",")
     .map(normalizeIcao)
     .filter(Boolean);
   if (!alternates.includes(icao)) alternates.push(icao);
   field.value = alternates.join(", ");
-  updateAlternatesCount();
+}
+
+function setupDefaultsKeyboardFlow() {
+  const fields = ["default-departure", "default-destination", "default-alternates"];
+  fields.forEach((fieldId, index) => {
+    document.querySelector(`#${fieldId}`).addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      if (index < fields.length - 1) {
+        document.querySelector(`#${fields[index + 1]}`).focus();
+        return;
+      }
+      saveDefaultsFromPanel();
+    });
+  });
 }
 
 function updateAlternatesCount() {
@@ -1231,7 +1338,11 @@ function renderCard(result) {
     : rulesMetadata.notamAvailable
       ? "<li>No active NOTAMs for selected time.</li>"
       : '<li class="notam-unavailable">NOTAM feature currently unavailable.</li>';
-  const chips = `<div class="issue-chips">${(result.chips || [{ label: "NO ISSUES", status: "green" }]).map(renderIssueChip).join("")}</div>`;
+  const cardChips = [
+    ...(result.chips || [{ label: "NO ISSUES", status: "green" }]),
+    ...getWeatherProductChips(result)
+  ];
+  const chips = `<div class="issue-chips">${cardChips.map(renderIssueChip).join("")}</div>`;
   const period = result.period
     ? `
       <dl class="wx-grid">
@@ -1295,6 +1406,13 @@ function renderIssueChip(chip, icao = "") {
   return `<span class="issue-chip chip-${chip.status}"${attrs}>${escapeHtml(chip.label)}</span>`;
 }
 
+function getWeatherProductChips(result) {
+  return [
+    { label: result.metar ? "METAR" : "NO METAR", status: result.metar ? "green" : "yellow" },
+    { label: result.tafRaw ? "TAF" : "NO TAF", status: result.tafRaw ? "green" : "yellow" }
+  ];
+}
+
 function renderDataAgeBadge(pulledAtValue) {
   const ageMinutes = Math.floor((Date.now() - new Date(pulledAtValue).getTime()) / 60000);
   if (ageMinutes >= 60) {
@@ -1354,7 +1472,12 @@ function formatVisibilityDisplay(period) {
 }
 
 function formatWindDisplay(wind) {
-  return wind === "00000KT" ? "Calm" : wind;
+  if (wind === "00000KT" || wind === "00000MPS") return "Calm";
+  const mps = String(wind || "").match(/^((?:\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?)MPS$/);
+  if (!mps) return wind;
+  const speedKt = Math.round(Number(mps[2]) * 1.94384);
+  const gustKt = mps[3] ? Math.round(Number(mps[3]) * 1.94384) : null;
+  return `${mps[1]}MPS <span class="vis-separator">|</span> ${speedKt}${gustKt ? `G${gustKt}` : ""}KT`;
 }
 
 function renderHighlightedTaf(result) {
@@ -1560,7 +1683,7 @@ function decodeTafLine(line) {
     items.push({ label: "From", value: decodeTafBoundary(fm[1].slice(0, 4), fm[1].slice(4, 6)) });
   }
 
-  const wind = line.match(/\b((?:\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT)\b/);
+  const wind = line.match(/\b((?:\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS))\b/);
   if (wind) items.push({ label: "Wind", value: decodeWindToken(wind) });
 
   const visibility = decodeVisibilityToken(tokens);
@@ -1571,6 +1694,7 @@ function decodeTafLine(line) {
 
   const clouds = decodeCloudTokens(tokens);
   if (clouds.length) items.push({ label: "Clouds", value: clouds.join("; ") });
+  if (tokens.includes("NSC")) items.push({ label: "Clouds", value: "No significant cloud." });
 
   const remarks = decodeTafRemarks(tokens);
   if (remarks.length) items.push({ label: "Remarks", value: remarks.join("; ") });
@@ -1593,7 +1717,7 @@ function decodeMetarLine(line) {
   if (tokens.includes("AUTO")) items.push({ label: "Report Type", value: "Automated observation." });
   if (tokens.includes("COR")) items.push({ label: "Correction", value: "Corrected report." });
 
-  const wind = line.match(/\b((?:\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT)\b/);
+  const wind = line.match(/\b((?:\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS))\b/);
   if (wind) items.push({ label: "Wind", value: decodeWindToken(wind) });
 
   const visibility = decodeVisibilityToken(tokens);
@@ -1609,6 +1733,7 @@ function decodeMetarLine(line) {
   if (clouds.length) items.push({ label: "Clouds", value: clouds.join("; ") });
   if (tokens.includes("CLR")) items.push({ label: "Clouds", value: "Clear below reporting limits." });
   if (tokens.includes("SKC")) items.push({ label: "Clouds", value: "Sky clear." });
+  if (tokens.includes("NSC")) items.push({ label: "Clouds", value: "No significant cloud." });
 
   const tempDew = tokens.find((token) => /^(M?\d{2}|M)\/(M?\d{2}|M|M?\/\/)$/.test(token));
   if (tempDew) items.push({ label: "Temperature", value: decodeTempDewpoint(tempDew) });
@@ -1639,7 +1764,7 @@ function isKnownTafToken(token, index, tokens) {
   if (isWeatherToken(token)) return true;
   if (/^FM\d{6}$/.test(token)) return true;
   if (/^\d{4}\/\d{4}$/.test(token)) return true;
-  if (/^(TAF|AMD|COR|TEMPO|BECMG|NSW|CAVOK|NIL|CNL|LAST|NO|AFT|NEXT|RMK)$/.test(token)) return true;
+  if (/^(TAF|AMD|COR|TEMPO|BECMG|NSW|NSC|CAVOK|NIL|CNL|LAST|NO|AFT|NEXT|RMK)$/.test(token)) return true;
   if (/^PROB\d{2}$/.test(token)) return true;
   if (/^(TX|TN)(M?\d{2})\/(\d{4})Z$/.test(token)) return true;
   if (/^QNH\d{4}INS$/.test(token)) return true;
@@ -1654,8 +1779,12 @@ function isKnownTafToken(token, index, tokens) {
 function isKnownMetarToken(token, index, tokens) {
   if (isCommonAviationToken(token)) return true;
   if (isWeatherToken(token)) return true;
-  if (/^(METAR|SPECI|AUTO|COR|RMK|CAVOK|NIL)$/.test(token)) return true;
+  if (/^(METAR|SPECI|AUTO|COR|RMK|CAVOK|NIL|NSC)$/.test(token)) return true;
   if (/^(AO1|AO2|TSNO|FZRANO|\$)$/.test(token)) return true;
+  if (/^(NOSIG|OBST|OBSC|BIRD|HAZARD|RWY)$/.test(token)) return true;
+  if (/^R\d{2}[LCR]?\/\d{6}$/.test(token)) return true;
+  if (/^PP\d{3}$/.test(token)) return true;
+  if (/^\d{2}\/\d{2}$/.test(token) && tokens[index - 1] === "RWY") return true;
   if (/^SLP\d{3}$/.test(token)) return true;
   if (/^T[01]\d{3}[01]\d{3}$/.test(token)) return true;
   if (/^P\d{4}$/.test(token)) return true;
@@ -1675,13 +1804,13 @@ function isKnownMetarToken(token, index, tokens) {
 function isCommonAviationToken(token) {
   return /^[A-Z0-9]{4}$/.test(token)
     || /^\d{6}Z$/.test(token)
-    || /^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?KT$/.test(token)
+    || /^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)$/.test(token)
     || token === "P6SM"
     || /^\d{1,2}(?:\/\d)?SM$/.test(token)
     || /^\d{4}$/.test(token)
     || /^R\d{2}[LCR]?\/[PM]?\d{4}V?[PM]?\d{4}FT$/.test(token)
     || /^(FEW|SCT|BKN|OVC|VV)\d{3}(CB|TCU)?$/.test(token)
-    || /^(CLR|SKC)$/.test(token)
+    || /^(CLR|SKC|NSC)$/.test(token)
     || /^(M?\d{2}|M)\/(M?\d{2}|M|M?\/\/)$/.test(token)
     || /^A\d{4}$/.test(token)
     || /^Q\d{4}$/.test(token);
@@ -1722,11 +1851,15 @@ function decodeTafBoundary(dayHour, minute = "00") {
 }
 
 function decodeWindToken(match) {
-  if (match[1] === "00000KT") return "Calm.";
+  if (match[1] === "00000KT" || match[1] === "00000MPS") return "Calm.";
   const direction = match[1].startsWith("VRB") ? "variable" : `${match[1].slice(0, 3)} degrees`;
+  const unit = match[4] === "MPS" ? "meters per second" : "kt";
   const speed = Number(match[2]);
-  const gust = match[3] ? `, gusting ${Number(match[3])} kt` : "";
-  return `${direction} at ${speed} kt${gust}.`;
+  const speedKt = match[4] === "MPS" ? ` (${Math.round(speed * 1.94384)} kt)` : "";
+  const gust = match[3]
+    ? `, gusting ${Number(match[3])} ${unit}${match[4] === "MPS" ? ` (${Math.round(Number(match[3]) * 1.94384)} kt)` : ""}`
+    : "";
+  return `${direction} at ${speed} ${unit}${speedKt}${gust}.`;
 }
 
 function decodeVisibilityToken(tokens) {
@@ -1762,7 +1895,7 @@ function decodeWeatherTokens(tokens) {
 
 function isWeatherToken(token) {
   if (!/^[-+]?[A-Z]{2,}$/.test(token)) return false;
-  if (/^(METAR|SPECI|AUTO|COR|RMK|QNH|LAST|NEXT|AFT|NIL|SKC|CLR)$/.test(token)) return false;
+  if (/^(METAR|SPECI|AUTO|COR|RMK|QNH|LAST|NEXT|AFT|NIL|SKC|CLR|NSC)$/.test(token)) return false;
   if (/^[A-Z0-9]{4}$/.test(token)) return false;
   if (/^(FEW|SCT|BKN|OVC|VV)\d{3}/.test(token)) return false;
   const clean = token.replace(/^[-+]/, "");
@@ -1846,6 +1979,10 @@ function decodeMetarRemarks(tokens) {
     if (minTemp) remarks.push(`Six-hour minimum temperature ${decodeTenthsTemp(minTemp[1], minTemp[2])}C.`);
     const pressureTendency = token.match(/^5(\d)(\d{3})$/);
     if (pressureTendency) remarks.push(`Three-hour pressure tendency code ${pressureTendency[1]}, change ${Number(pressureTendency[2]) / 10} hPa.`);
+    const runwayState = token.match(/^R(\d{2}[LCR]?)\/(\d{2})(\d{2})(\d{2})$/);
+    if (runwayState) remarks.push(decodeRunwayState(runwayState));
+    const pressurePrecip = token.match(/^PP(\d{3})$/);
+    if (pressurePrecip) remarks.push(`Pressure tendency or precipitation group ${token} retained for reference.`);
     if (/^DZB\d{2}E\d{2}$/.test(token)) remarks.push(`Drizzle began and ended during the hour: ${token}.`);
     const rainEvent = token.match(/^RA(B|E)(\d{2})(\d{2})?$/);
     if (rainEvent) remarks.push(`Rain ${rainEvent[1] === "B" ? "began" : "ended"} at ${rainEvent[2]}${rainEvent[3] || ""}Z.`);
@@ -1854,8 +1991,18 @@ function decodeMetarRemarks(tokens) {
     if (token === "LTG" && rmk[index + 1] === "DSNT") remarks.push(`Lightning distant ${decodeDirection(rmk[index + 2] || "")}.`);
     if (token === "$") remarks.push("Automated station maintenance check indicator.");
     if (token === "PK" && rmk[index + 1] === "WND") remarks.push(decodePeakWind(rmk[index + 2], rmk[index + 3]));
+    if (token === "OBST" && rmk[index + 1] === "OBSC") remarks.push("Obstruction obscuring observed.");
+    if (token === "NOSIG") remarks.push("No significant change expected.");
+    if (token === "BIRD" && rmk[index + 1] === "HAZARD") {
+      const runway = rmk[index + 2] === "RWY" ? ` runway ${rmk[index + 3] || ""}` : "";
+      remarks.push(`Bird hazard${runway}.`.trim());
+    }
   });
   return remarks.length ? remarks : [`Raw remarks: ${rmk.join(" ")}.`];
+}
+
+function decodeRunwayState(match) {
+  return `Runway ${match[1]} state group: deposit code ${match[2]}, contamination/friction code ${match[3]}, depth/braking code ${match[4]}.`;
 }
 
 function decodePeakWind(wind, time) {

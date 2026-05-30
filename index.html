@@ -120,16 +120,35 @@
             <p>Set the mission fields restored by the refresh button on this device.</p>
             <label>
               <span>Default departure</span>
-              <input id="default-departure" maxlength="4" autocomplete="off" />
+              <div class="input-action-row">
+                <input id="default-departure" maxlength="4" autocomplete="off" />
+                <button type="button" class="secondary-button symbol-button search-button" id="default-departure-search" data-search-target="default-departure" aria-expanded="false" aria-controls="airfield-search-panel" aria-label="Search default departure airfield" title="Search default departure airfield"><span class="search-icon" aria-hidden="true"></span></button>
+              </div>
             </label>
             <label>
               <span>Default destination</span>
-              <input id="default-destination" maxlength="4" autocomplete="off" />
+              <div class="input-action-row">
+                <input id="default-destination" maxlength="4" autocomplete="off" />
+                <button type="button" class="secondary-button symbol-button search-button" id="default-destination-search" data-search-target="default-destination" aria-expanded="false" aria-controls="airfield-search-panel" aria-label="Search default destination airfield" title="Search default destination airfield"><span class="search-icon" aria-hidden="true"></span></button>
+              </div>
             </label>
             <label>
               <span>Default alternates</span>
-              <input id="default-alternates" autocomplete="off" />
+              <div class="input-action-row">
+                <input id="default-alternates" autocomplete="off" />
+                <button type="button" class="secondary-button symbol-button search-button" id="default-alternates-search" data-search-target="default-alternates" aria-expanded="false" aria-controls="airfield-search-panel" aria-label="Search default alternate airfields" title="Search default alternate airfields"><span class="search-icon" aria-hidden="true"></span></button>
+              </div>
             </label>
+            <div class="dice-region-setting" aria-label="Dice region setting">
+              <div class="dice-region-icons" aria-hidden="true">
+                <span class="dice-icon"></span>
+                <span class="dice-icon risk-dice-icon"></span>
+              </div>
+              <div class="dice-region-buttons">
+                <button type="button" class="secondary-button region-toggle" id="dice-conus-toggle" data-region="conus" aria-pressed="true">CONUS</button>
+                <button type="button" class="secondary-button region-toggle" id="dice-oconus-toggle" data-region="oconus" aria-pressed="true">OCONUS</button>
+              </div>
+            </div>
             <div class="defaults-actions">
               <button type="button" class="secondary-button" id="defaults-use-current">Use Current</button>
               <button type="button" class="secondary-button" id="defaults-factory">Factory</button>
@@ -187,6 +206,7 @@
     <script src="./src/data.js"></script>
     <script src="./src/rules.js"></script>
     <script src="./src/airports.js"></script>
+    <script src="./src/weather-stations.js"></script>
     <script src="./src/app.js"></script>
   </body>
 </html>

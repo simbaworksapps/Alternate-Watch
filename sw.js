@@ -1,4 +1,4 @@
-const CACHE_NAME = "simba-alternate-watch-v118";
+const CACHE_NAME = "simba-alternate-watch-v134";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -8,7 +8,8 @@ const APP_SHELL = [
   "./src/airports.js",
   "./src/data.js",
   "./src/rules.js",
-  "./src/styles.css"
+  "./src/styles.css",
+  "./src/weather-stations.js"
 ];
 
 self.addEventListener("install", (event) => {
