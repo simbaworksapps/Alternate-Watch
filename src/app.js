@@ -18,6 +18,7 @@ const practiceWeatherFields = [
 ];
 let currentFilter = "all";
 let latestEvaluation = null;
+let missionNotice = "";
 
 init();
 
@@ -105,6 +106,7 @@ function clearMissionInputs() {
 }
 
 function generateRandomMission() {
+  missionNotice = "";
   const [departure, destination, alternate] = pickUnique(randomMissionFields, 3);
   applyMissionFields(departure, destination, [alternate]);
 }
@@ -126,10 +128,28 @@ async function generatePracticeWeatherMission() {
     };
     const missionData = await getLiveMissionData(practiceWeatherFields);
     const evaluated = evaluateMission(candidateInputs, missionData);
-    const issueFields = evaluated.results
-      .filter((result) => result.status !== "green")
+    let redFields = evaluated.results
+      .filter((result) => result.status === "red")
       .map((result) => result.icao);
-    const selected = pickUnique(issueFields.length >= 3 ? issueFields : practiceWeatherFields, 3);
+
+    if (redFields.length < 3) {
+      const practiceData = getRedPracticeMissionData();
+      const practiceEvaluation = evaluateMission({
+        departure: "KDOV",
+        destination: "KRIC",
+        takeoffTime: takeoff.toISOString(),
+        landingTime: landing.toISOString(),
+        alternates: Object.keys(practiceData.airports)
+      }, practiceData);
+      redFields = practiceEvaluation.results
+        .filter((result) => result.status === "red")
+        .map((result) => result.icao);
+      missionNotice = "Unable to find enough live red-weather airfields; sample red practice fields loaded.";
+    } else {
+      missionNotice = "";
+    }
+
+    const selected = pickUnique(redFields, 3);
     applyMissionFields(selected[0], selected[1], [selected[2]], takeoff, landing);
     await render();
   } finally {
@@ -169,6 +189,9 @@ async function render() {
   missionSummary.dataset.source = rulesMetadata.weatherSource;
   if (rulesMetadata.weatherSource !== "AWC") {
     missionSummary.textContent += " | WX !";
+  }
+  if (missionNotice) {
+    missionSummary.textContent += ` | ${missionNotice}`;
   }
 
   banner.className = `decision-banner status-${latestEvaluation.summary.status}`;
@@ -385,7 +408,7 @@ function renderCard(result) {
         <div class="${impactClass(result.weatherImpacts.wind)}"><dt>Wind</dt><dd>${result.period.wind}</dd></div>
       </dl>
     `
-    : `<p class="raw-line">No matching TAF period for selected time.</p>`;
+    : `<p class="raw-line">${result.tafRaw ? "No matching TAF period for selected time." : "No TAF available from AWC for this airfield."}</p>`;
 
   return `
     <article class="result-card status-${cardStatus}" data-icao="${result.icao}" data-rule-status="${result.status}">

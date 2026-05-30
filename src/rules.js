@@ -61,9 +61,10 @@ function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulle
     };
   }
 
-  const period = findApplicablePeriod(airport.taf, targetTime);
+  const hasTaf = Boolean(airport.tafRaw && airport.taf?.length);
+  const period = hasTaf ? findApplicablePeriod(airport.taf, targetTime) : null;
   const activeNotams = rulesMetadata.notamAvailable ? findActiveNotams(airport.notams, targetTime) : [];
-  const weatherStatus = evaluateWeather(period, ruleType);
+  const weatherStatus = evaluateWeather(period, ruleType, hasTaf);
   const notamStatus = evaluateNotams(activeNotams);
   const locationStatus = evaluateLocation(airport, ruleType);
   const status = [weatherStatus, notamStatus, locationStatus].reduce((current, item) =>
@@ -97,6 +98,7 @@ function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulle
 function buildIssueChips(weatherStatus, notamStatus, locationStatus, notams) {
   const chips = [];
   const impacts = weatherStatus.impacts || {};
+  if (impacts.taf) chips.push({ label: "NO TAF", status: impacts.taf });
   if (impacts.ceiling) chips.push({ label: "LOW CEILING", status: impacts.ceiling });
   if (impacts.visibility) chips.push({ label: "LOW VIS", status: impacts.visibility });
   if (impacts.wind) chips.push({ label: "HIGH WIND", status: impacts.wind });
@@ -143,11 +145,11 @@ function findActiveNotams(notams, targetTime) {
   return notams.filter((notam) => target >= new Date(notam.starts).getTime() && target <= new Date(notam.ends).getTime());
 }
 
-function evaluateWeather(period, ruleType) {
+function evaluateWeather(period, ruleType, hasTaf = true) {
   if (!period) {
     return {
       status: "yellow",
-      reason: "No TAF period covers the selected mission time.",
+      reason: hasTaf ? "No TAF period covers the selected mission time." : "No TAF is available from AWC for this airfield.",
       impacts: { taf: "yellow" }
     };
   }

@@ -666,6 +666,55 @@ function createSampleAirport(icao, name, wind, ceilingFt, visibilitySm) {
   };
 }
 
+function getRedPracticeMissionData() {
+  const now = new Date();
+  const validFrom = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+  const validTo = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString();
+  const airports = {
+    KDOV: createPracticeAirport("KDOV", "Dover AFB", "18012KT", 800, "OVC008", 2, "2SM", "-RA BR"),
+    KRIC: createPracticeAirport("KRIC", "Richmond Intl", "19014KT", 900, "OVC009", 2.5, "2SM", "RA BR"),
+    KCHS: createPracticeAirport("KCHS", "Joint Base Charleston", "22018G28KT", 1800, "BKN018", 4, "4SM", "SHRA"),
+    KMEI: createPracticeAirport("KMEI", "Key Field", "19004KT", 500, "OVC005", 6, "P6SM", "BR"),
+    KVPS: createPracticeAirport("KVPS", "Eglin AFB", "23028G36KT", 3500, "BKN035", 8, "P6SM", "NSW")
+  };
+
+  Object.values(airports).forEach((airport) => {
+    airport.taf[0].validFrom = validFrom;
+    airport.taf[0].validTo = validTo;
+  });
+
+  return {
+    pulledAt: now.toISOString(),
+    sourceIssuedAt: now.toISOString(),
+    airports
+  };
+}
+
+function createPracticeAirport(icao, name, wind, ceilingFt, ceilingSource, visibilitySm, visibilitySource, weather) {
+  const visibility = visibilitySource === "P6SM" ? "P6SM" : visibilitySource;
+  const raw = `FM300000 ${wind} ${visibility} ${weather} ${ceilingSource}`.replace(/\s+/g, " ").trim();
+  return {
+    name,
+    conus: true,
+    metar: `${icao} 300000Z ${wind} ${visibility} ${weather} ${ceilingSource} 22/21 A2990`,
+    tafRaw: `${icao} 300000Z 3000/3106 ${wind} ${visibility} ${weather} ${ceilingSource}`,
+    taf: [
+      {
+        validFrom: new Date().toISOString(),
+        validTo: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+        ceilingFt,
+        ceilingSource,
+        visibilitySm,
+        visibilitySource,
+        wind,
+        raw
+      }
+    ],
+    notams: []
+  };
+}
+
 window.rulesMetadata = rulesMetadata;
 window.getMissionData = getMissionData;
 window.getLiveMissionData = getLiveMissionData;
+window.getRedPracticeMissionData = getRedPracticeMissionData;
