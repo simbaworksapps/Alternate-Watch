@@ -590,7 +590,7 @@ function parseFraction(value) {
 }
 
 function extractCeiling(raw) {
-  const matches = [...normalizeWeatherRaw(raw).matchAll(/\b(BKN|OVC|VV)(\d{3})(CB)?\b/g)];
+  const matches = [...normalizeWeatherRaw(raw).matchAll(/\b(BKN|OVC|VV)(\d{3})(CB|TCU)?\b/g)];
   if (!matches.length) return { ceilingFt: null, ceilingSource: null };
   const lowest = matches.reduce((current, match) => (Number(match[2]) < Number(current[2]) ? match : current));
   return {
