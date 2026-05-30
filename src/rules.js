@@ -48,6 +48,9 @@ function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulle
   const status = [weatherStatus, notamStatus, locationStatus].reduce((current, item) =>
     STATUS_RANK[item.status] > STATUS_RANK[current] ? item.status : current
   , "green");
+  const cardStatus = [weatherStatus, notamStatus].reduce((current, item) =>
+    STATUS_RANK[item.status] > STATUS_RANK[current] ? item.status : current
+  , "green");
   const chips = buildIssueChips(weatherStatus, notamStatus, locationStatus, activeNotams);
 
   return {
@@ -55,6 +58,7 @@ function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulle
     role,
     name: airport.name,
     status,
+    cardStatus,
     title: `${icao} ${role}`,
     reason: [weatherStatus.reason, notamStatus.reason, locationStatus.reason].filter(Boolean).join(" "),
     chips,

@@ -280,9 +280,8 @@ function getMissionData() {
 }
 
 function parseRawReports(text) {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
+  return combineRawReports(text)
+    .map((raw) => raw.trim())
     .filter(Boolean)
     .reduce((reports, raw) => {
       const normalized = raw
@@ -295,6 +294,22 @@ function parseRawReports(text) {
       }
       return reports;
     }, {});
+}
+
+function combineRawReports(text) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+$/, ""))
+    .filter(Boolean)
+    .reduce((reports, line) => {
+      const startsReport = /^(METAR|SPECI|TAF)\s+/.test(line.trim());
+      if (startsReport || reports.length === 0) {
+        reports.push(line.trim());
+      } else {
+        reports[reports.length - 1] += `\n${line.trim()}`;
+      }
+      return reports;
+    }, []);
 }
 
 function parseTafPeriods(tafRaw) {

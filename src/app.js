@@ -175,7 +175,7 @@ function scrollToHighestPriorityItem() {
     renderCards();
   }
 
-  const target = document.querySelector(`.result-card.status-${targetStatus}, .notam-closed`);
+  const target = document.querySelector(`.result-card[data-rule-status="${targetStatus}"], .notam-closed`);
   if (target) {
     target.scrollIntoView({ behavior: "smooth", block: "start" });
     target.classList.add("scroll-focus");
@@ -279,6 +279,7 @@ function formatZuluFromIso(value) {
 }
 
 function renderCard(result) {
+  const cardStatus = result.cardStatus || result.status;
   const taf = result.tafRaw
     ? `<div class="taf-line">${renderHighlightedTaf(result)}</div>`
     : `<p class="raw-line">No full TAF available.</p>`;
@@ -300,7 +301,7 @@ function renderCard(result) {
     : `<p class="raw-line">No matching TAF period for selected time.</p>`;
 
   return `
-    <article class="result-card status-${result.status}" data-icao="${result.icao}">
+    <article class="result-card status-${cardStatus}" data-icao="${result.icao}" data-rule-status="${result.status}">
       <details class="card-disclosure">
         <summary>
           <div class="card-header">
@@ -316,7 +317,7 @@ function renderCard(result) {
               <p class="source-labels">WX: ${escapeHtml(rulesMetadata.weatherSource)} | NOTAM: ${escapeHtml(rulesMetadata.notamSource)}</p>
             </div>
             <div class="card-status">
-              <span class="status-pill">${result.status}</span>
+              <span class="status-pill">${cardStatus}</span>
             </div>
           </div>
           ${chips}
@@ -381,19 +382,25 @@ function formatCeilingDisplay(period) {
 }
 
 function formatVisibilityDisplay(period) {
-  return period.visibilitySource || `${period.visibilitySm} SM`;
+  const source = period.visibilitySource;
+  if (source === "9999M") return "Unlimited";
+  if (/^\d{4}M$/.test(source || "")) {
+    return `${Number(source.slice(0, 4)).toLocaleString("en-US")} meters`;
+  }
+  return source || `${period.visibilitySm} SM`;
 }
 
 function renderHighlightedTaf(result) {
+  const lines = splitTafLines(result.tafRaw);
   if (!result.period || !result.period.raw) {
-    return splitTafLines(result.tafRaw).map((line) => `<div>${escapeHtml(line)}</div>`).join("");
+    return lines.map((line) => `<div>${escapeHtml(line)}</div>`).join("");
   }
 
-  return splitTafLines(result.tafRaw)
-    .map((line) => {
+  return lines
+    .map((line, index) => {
       const escapedLine = escapeHtml(line);
-      return isApplicableTafLine(line, result.period.raw)
-        ? `<mark title="Applicable TAF period">${escapedLine}</mark>`
+      return isApplicableTafLine(line, result.period.raw) || tafLineApplies(lines, index, result)
+        ? `<mark class="taf-applicable" title="Applicable TAF period"><span>${escapedLine}</span><span class="taf-marker">${tafMarker(result)}</span></mark>`
         : `<div>${escapedLine}</div>`;
     })
     .join("");
@@ -414,6 +421,84 @@ function isApplicableTafLine(line, periodRaw) {
 
   const periodWithoutChange = periodRaw.replace(/^FM\d{6}\s+/, "");
   return periodWithoutChange.length > 0 && line.includes(periodWithoutChange);
+}
+
+function tafLineApplies(lines, index, result) {
+  const line = lines[index];
+  const target = new Date(result.evaluatedAt);
+  const targetMs = target.getTime();
+  const window = tafLineWindow(line, target);
+  if (window) {
+    if (isConditionalTafLine(line)) {
+      return targetMs >= window.start.getTime() && targetMs <= window.end.getTime();
+    }
+
+    const nextStart = nextTafLineStart(lines, index + 1, target);
+    const end = nextStart || window.end;
+    return targetMs >= window.start.getTime() && targetMs <= end.getTime();
+  }
+
+  return false;
+}
+
+function tafLineWindow(line, referenceDate) {
+  const validMatch = line.match(/\b(\d{4})\/(\d{4})\b/);
+  if (validMatch) {
+    return tafWindowToDates(validMatch[1], validMatch[2], referenceDate);
+  }
+
+  const fmMatch = line.match(/\bFM(\d{6})\b/);
+  if (fmMatch) {
+    const start = tafDayHourMinuteToDate(fmMatch[1].slice(0, 2), fmMatch[1].slice(2, 4), fmMatch[1].slice(4, 6), referenceDate);
+    return { start, end: new Date(start.getTime() + 30 * 60 * 60 * 1000) };
+  }
+
+  return null;
+}
+
+function nextTafLineStart(lines, startIndex, referenceDate) {
+  for (let index = startIndex; index < lines.length; index += 1) {
+    const line = lines[index];
+    const fmMatch = line.match(/\bFM(\d{6})\b/);
+    if (fmMatch) {
+      return tafDayHourMinuteToDate(fmMatch[1].slice(0, 2), fmMatch[1].slice(2, 4), fmMatch[1].slice(4, 6), referenceDate);
+    }
+
+    if (isConditionalTafLine(line)) {
+      continue;
+    }
+
+    const window = tafLineWindow(line, referenceDate);
+    if (window) return window.start;
+  }
+
+  return null;
+}
+
+function isConditionalTafLine(line) {
+  return /^(TEMPO|PROB\d{2})\b/.test(line);
+}
+
+function tafWindowToDates(startToken, endToken, referenceDate) {
+  const start = tafDayHourMinuteToDate(startToken.slice(0, 2), startToken.slice(2, 4), "00", referenceDate);
+  let end = tafDayHourMinuteToDate(endToken.slice(0, 2), endToken.slice(2, 4), "00", start);
+  if (end <= start) {
+    end = new Date(end);
+    end.setUTCMonth(end.getUTCMonth() + 1);
+  }
+  return { start, end };
+}
+
+function tafDayHourMinuteToDate(day, hour, minute, referenceDate) {
+  const date = new Date(Date.UTC(referenceDate.getUTCFullYear(), referenceDate.getUTCMonth(), Number(day), Number(hour), Number(minute)));
+  const diff = date - referenceDate;
+  if (diff > 15 * 24 * 60 * 60 * 1000) date.setUTCMonth(date.getUTCMonth() - 1);
+  if (diff < -15 * 24 * 60 * 60 * 1000) date.setUTCMonth(date.getUTCMonth() + 1);
+  return date;
+}
+
+function tafMarker(result) {
+  return result.role === "Departure" ? "T" : "L";
 }
 
 function escapeHtml(value) {
