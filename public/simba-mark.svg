@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-labelledby="title desc">
+  <title id="title">Simba logo placeholder</title>
+  <desc id="desc">A placeholder badge for Simba Alternate Watch.</desc>
+  <rect width="192" height="192" rx="38" fill="#16213a"/>
+  <circle cx="96" cy="88" r="48" fill="#f5c542"/>
+  <path d="M53 72c9-23 26-37 43-37s34 14 43 37l22-20c2 34-8 62-30 82-11 10-23 15-35 15s-24-5-35-15c-22-20-32-48-30-82l22 20Z" fill="#d9922e"/>
+  <path d="M66 86c16 11 29 16 30 16s14-5 30-16c-5 31-16 46-30 46S71 117 66 86Z" fill="#fff4ce"/>
+  <circle cx="78" cy="80" r="7" fill="#16213a"/>
+  <circle cx="114" cy="80" r="7" fill="#16213a"/>
+  <path d="M88 100h16l-8 9-8-9Z" fill="#16213a"/>
+  <path d="M58 151h76" stroke="#f4f6f8" stroke-width="10" stroke-linecap="round"/>
+</svg>

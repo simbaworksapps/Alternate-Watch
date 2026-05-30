@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#070b10" />
+    <title>Alternate Watch</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./public/SIMBA.jpg" type="image/jpeg" />
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="mission-panel" aria-labelledby="app-title">
+        <header class="brand-row">
+          <a class="brand-link" href="https://www.linkedin.com/in/james-m-rumpsa/" target="_blank" rel="noopener noreferrer" aria-label="Open James Rumpsa LinkedIn profile">
+            <img src="./public/SIMBA.jpg" alt="Simba logo" class="brand-mark" />
+          </a>
+          <div>
+            <h1 id="app-title">Alternate Watch</h1>
+          </div>
+        </header>
+
+        <form id="mission-form" class="mission-form">
+          <label>
+            <span>Departure</span>
+            <input id="departure" name="departure" value="KMCF" maxlength="4" autocomplete="off" />
+          </label>
+
+          <label>
+            <span>Destination</span>
+            <input id="destination" name="destination" value="KMCF" maxlength="4" autocomplete="off" />
+          </label>
+
+          <label>
+            <span>Mission date</span>
+            <input id="missionDate" name="missionDate" type="date" />
+          </label>
+
+          <label>
+            <span>Takeoff Zulu</span>
+            <input id="takeoffTime" name="takeoffTime" value="1915Z" inputmode="numeric" maxlength="5" autocomplete="off" />
+          </label>
+
+          <label>
+            <span>Landing / ETA Zulu</span>
+            <input id="landingTime" name="landingTime" value="2215Z" inputmode="numeric" maxlength="5" autocomplete="off" />
+          </label>
+
+          <label class="full-span">
+            <span>Alternates</span>
+            <input id="alternates" name="alternates" value="KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI, KGSB" autocomplete="off" />
+          </label>
+
+          <div class="alternate-actions">
+            <button type="button" class="secondary-button" id="clear-alternates">Clear</button>
+            <button type="button" class="secondary-button" id="reset-alternates">Reset Defaults</button>
+          </div>
+
+          <button type="submit">Check Mission</button>
+        </form>
+      </section>
+
+      <section class="results-panel" aria-live="polite">
+        <div class="data-ribbon">
+          <span id="cao-date">CAO rules: --</span>
+          <span id="pulled-at">Data pulled: --</span>
+        </div>
+
+        <div id="mission-summary" class="mission-summary">Mission summary unavailable.</div>
+
+        <div id="decision-banner" class="decision-banner status-yellow">
+          <p class="decision-label">Ready</p>
+          <h2>Enter mission timing to evaluate alternate risk.</h2>
+          <p class="decision-reason">This MVP uses sample weather and NOTAM data until live source access is connected.</p>
+        </div>
+
+        <div class="control-strip">
+          <div class="filter-bar" aria-label="Filter result cards by status">
+            <button type="button" class="filter-button filter-red" data-filter="red">RED <span id="count-red">0</span></button>
+            <button type="button" class="filter-button filter-yellow" data-filter="yellow">YEL <span id="count-yellow">0</span></button>
+            <button type="button" class="filter-button filter-green" data-filter="green">GRN <span id="count-green">0</span></button>
+          </div>
+
+          <div class="card-actions">
+            <button type="button" class="secondary-button compact-action" id="expand-all" aria-label="Expand all cards">+</button>
+            <button type="button" class="secondary-button compact-action" id="collapse-all" aria-label="Collapse all cards">-</button>
+          </div>
+        </div>
+
+        <div id="cards" class="cards"></div>
+
+        <footer class="prototype-footer">
+          Official DAIP NOTAM and live weather data not connected. Prototype only.
+        </footer>
+      </section>
+    </main>
+
+    <script src="./src/data.js"></script>
+    <script src="./src/rules.js"></script>
+    <script src="./src/app.js"></script>
+  </body>
+</html>
