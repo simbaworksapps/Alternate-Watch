@@ -318,19 +318,20 @@ button:active {
 .button-searching {
   background:
     linear-gradient(var(--gold), var(--gold)) padding-box,
-    conic-gradient(from var(--spin-angle), rgba(255, 255, 255, 0.95), rgba(245, 197, 66, 0.18), rgba(255, 255, 255, 0.95)) border-box;
+    conic-gradient(from var(--spin-angle), rgba(255, 255, 255, 0.55), rgba(245, 197, 66, 0.08), rgba(255, 255, 255, 0.55)) border-box;
   border: 2px solid transparent;
+  box-shadow: 0 0 0 1px rgba(245, 197, 66, 0.22), 0 0 12px rgba(245, 197, 66, 0.2);
   animation: buttonSpin 0.85s linear infinite;
 }
 
 .button-success {
-  background: var(--green);
-  box-shadow: 0 0 0 2px rgba(46, 212, 122, 0.35), 0 0 28px rgba(46, 212, 122, 0.7);
+  background: var(--gold);
+  box-shadow: 0 0 0 2px rgba(46, 212, 122, 0.32), 0 0 12px rgba(46, 212, 122, 0.34);
 }
 
 .button-unable {
-  background: var(--red);
-  box-shadow: 0 0 0 2px rgba(255, 95, 86, 0.35), 0 0 28px rgba(255, 95, 86, 0.7);
+  background: var(--gold);
+  box-shadow: 0 0 0 2px rgba(255, 95, 86, 0.32), 0 0 12px rgba(255, 95, 86, 0.34);
 }
 
 .secondary-button {
@@ -357,7 +358,7 @@ button:active {
   top: 50%;
   transform: translate(-50%, -50%);
   width: calc(100vw - 32px);
-  z-index: 50;
+  z-index: 1000;
 }
 
 .rulebook-panel[hidden] {
@@ -369,7 +370,7 @@ body.rulebook-open::before {
   content: "";
   inset: 0;
   position: fixed;
-  z-index: 49;
+  z-index: 999;
 }
 
 .rulebook-header {
@@ -1197,7 +1198,8 @@ dd {
 }
 
 mark,
-.taf-decode-row.taf-applicable summary {
+.taf-decode-row.taf-applicable summary,
+.taf-decode-row.taf-window summary {
   background: rgba(74, 163, 255, 0.2);
   border: 1px solid var(--blue);
   border-radius: 6px;
@@ -1208,7 +1210,13 @@ mark,
   padding: 2px 4px;
 }
 
+.taf-decode-row.taf-window summary {
+  background: rgba(102, 217, 232, 0.12);
+  border-color: #66d9e8;
+}
+
 .taf-decode-row.taf-applicable summary,
+.taf-decode-row.taf-window summary,
 mark.taf-applicable {
   align-items: center;
   display: flex;
@@ -1263,6 +1271,21 @@ mark.taf-applicable {
   justify-content: center;
   line-height: 1;
   min-width: 20px;
+  padding: 0 5px;
+}
+
+.taf-markers {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.taf-window .taf-marker {
+  background: rgba(102, 217, 232, 0.18);
+  border-color: #66d9e8;
+  color: #d6fbff;
+  min-width: 42px;
 }
 
 h4 {
@@ -1299,6 +1322,18 @@ ul {
 }
 
 @media (min-width: 980px) {
+  .mission-panel {
+    left: max(24px, calc((100vw - 1120px) / 2 + 24px));
+    position: fixed;
+    top: 24px;
+    width: 360px;
+    z-index: 20;
+  }
+
+  .results-panel {
+    grid-column: 2;
+  }
+
   .card-header {
     align-items: center;
     display: grid;

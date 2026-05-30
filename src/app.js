@@ -40,8 +40,8 @@ function init() {
   document.querySelector("#takeoff-plus-three").addEventListener("click", () => {
     setZuluOffsetField("takeoffTime", 3);
   });
-  document.querySelector("#landing-plus-eight").addEventListener("click", () => {
-    setZuluOffsetField("landingTime", 8);
+  document.querySelector("#landing-plus-three").addEventListener("click", () => {
+    addHoursToZuluField("landingTime", 3);
   });
   document.querySelector("#clear-alternates").addEventListener("click", async () => {
     clearMissionInputs();
@@ -76,6 +76,12 @@ function init() {
   banner.addEventListener("keydown", handleSummaryIssueKeydown);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeRulebook();
+  });
+  document.addEventListener("click", (event) => {
+    if (!document.body.classList.contains("rulebook-open")) return;
+    const panel = document.querySelector("#rulebook-panel");
+    const toggle = document.querySelector("#rulebook-toggle");
+    if (!panel.contains(event.target) && event.target !== toggle) closeRulebook();
   });
 }
 
@@ -135,13 +141,6 @@ async function generatePracticeWeatherMission() {
   try {
     const takeoff = new Date();
     const landing = new Date(takeoff.getTime() + 3 * 60 * 60 * 1000);
-    const candidateInputs = {
-      departure: "KMCF",
-      destination: "KMCF",
-      takeoffTime: takeoff.toISOString(),
-      landingTime: landing.toISOString(),
-      alternates: practiceWeatherFields
-    };
     const missionData = await getLiveMissionData(practiceWeatherFields);
     let selected = findRedPracticeSelection(missionData, takeoff, landing, practiceWeatherFields);
 
@@ -165,21 +164,19 @@ async function generatePracticeWeatherMission() {
 
 function findRedPracticeSelection(missionData, takeoff, landing, fields) {
   const candidates = pickUnique(fields, fields.length);
-  for (const departure of candidates) {
-    for (const destination of candidates) {
-      for (const alternate of candidates) {
-        if (new Set([departure, destination, alternate]).size !== 3) continue;
-        const evaluated = evaluateMission({
-          departure,
-          destination,
-          takeoffTime: takeoff.toISOString(),
-          landingTime: landing.toISOString(),
-          alternates: [alternate]
-        }, missionData);
-        if (evaluated.results.every((result) => (result.filterStatus || result.cardStatus || result.status) === "red")) {
-          return [departure, destination, alternate];
-        }
-      }
+  for (const destination of candidates) {
+    const [departure, alternate] = pickUnique(candidates.filter((icao) => icao !== destination), 2);
+    if (!departure || !alternate) continue;
+    const evaluated = evaluateMission({
+      departure,
+      destination,
+      takeoffTime: takeoff.toISOString(),
+      landingTime: landing.toISOString(),
+      alternates: [alternate]
+    }, missionData);
+    const destinationResult = evaluated.results.find((result) => result.icao === destination && result.role === "Destination");
+    if ((destinationResult?.filterStatus || destinationResult?.cardStatus) === "red") {
+      return [departure, destination, alternate];
     }
   }
   return null;
@@ -417,6 +414,14 @@ function setZuluOffsetField(fieldId, hours) {
   normalizeZuluField({ target: document.querySelector(`#${fieldId}`) });
 }
 
+function addHoursToZuluField(fieldId, hours) {
+  const missionDate = document.querySelector("#missionDate").value || new Date().toISOString().slice(0, 10);
+  const currentIso = buildZuluIso(missionDate, document.querySelector(`#${fieldId}`).value);
+  const target = new Date(new Date(currentIso).getTime() + hours * 60 * 60 * 1000);
+  document.querySelector("#missionDate").value = target.toISOString().slice(0, 10);
+  document.querySelector(`#${fieldId}`).value = formatZuluTime(target);
+}
+
 function toggleRulebook() {
   const panel = document.querySelector("#rulebook-panel");
   const button = document.querySelector("#rulebook-toggle");
@@ -613,23 +618,41 @@ function formatWindDisplay(wind) {
 function renderHighlightedTaf(result) {
   const lines = splitTafLines(result.tafRaw);
   if (!result.period || !result.period.raw) {
-    return lines.map((line) => renderTafLine(line, false, "")).join("");
+    return lines.map((line) => renderTafLine(line, "none", [])).join("");
+  }
+
+  const target = new Date(result.evaluatedAt);
+  const checks = [
+    { label: tafMarker(result), type: "exact", time: target }
+  ];
+  if (result.role !== "Departure") {
+    checks.push(
+      { label: "ETA-1", type: "window", time: new Date(target.getTime() - 60 * 60 * 1000) },
+      { label: "ETA+1", type: "window", time: new Date(target.getTime() + 60 * 60 * 1000) }
+    );
   }
 
   return lines
     .map((line, index) => {
-      const applicable = isApplicableTafLine(line, result.period.raw) || tafLineApplies(lines, index, result);
-      return renderTafLine(line, applicable, applicable ? tafMarker(result) : "");
+      const markers = checks.filter((check) => tafLineAppliesAt(lines, index, check.time));
+      const exact = markers.some((marker) => marker.type === "exact");
+      const context = markers.some((marker) => marker.type === "window");
+      const state = exact ? "exact" : context ? "window" : "none";
+      const visibleMarkers = exact
+        ? markers.filter((marker) => marker.type === "exact")
+        : markers.filter((marker) => marker.type === "window");
+      return renderTafLine(line, state, visibleMarkers.map((marker) => marker.label));
     })
     .join("");
 }
 
-function renderTafLine(line, applicable, marker) {
+function renderTafLine(line, state, markers) {
+  const stateClass = state === "exact" ? " taf-applicable" : state === "window" ? " taf-window" : "";
   return `
-    <details class="taf-decode-row${applicable ? " taf-applicable" : ""}">
+    <details class="taf-decode-row${stateClass}">
       <summary title="Tap to decode this TAF line">
         <span>${escapeHtml(line)}</span>
-        ${marker ? `<span class="taf-marker">${marker}</span>` : ""}
+        ${markers.length ? `<span class="taf-markers">${markers.map((marker) => `<span class="taf-marker">${escapeHtml(marker)}</span>`).join("")}</span>` : ""}
       </summary>
       <div class="taf-decode">${renderTafDecode(line)}</div>
     </details>
@@ -683,9 +706,8 @@ function isApplicableTafLine(line, periodRaw) {
   return periodWithoutChange.length > 0 && line.includes(periodWithoutChange);
 }
 
-function tafLineApplies(lines, index, result) {
+function tafLineAppliesAt(lines, index, target) {
   const line = lines[index];
-  const target = new Date(result.evaluatedAt);
   const targetMs = target.getTime();
   const window = tafLineWindow(line, target);
   if (window) {
@@ -695,7 +717,7 @@ function tafLineApplies(lines, index, result) {
 
     const nextStart = nextTafLineStart(lines, index + 1, target);
     const end = nextStart || window.end;
-    return targetMs >= window.start.getTime() && targetMs <= end.getTime();
+    return targetMs >= window.start.getTime() && targetMs < end.getTime();
   }
 
   return false;
