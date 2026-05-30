@@ -15,6 +15,7 @@ const appDefaultMission = {
 };
 const missionDefaultsStorageKey = "alternateWatchMissionDefaults";
 const airfieldHistoryStorageKey = "alternateWatchAirfieldHistory";
+let nowReferenceTimer = null;
 const randomMissionFields = [
   "KMCF", "KTPA", "KCOF", "KHST", "KPAM", "KVPS", "KWRB", "KCHS", "KBHM", "KMEI", "KGSB",
   "KDOV", "KILM", "KRIC", "KJFK", "KBOS", "KORD", "KDEN", "KSEA", "KSFO", "PHNL",
@@ -125,23 +126,23 @@ init();
 
 function init() {
   setDefaultTimes();
+  setupNowReference();
   setupBrandAnimation();
   registerServiceWorker();
   render();
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    normalizeZuluFields();
+    updateZuluDateTimeReadouts();
     await render(true);
   });
-  document.querySelector("#takeoffTime").addEventListener("blur", normalizeZuluField);
-  document.querySelector("#landingTime").addEventListener("blur", normalizeZuluField);
+  setupZuluDateTimeControls();
   setupAlternateListInput("#alternates", updateAlternatesCount);
   setupAlternateListInput("#default-alternates", updateDefaultAlternatesCount);
   document.querySelector("#takeoff-plus-three").addEventListener("click", () => {
-    setZuluOffsetField("takeoffTime", 3);
+    setZuluDateTimeOffset("takeoffDateTime", 3);
   });
   document.querySelector("#landing-plus-three").addEventListener("click", () => {
-    addHoursToZuluField("landingTime", 3);
+    addHoursToZuluDateTimeField("landingDateTime", 3);
   });
   document.querySelector("#clear-alternates").addEventListener("click", async () => {
     clearMissionInputs();
@@ -162,6 +163,12 @@ function init() {
   document.querySelector("#defaults-use-current").addEventListener("click", populateDefaultsFromCurrent);
   document.querySelector("#defaults-factory").addEventListener("click", populateFactoryDefaults);
   document.querySelector("#defaults-save").addEventListener("click", saveDefaultsFromPanel);
+  document.querySelector("#flight-time-pill").addEventListener("click", toggleSortieDurationPanel);
+  document.querySelector("#sortie-duration-close").addEventListener("click", closeSortieDurationPanel);
+  document.querySelector("#sortie-duration-apply").addEventListener("click", applySortieDurationFromPanel);
+  document.querySelector("#sortie-duration-plus-two").addEventListener("click", () => setSortieDurationPreset(120));
+  document.querySelector("#sortie-duration-plus-four").addEventListener("click", () => setSortieDurationPreset(240));
+  document.querySelector("#sortie-duration-input").addEventListener("keydown", handleSortieDurationKeydown);
   setupDiceRegionToggles();
   setupDefaultsKeyboardFlow();
   setupAirfieldSearch();
@@ -198,6 +205,7 @@ function init() {
     if (event.key === "Escape") {
       closeRulebook();
       closeDefaultsPanel();
+      closeSortieDurationPanel();
       closeAirfieldSearch();
     }
   });
@@ -214,6 +222,11 @@ function init() {
       const clickedSearchPanel = searchPanel && searchPanel.contains(event.target);
       if (!panel.contains(event.target) && !toggle.contains(event.target) && !clickedSearchPanel) closeDefaultsPanel();
     }
+    if (document.body.classList.contains("sortie-duration-open")) {
+      const panel = document.querySelector("#sortie-duration-panel");
+      const toggle = document.querySelector("#flight-time-pill");
+      if (!panel.contains(event.target) && !toggle.contains(event.target)) closeSortieDurationPanel();
+    }
     if (document.body.classList.contains("search-open")) {
       const panel = document.querySelector("#airfield-search-panel");
       const toggles = [...document.querySelectorAll(".search-button")];
@@ -221,6 +234,19 @@ function init() {
       if (!panel.contains(event.target) && !clickedToggle) closeAirfieldSearch();
     }
   });
+}
+
+function setupNowReference() {
+  updateNowReference();
+  window.clearInterval(nowReferenceTimer);
+  nowReferenceTimer = window.setInterval(updateNowReference, 30000);
+}
+
+function updateNowReference() {
+  const element = document.querySelector("#now-reference");
+  if (!element) return;
+  const now = new Date();
+  element.textContent = `${formatLocalNowReference(now)} | ${formatZuluTime(now)} (${formatUtcOffsetLabel(now)})`;
 }
 
 function setupBrandAnimation() {
@@ -250,20 +276,20 @@ function resetMissionDefaults() {
   const defaults = getMissionDefaults();
   document.querySelector("#departure").value = defaults.departure;
   document.querySelector("#destination").value = defaults.destination;
-  document.querySelector("#missionDate").value = takeoff.toISOString().slice(0, 10);
-  document.querySelector("#takeoffTime").value = formatZuluTime(takeoff);
-  document.querySelector("#landingTime").value = formatZuluTime(landing);
+  document.querySelector("#takeoffDateTime").value = formatZuluDateTimeInput(takeoff);
+  document.querySelector("#landingDateTime").value = formatZuluDateTimeInput(landing);
   document.querySelector("#alternates").value = defaults.alternates;
+  updateZuluDateTimeReadouts();
   updateAlternatesCount();
 }
 
 function clearMissionInputs() {
   document.querySelector("#departure").value = "";
   document.querySelector("#destination").value = "";
-  document.querySelector("#missionDate").value = "";
-  document.querySelector("#takeoffTime").value = "";
-  document.querySelector("#landingTime").value = "";
+  document.querySelector("#takeoffDateTime").value = "";
+  document.querySelector("#landingDateTime").value = "";
   document.querySelector("#alternates").value = "";
+  updateZuluDateTimeReadouts();
   updateAlternatesCount();
 }
 
@@ -277,8 +303,8 @@ function generateRandomMission() {
 function getDiceMissionTimes() {
   const now = new Date();
   return {
-    takeoff: new Date(now.getTime() + 3 * 60 * 60 * 1000),
-    landing: new Date(now.getTime() + 6 * 60 * 60 * 1000)
+    takeoff: now,
+    landing: new Date(now.getTime() + 3 * 60 * 60 * 1000)
   };
 }
 
@@ -464,9 +490,8 @@ function getRawInputValues() {
   return {
     departure: document.querySelector("#departure").value,
     destination: document.querySelector("#destination").value,
-    missionDate: document.querySelector("#missionDate").value,
-    takeoffTime: document.querySelector("#takeoffTime").value,
-    landingTime: document.querySelector("#landingTime").value,
+    takeoffDateTime: document.querySelector("#takeoffDateTime").value,
+    landingDateTime: document.querySelector("#landingDateTime").value,
     alternates: document.querySelector("#alternates").value
   };
 }
@@ -474,10 +499,10 @@ function getRawInputValues() {
 function setRawInputValues(values) {
   document.querySelector("#departure").value = values.departure;
   document.querySelector("#destination").value = values.destination;
-  document.querySelector("#missionDate").value = values.missionDate;
-  document.querySelector("#takeoffTime").value = values.takeoffTime;
-  document.querySelector("#landingTime").value = values.landingTime;
+  document.querySelector("#takeoffDateTime").value = values.takeoffDateTime || "";
+  document.querySelector("#landingDateTime").value = values.landingDateTime || "";
   document.querySelector("#alternates").value = values.alternates;
+  updateZuluDateTimeReadouts();
   updateAlternatesCount();
 }
 
@@ -591,10 +616,10 @@ function applyMissionFields(departure, destination, alternates, takeoff = new Da
   const eta = landing || new Date(takeoff.getTime() + 3 * 60 * 60 * 1000);
   document.querySelector("#departure").value = departure;
   document.querySelector("#destination").value = destination;
-  document.querySelector("#missionDate").value = takeoff.toISOString().slice(0, 10);
-  document.querySelector("#takeoffTime").value = formatZuluTime(takeoff);
-  document.querySelector("#landingTime").value = formatZuluTime(eta);
+  document.querySelector("#takeoffDateTime").value = formatZuluDateTimeInput(takeoff);
+  document.querySelector("#landingDateTime").value = formatZuluDateTimeInput(eta);
   document.querySelector("#alternates").value = alternates.join(", ");
+  updateZuluDateTimeReadouts();
   updateAlternatesCount();
 }
 
@@ -965,12 +990,13 @@ function triggerPillFeedback(pill) {
 }
 
 function getInputs() {
-  const missionDate = document.querySelector("#missionDate").value;
+  const takeoffTime = buildZuluDateTimeIso(document.querySelector("#takeoffDateTime").value);
+  const landingTime = buildZuluDateTimeIso(document.querySelector("#landingDateTime").value);
   return {
     departure: normalizeIcao(document.querySelector("#departure").value),
     destination: normalizeIcao(document.querySelector("#destination").value),
-    takeoffTime: buildZuluIso(missionDate, document.querySelector("#takeoffTime").value),
-    landingTime: buildZuluIso(missionDate, document.querySelector("#landingTime").value),
+    takeoffTime,
+    landingTime,
     alternates: document
       .querySelector("#alternates")
       .value.split(",")
@@ -983,19 +1009,37 @@ function getRequestedIcaos(inputs) {
   return [inputs.departure, inputs.destination, ...inputs.alternates].filter(Boolean);
 }
 
-function setZuluOffsetField(fieldId, hours) {
-  const target = new Date(Date.now() + hours * 60 * 60 * 1000);
-  document.querySelector("#missionDate").value = target.toISOString().slice(0, 10);
-  document.querySelector(`#${fieldId}`).value = formatZuluTime(target);
-  normalizeZuluField({ target: document.querySelector(`#${fieldId}`) });
+function setupZuluDateTimeControls() {
+  ["takeoffDateTime", "landingDateTime"].forEach((fieldId) => {
+    document.querySelector(`#${fieldId}`).addEventListener("input", updateZuluDateTimeReadouts);
+    document.querySelector(`#${fieldId}`).addEventListener("change", updateZuluDateTimeReadouts);
+  });
+  updateZuluDateTimeReadouts();
 }
 
-function addHoursToZuluField(fieldId, hours) {
-  const missionDate = document.querySelector("#missionDate").value || new Date().toISOString().slice(0, 10);
-  const currentIso = buildZuluIso(missionDate, document.querySelector(`#${fieldId}`).value);
+function setZuluDateTimeOffset(fieldId, hours) {
+  const target = new Date(Date.now() + hours * 60 * 60 * 1000);
+  document.querySelector(`#${fieldId}`).value = formatZuluDateTimeInput(target);
+  updateZuluDateTimeReadouts();
+}
+
+function addHoursToZuluDateTimeField(fieldId, hours) {
+  const currentIso = buildZuluDateTimeIso(document.querySelector(`#${fieldId}`).value);
   const target = new Date(new Date(currentIso).getTime() + hours * 60 * 60 * 1000);
-  document.querySelector("#missionDate").value = target.toISOString().slice(0, 10);
-  document.querySelector(`#${fieldId}`).value = formatZuluTime(target);
+  document.querySelector(`#${fieldId}`).value = formatZuluDateTimeInput(target);
+  updateZuluDateTimeReadouts();
+}
+
+function updateZuluDateTimeReadouts() {
+  const pill = document.querySelector("#flight-time-pill");
+  if (!pill) return;
+  const duration = getFlightDurationState(
+    document.querySelector("#takeoffDateTime").value,
+    document.querySelector("#landingDateTime").value
+  );
+  pill.textContent = duration.label;
+  pill.classList.toggle("flight-time-good", duration.status === "good");
+  pill.classList.toggle("flight-time-bad", duration.status === "bad");
 }
 
 function toggleRulebook() {
@@ -1003,6 +1047,7 @@ function toggleRulebook() {
   const button = document.querySelector("#rulebook-toggle");
   const isOpen = panel.hidden;
   if (isOpen) closeDefaultsPanel();
+  if (isOpen) closeSortieDurationPanel();
   panel.hidden = !isOpen;
   button.setAttribute("aria-expanded", String(isOpen));
   document.body.classList.toggle("rulebook-open", isOpen);
@@ -1022,6 +1067,7 @@ function toggleDefaultsPanel() {
   const isOpen = panel.hidden;
   if (isOpen) {
     closeRulebook();
+    closeSortieDurationPanel();
     populateDefaultsPanel(getMissionDefaults());
   }
   panel.hidden = !isOpen;
@@ -1035,6 +1081,67 @@ function closeDefaultsPanel() {
   panel.hidden = true;
   button.setAttribute("aria-expanded", "false");
   document.body.classList.remove("defaults-open");
+}
+
+function toggleSortieDurationPanel(event) {
+  event?.stopPropagation();
+  const panel = document.querySelector("#sortie-duration-panel");
+  const button = document.querySelector("#flight-time-pill");
+  const isOpen = panel.hidden;
+  if (isOpen) {
+    closeRulebook();
+    closeDefaultsPanel();
+    populateSortieDurationPanel();
+  }
+  panel.hidden = !isOpen;
+  button.setAttribute("aria-expanded", String(isOpen));
+  document.body.classList.toggle("sortie-duration-open", isOpen);
+  if (isOpen) {
+    window.setTimeout(() => {
+      const input = document.querySelector("#sortie-duration-input");
+      input.focus();
+      input.select();
+    }, 0);
+  }
+}
+
+function closeSortieDurationPanel() {
+  const panel = document.querySelector("#sortie-duration-panel");
+  const button = document.querySelector("#flight-time-pill");
+  panel.hidden = true;
+  button.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("sortie-duration-open");
+}
+
+function populateSortieDurationPanel() {
+  const duration = getFlightDurationState(
+    document.querySelector("#takeoffDateTime").value,
+    document.querySelector("#landingDateTime").value
+  );
+  document.querySelector("#sortie-duration-input").value = duration.label.startsWith("-") ? duration.label.slice(1) : duration.label;
+}
+
+function setSortieDurationPreset(minutes) {
+  document.querySelector("#sortie-duration-input").value = formatDurationMinutes(minutes);
+  applySortieDurationFromPanel();
+}
+
+function handleSortieDurationKeydown(event) {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    applySortieDurationFromPanel();
+  }
+}
+
+function applySortieDurationFromPanel() {
+  const durationMinutes = parseDurationInput(document.querySelector("#sortie-duration-input").value);
+  if (durationMinutes === null) return;
+  const takeoffValue = document.querySelector("#takeoffDateTime").value || formatZuluDateTimeInput(new Date());
+  document.querySelector("#takeoffDateTime").value = takeoffValue;
+  const landing = new Date(new Date(buildZuluDateTimeIso(takeoffValue)).getTime() + durationMinutes * 60 * 1000);
+  document.querySelector("#landingDateTime").value = formatZuluDateTimeInput(landing);
+  updateZuluDateTimeReadouts();
+  closeSortieDurationPanel();
 }
 
 function getMissionDefaults() {
@@ -1564,7 +1671,7 @@ function formatMissionSummary(inputs) {
 }
 
 function formatZuluFromIso(value) {
-  return formatZuluTime(new Date(value));
+  return formatTafReferenceTime(new Date(value));
 }
 
 function renderCard(result) {
@@ -2610,7 +2717,7 @@ function normalizeIcao(value) {
 
 function formatDateTime(value) {
   const date = new Date(value);
-  return `${formatDisplayDate(date)} ${formatZuluTime(date)} ${formatLocalGmtOffset(date)}`;
+  return `${formatDisplayDate(date)} ${formatZuluTime(date)} ${formatUtcOffsetLabel(date)}`;
 }
 
 function formatDateOnly(value) {
@@ -2637,36 +2744,61 @@ function formatZuluTime(date) {
   return `${String(date.getUTCHours()).padStart(2, "0")}${String(date.getUTCMinutes()).padStart(2, "0")}Z`;
 }
 
-function formatLocalGmtOffset(date) {
+function formatLocalNowReference(date) {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = date.toLocaleString("en-US", { month: "short" });
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${day} ${month} ${year}, ${hours}${minutes}L`;
+}
+
+function formatUtcOffsetLabel(date) {
   const offsetMinutes = -date.getTimezoneOffset();
+  if (offsetMinutes === 0) return "UTC";
   const sign = offsetMinutes >= 0 ? "+" : "-";
   const hours = Math.floor(Math.abs(offsetMinutes) / 60);
   const minutes = Math.abs(offsetMinutes) % 60;
-  return minutes === 0 ? `GMT${sign}${hours}` : `GMT${sign}${hours}:${String(minutes).padStart(2, "0")}`;
+  return minutes === 0 ? `UTC${sign}${hours}` : `UTC${sign}${hours}:${String(minutes).padStart(2, "0")}`;
 }
 
-function normalizeZuluFields() {
-  document.querySelector("#takeoffTime").value = normalizeZuluTime(document.querySelector("#takeoffTime").value);
-  document.querySelector("#landingTime").value = normalizeZuluTime(document.querySelector("#landingTime").value);
+function formatZuluDateTimeInput(date) {
+  return `${date.toISOString().slice(0, 10)}T${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
 }
 
-function normalizeZuluField(event) {
-  event.target.value = normalizeZuluTime(event.target.value);
+function buildZuluDateTimeIso(value) {
+  if (!value) return new Date().toISOString();
+  const [datePart, timePart = "00:00"] = value.split("T");
+  const [hours = "00", minutes = "00"] = timePart.split(":");
+  return `${datePart}T${hours.padStart(2, "0").slice(0, 2)}:${minutes.padStart(2, "0").slice(0, 2)}:00.000Z`;
 }
 
-function normalizeZuluTime(value) {
-  const compact = value.trim().toUpperCase().replace(/[^0-9Z]/g, "");
-  const rawDigits = compact.replace("Z", "");
-  const digits = rawDigits.padStart(4, "0").slice(-4);
-  const hours = Math.min(Number(digits.slice(0, 2)), 23);
-  const minutes = Math.min(Number(digits.slice(2, 4)), 59);
-  return `${String(hours).padStart(2, "0")}${String(minutes).padStart(2, "0")}Z`;
+function getFlightDurationState(takeoffValue, landingValue) {
+  if (!takeoffValue || !landingValue) return { label: "--", status: "" };
+  const takeoff = new Date(buildZuluDateTimeIso(takeoffValue));
+  const landing = new Date(buildZuluDateTimeIso(landingValue));
+  const rawDurationMinutes = Math.round((landing.getTime() - takeoff.getTime()) / 60000);
+  const durationMinutes = Math.abs(rawDurationMinutes);
+  const label = `${rawDurationMinutes < 0 ? "-" : ""}${formatDurationMinutes(durationMinutes)}`;
+  const status = rawDurationMinutes < 0 || landing.getTime() < Date.now() ? "bad" : "good";
+  return { label, status };
 }
 
-function buildZuluIso(dateValue, timeValue) {
-  const date = dateValue || new Date().toISOString().slice(0, 10);
-  const zulu = normalizeZuluTime(timeValue);
-  return `${date}T${zulu.slice(0, 2)}:${zulu.slice(2, 4)}:00.000Z`;
+function formatDurationMinutes(durationMinutes) {
+  const hours = Math.floor(durationMinutes / 60);
+  const minutes = durationMinutes % 60;
+  return `${String(hours).padStart(2, "0")}${String(minutes).padStart(2, "0")}`;
+}
+
+function parseDurationInput(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.length <= 2) return Number(digits) * 60;
+  const normalized = digits.padStart(4, "0").slice(-4);
+  const hours = Number(normalized.slice(0, 2));
+  const minutes = Number(normalized.slice(2, 4));
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + Math.min(minutes, 59);
 }
 
 function registerServiceWorker() {

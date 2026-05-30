@@ -26,6 +26,27 @@
         </header>
 
         <form id="mission-form" class="mission-form">
+          <div class="now-reference" aria-live="polite">
+            <span>Now</span>
+            <p id="now-reference">--</p>
+          </div>
+
+          <label>
+            <span>Takeoff Zulu</span>
+            <div class="input-action-row">
+              <input id="takeoffDateTime" name="takeoffDateTime" type="datetime-local" />
+              <button type="button" class="secondary-button time-jump-button" id="takeoff-plus-three" aria-label="Set takeoff to current Zulu plus 3 hours" title="Current Zulu plus 3 hours">+3</button>
+            </div>
+          </label>
+
+          <label>
+            <span>Landing / ETA Zulu <button type="button" class="inline-count flight-time-pill" id="flight-time-pill" aria-expanded="false" aria-controls="sortie-duration-panel" title="Change sortie duration">0300</button></span>
+            <div class="input-action-row">
+              <input id="landingDateTime" name="landingDateTime" type="datetime-local" />
+              <button type="button" class="secondary-button time-jump-button" id="landing-plus-three" aria-label="Add 3 hours to landing Zulu" title="Add 3 hours to landing Zulu">+3</button>
+            </div>
+          </label>
+
           <label>
             <span>Departure</span>
             <div class="input-action-row">
@@ -39,27 +60,6 @@
             <div class="input-action-row">
               <input id="destination" name="destination" value="KMCF" maxlength="4" autocomplete="off" />
               <button type="button" class="secondary-button symbol-button search-button" id="destination-search" data-search-target="destination" aria-expanded="false" aria-controls="airfield-search-panel" aria-label="Search destination airfield" title="Search destination airfield"><span class="search-icon" aria-hidden="true"></span></button>
-            </div>
-          </label>
-
-          <label>
-            <span>Mission date</span>
-            <input id="missionDate" name="missionDate" type="date" />
-          </label>
-
-          <label>
-            <span>Takeoff Zulu</span>
-            <div class="input-action-row">
-              <input id="takeoffTime" name="takeoffTime" value="1915Z" inputmode="numeric" maxlength="5" autocomplete="off" />
-              <button type="button" class="secondary-button time-jump-button" id="takeoff-plus-three" aria-label="Set takeoff to current Zulu plus 3 hours" title="Current Zulu plus 3 hours">+3</button>
-            </div>
-          </label>
-
-          <label>
-            <span>Landing / ETA Zulu</span>
-            <div class="input-action-row">
-              <input id="landingTime" name="landingTime" value="2215Z" inputmode="numeric" maxlength="5" autocomplete="off" />
-              <button type="button" class="secondary-button time-jump-button" id="landing-plus-three" aria-label="Add 3 hours to landing Zulu" title="Add 3 hours to landing Zulu">+3</button>
             </div>
           </label>
 
@@ -153,6 +153,23 @@
               <button type="button" class="secondary-button" id="defaults-use-current">Use Current</button>
               <button type="button" class="secondary-button" id="defaults-factory">Factory</button>
               <button type="button" id="defaults-save">Save</button>
+            </div>
+          </section>
+
+          <section id="sortie-duration-panel" class="rulebook-panel sortie-duration-panel" hidden>
+            <div class="rulebook-header">
+              <h2>Sortie Duration</h2>
+              <button type="button" class="secondary-button rulebook-close" id="sortie-duration-close" aria-label="Close sortie duration">X</button>
+            </div>
+            <p>Enter flight time as HHMM. Landing Zulu updates from takeoff plus this duration.</p>
+            <label>
+              <span>Duration</span>
+              <input id="sortie-duration-input" inputmode="numeric" maxlength="5" autocomplete="off" placeholder="0300" />
+            </label>
+            <div class="defaults-actions">
+              <button type="button" class="secondary-button" id="sortie-duration-plus-two">+0200</button>
+              <button type="button" class="secondary-button" id="sortie-duration-plus-four">+0400</button>
+              <button type="button" id="sortie-duration-apply">Apply</button>
             </div>
           </section>
 

@@ -49,6 +49,12 @@ input {
   font: inherit;
 }
 
+input[type="datetime-local"] {
+  color-scheme: dark;
+  min-width: 0;
+  text-transform: none;
+}
+
 .app-shell {
   align-items: start;
   display: grid;
@@ -238,6 +244,32 @@ h1::after {
   grid-template-columns: minmax(0, 1fr) 54px;
 }
 
+.now-reference {
+  display: grid;
+  gap: 6px;
+}
+
+.now-reference span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.now-reference p {
+  align-items: center;
+  background: #0b111b;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  display: flex;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.25;
+  margin: 0;
+  min-height: 46px;
+  padding: 10px 12px;
+}
+
 .mission-submit-row {
   grid-template-columns: 54px minmax(0, 1fr) 54px;
 }
@@ -399,6 +431,41 @@ label span {
   margin-left: 6px;
   min-width: 24px;
   padding: 4px 7px;
+}
+
+.flight-time-pill {
+  cursor: pointer;
+  font-family: inherit;
+  margin-left: auto;
+  min-height: 0;
+  transition: box-shadow 160ms ease, transform 120ms ease, border-color 160ms ease;
+}
+
+.flight-time-pill:hover,
+.flight-time-pill:focus-visible {
+  box-shadow: 0 0 0 2px rgba(46, 212, 122, 0.18), 0 0 14px rgba(46, 212, 122, 0.22);
+  outline: none;
+}
+
+.flight-time-pill:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.flight-time-good {
+  background: rgba(38, 224, 127, 0.12);
+  border-color: rgba(38, 224, 127, 0.58);
+  color: #b8ffd4;
+}
+
+.flight-time-bad {
+  background: rgba(255, 91, 91, 0.16);
+  border-color: rgba(255, 91, 91, 0.72);
+  color: #ffd2d2;
+}
+
+.sortie-duration-panel {
+  display: grid;
+  gap: 12px;
 }
 
 input {
