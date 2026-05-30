@@ -1421,8 +1421,13 @@ body.search-open::before {
   border-radius: 6px;
   color: #ffe0a3;
   font-weight: 900;
-  list-style-position: inside;
+  margin: 0;
   padding: 6px 8px;
+}
+
+.notam-list {
+  margin: 0;
+  padding-left: 18px;
 }
 
 .wx-grid {

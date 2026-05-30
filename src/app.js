@@ -1434,10 +1434,10 @@ function renderCard(result) {
     : `<p class="raw-line">No full TAF available.</p>`;
 
   const notams = result.notams.length
-    ? result.notams.map(renderNotam).join("")
+    ? `<ul class="notam-list">${result.notams.map(renderNotam).join("")}</ul>`
     : rulesMetadata.notamAvailable
-      ? "<li>No active NOTAMs for selected time.</li>"
-      : '<li class="notam-unavailable">NOTAM feature currently unavailable.</li>';
+      ? '<p class="notam-unavailable">No active NOTAMs for selected time.</p>'
+      : '<p class="notam-unavailable">NOTAM feature currently unavailable.</p>';
   const cardChips = [
     ...(result.chips || [{ label: "NO ISSUES", status: "green" }]),
     ...getWeatherProductChips(result)
@@ -1490,7 +1490,7 @@ function renderCard(result) {
             </section>
             <section class="notam-block">
               <h4>NOTAMs</h4>
-              <ul>${notams}</ul>
+              ${notams}
             </section>
           </details>
         </div>
