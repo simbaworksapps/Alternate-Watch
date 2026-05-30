@@ -1889,9 +1889,9 @@ ul {
 
 @media (max-width: 759px) {
   .app-shell {
-    gap: 10px;
+    gap: 6px;
     max-width: 100%;
-    padding: 6px;
+    padding: 0;
   }
 
   .mission-panel,
