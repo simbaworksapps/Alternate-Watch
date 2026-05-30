@@ -783,7 +783,7 @@ body.search-open::before {
   font-size: 0.76rem;
   font-weight: 800;
   margin-bottom: 12px;
-  padding: 10px 12px;
+  padding: 10px 8px;
   text-transform: uppercase;
 }
 
@@ -791,7 +791,7 @@ body.search-open::before {
 .result-card {
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 14px;
+  padding: 14px 8px;
 }
 
 .card-disclosure > summary {
@@ -1522,7 +1522,7 @@ dd {
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 0.86rem;
   line-height: 1.55;
-  padding: 10px;
+  padding: 10px 0;
   white-space: normal;
   word-break: break-word;
 }
@@ -1627,7 +1627,7 @@ dd {
   font-weight: 900;
   line-height: 1.55;
   list-style: none;
-  padding: 2px 4px;
+  padding: 2px 1px;
   white-space: normal;
   word-break: break-word;
 }
@@ -1905,11 +1905,6 @@ ul {
     padding-right: 8px;
   }
 
-  .mission-summary {
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-
   .raw-line,
   .taf-line,
   .taf-decode,
@@ -1929,8 +1924,6 @@ ul {
   .taf-decode-row.taf-window summary {
     margin-left: 0;
     margin-right: 0;
-    padding-left: 1px;
-    padding-right: 1px;
   }
 
   .brand-row {
