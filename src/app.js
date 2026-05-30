@@ -270,7 +270,16 @@ function clearMissionInputs() {
 function generateRandomMission() {
   missionNotice = "";
   const [departure, destination, alternate] = pickUnique(getDiceAirfieldPool(), 3);
-  applyMissionFields(departure, destination, [alternate]);
+  const { takeoff, landing } = getDiceMissionTimes();
+  applyMissionFields(departure, destination, [alternate], takeoff, landing);
+}
+
+function getDiceMissionTimes() {
+  const now = new Date();
+  return {
+    takeoff: new Date(now.getTime() + 3 * 60 * 60 * 1000),
+    landing: new Date(now.getTime() + 6 * 60 * 60 * 1000)
+  };
 }
 
 function resetRandomMissionButton() {
@@ -339,8 +348,7 @@ async function generatePracticeWeatherMission() {
   setSubmitButtonStatus("scanning");
 
   try {
-    const takeoff = new Date();
-    const landing = new Date(takeoff.getTime() + 3 * 60 * 60 * 1000);
+    const { takeoff, landing } = getDiceMissionTimes();
     const practicePool = getDiceAirfieldPool();
     const scanFields = pickUnique(practicePool, practicePool.length);
     let selected = { count: 0 };
