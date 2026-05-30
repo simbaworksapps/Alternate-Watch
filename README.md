@@ -1,5 +1,7 @@
 # Alternate Watch
 
+Use the app here: https://alternate-watch.pages.dev/
+
 Alternate Watch is a mobile-friendly PWA training tool for aircrew to review destination and alternate weather against prototype alternate-planning thresholds.
 
 The app pulls live METAR/TAF weather through Aviation Weather Center data when deployed with the included Cloudflare Pages function. NOTAM integration is not currently available, so the app clearly marks NOTAMs as unavailable.
