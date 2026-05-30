@@ -1955,6 +1955,10 @@ ul {
     width: 100%;
   }
 
+  #pulled-at > span:first-child {
+    min-width: 0;
+  }
+
   #pulled-at .data-age {
     justify-self: end;
     margin-left: 0;

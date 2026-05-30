@@ -613,7 +613,7 @@ async function render(options = false) {
   latestEvaluation = evaluateMission(inputs, missionData);
 
   caoDate.textContent = `CAO ${formatCaoDate(rulesMetadata.caoDate)}`;
-  pulledAt.innerHTML = `Data pulled: ${formatDateTime(latestEvaluation.pulledAt)} ${renderDataAgeBadge(latestEvaluation.pulledAt)}`;
+  pulledAt.innerHTML = `<span>Data pulled: ${formatDateTime(latestEvaluation.pulledAt)}</span>${renderDataAgeBadge(latestEvaluation.pulledAt)}`;
   missionSummary.textContent = formatMissionSummary(inputs);
   missionSummary.dataset.source = rulesMetadata.weatherSource;
   if (rulesMetadata.weatherSource === "Unavailable") {
