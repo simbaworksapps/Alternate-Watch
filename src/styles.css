@@ -1887,8 +1887,21 @@ ul {
   .taf-line,
   .taf-decode,
   .wx-grid div {
-    padding-left: 6px;
-    padding-right: 6px;
+    padding-left: 3px;
+    padding-right: 3px;
+  }
+
+  .taf-line {
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+
+  .taf-decode-row summary,
+  .metar-decode-row summary,
+  .taf-decode-row.taf-applicable summary,
+  .taf-decode-row.taf-window summary {
+    padding-left: 2px;
+    padding-right: 2px;
   }
 
   .brand-row {
