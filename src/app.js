@@ -5,6 +5,7 @@ const caoDate = document.querySelector("#cao-date");
 const pulledAt = document.querySelector("#pulled-at");
 const missionSummary = document.querySelector("#mission-summary");
 const filterButtons = document.querySelectorAll(".filter-button");
+const submitButton = document.querySelector("#check-mission-button");
 const defaultAlternates = "KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI, KGSB";
 const randomMissionFields = [
   "KMCF", "KTPA", "KCOF", "KHST", "KPAM", "KVPS", "KWRB", "KCHS", "KBHM", "KMEI", "KGSB",
@@ -20,6 +21,7 @@ let currentFilter = "all";
 let latestEvaluation = null;
 let missionNotice = "";
 let missionDataOverride = null;
+let submitFeedbackTimer = null;
 
 init();
 
@@ -28,13 +30,19 @@ function init() {
   setupBrandAnimation();
   registerServiceWorker();
   render();
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     normalizeZuluFields();
-    render();
+    await render(true);
   });
   document.querySelector("#takeoffTime").addEventListener("blur", normalizeZuluField);
   document.querySelector("#landingTime").addEventListener("blur", normalizeZuluField);
+  document.querySelector("#takeoff-plus-three").addEventListener("click", () => {
+    setZuluOffsetField("takeoffTime", 3);
+  });
+  document.querySelector("#landing-plus-eight").addEventListener("click", () => {
+    setZuluOffsetField("landingTime", 8);
+  });
   document.querySelector("#clear-alternates").addEventListener("click", () => {
     clearMissionInputs();
     render();
@@ -48,6 +56,8 @@ function init() {
     render();
   });
   document.querySelector("#practice-weather").addEventListener("click", generatePracticeWeatherMission);
+  document.querySelector("#rulebook-toggle").addEventListener("click", toggleRulebook);
+  document.querySelector("#reset-alternates").textContent = "R";
   document.querySelector("#expand-all").addEventListener("click", () => setAllCardsOpen(true));
   document.querySelector("#collapse-all").addEventListener("click", () => setAllCardsOpen(false));
   banner.addEventListener("click", scrollToHighestPriorityItem);
@@ -161,7 +171,7 @@ function findRedPracticeSelection(missionData, takeoff, landing, fields) {
           landingTime: landing.toISOString(),
           alternates: [alternate]
         }, missionData);
-        if (evaluated.results.every((result) => result.status === "red")) {
+        if (evaluated.results.every((result) => (result.filterStatus || result.cardStatus || result.status) === "red")) {
           return [departure, destination, alternate];
         }
       }
@@ -189,9 +199,9 @@ function pickUnique(values, count) {
   return pool.slice(0, count);
 }
 
-async function render() {
+async function render(showSubmitFeedback = false) {
   const inputs = getInputs();
-  setLoadingState(true);
+  setSubmitButtonStatus("searching");
   const missionData = missionDataOverride || await getLiveMissionData(getRequestedIcaos(inputs));
   if (missionDataOverride) {
     rulesMetadata.weatherSource = "Practice";
@@ -227,14 +237,18 @@ async function render() {
   renderCards();
   updateFilterButtons();
   updateFilterCounts();
-  setLoadingState(false);
+  if (showSubmitFeedback) {
+    setSubmitButtonStatus(rulesMetadata.weatherSource === "AWC" ? "success" : "unable");
+  } else {
+    setSubmitButtonStatus("idle");
+  }
 }
 
 function renderCards() {
   if (!latestEvaluation) return;
   const filteredResults = currentFilter === "all"
     ? latestEvaluation.results
-    : latestEvaluation.results.filter((result) => result.status === currentFilter);
+    : latestEvaluation.results.filter((result) => (result.filterStatus || result.cardStatus || result.status) === currentFilter);
 
   cards.innerHTML = filteredResults.length
     ? filteredResults.map(renderCard).join("")
@@ -252,7 +266,7 @@ function updateFilterCounts() {
   const counts = latestEvaluation.results.reduce(
     (totals, result) => {
       totals.all += 1;
-      totals[result.status] += 1;
+      totals[result.filterStatus || result.cardStatus || result.status] += 1;
       return totals;
     },
     { all: 0, red: 0, yellow: 0, green: 0 }
@@ -295,14 +309,14 @@ function setAllCardsOpen(open) {
 function scrollToHighestPriorityItem() {
   if (!latestEvaluation || latestEvaluation.summary.status === "green") return;
 
-  const targetStatus = latestEvaluation.results.some((result) => result.status === "red") ? "red" : "yellow";
+  const targetStatus = latestEvaluation.results.some((result) => (result.filterStatus || result.cardStatus || result.status) === "red") ? "red" : "yellow";
   if (currentFilter !== "all" && currentFilter !== targetStatus) {
     currentFilter = targetStatus;
     updateFilterButtons();
     renderCards();
   }
 
-  const target = document.querySelector(`.result-card[data-rule-status="${targetStatus}"], .notam-closed`);
+  const target = document.querySelector(`.result-card.status-${targetStatus}, .notam-closed`);
   if (target) {
     target.scrollIntoView({ behavior: "smooth", block: "start" });
     target.classList.add("scroll-focus");
@@ -391,10 +405,49 @@ function getRequestedIcaos(inputs) {
   return [inputs.departure, inputs.destination, ...inputs.alternates].filter(Boolean);
 }
 
-function setLoadingState(isLoading) {
-  const submitButton = form.querySelector('button[type="submit"]');
-  submitButton.disabled = isLoading;
-  submitButton.textContent = isLoading ? "Checking..." : "Check Mission";
+function setZuluOffsetField(fieldId, hours) {
+  const target = new Date(Date.now() + hours * 60 * 60 * 1000);
+  document.querySelector("#missionDate").value = target.toISOString().slice(0, 10);
+  document.querySelector(`#${fieldId}`).value = formatZuluTime(target);
+  normalizeZuluField({ target: document.querySelector(`#${fieldId}`) });
+}
+
+function toggleRulebook() {
+  const panel = document.querySelector("#rulebook-panel");
+  const button = document.querySelector("#rulebook-toggle");
+  const isOpen = panel.hidden;
+  panel.hidden = !isOpen;
+  button.setAttribute("aria-expanded", String(isOpen));
+}
+
+function setSubmitButtonStatus(status) {
+  if (!submitButton) return;
+  window.clearTimeout(submitFeedbackTimer);
+  submitButton.classList.remove("button-searching", "button-success", "button-unable");
+
+  if (status === "searching") {
+    submitButton.disabled = true;
+    submitButton.textContent = "SEARCHING";
+    submitButton.classList.add("button-searching");
+    return;
+  }
+
+  submitButton.disabled = false;
+  if (status === "success") {
+    submitButton.textContent = "SUCCESS";
+    submitButton.classList.add("button-success");
+  } else if (status === "unable") {
+    submitButton.textContent = "UNABLE";
+    submitButton.classList.add("button-unable");
+  } else {
+    submitButton.textContent = "Check Mission";
+    return;
+  }
+
+  submitFeedbackTimer = window.setTimeout(() => {
+    submitButton.classList.remove("button-success", "button-unable");
+    submitButton.textContent = "Check Mission";
+  }, 1400);
 }
 
 function formatMissionSummary(inputs) {
@@ -423,7 +476,7 @@ function renderCard(result) {
       <dl class="wx-grid">
         <div class="${impactClass(result.weatherImpacts.ceiling)}"><dt>Ceiling</dt><dd>${formatCeilingDisplay(result.period)}</dd></div>
         <div class="${impactClass(result.weatherImpacts.visibility)}"><dt>Visibility</dt><dd>${formatVisibilityDisplay(result.period)}</dd></div>
-        <div class="${impactClass(result.weatherImpacts.wind)}"><dt>Wind</dt><dd>${result.period.wind}</dd></div>
+        <div class="${impactClass(result.weatherImpacts.wind)}"><dt>Wind</dt><dd>${formatWindDisplay(result.period.wind)}</dd></div>
       </dl>
     `
     : `<p class="raw-line">${result.tafRaw ? "Selected time is outside this TAF valid window." : "No TAF available from AWC for this airfield."}</p>`;
@@ -539,6 +592,10 @@ function formatVisibilityDisplay(period) {
   return source || `${period.visibilitySm} SM`;
 }
 
+function formatWindDisplay(wind) {
+  return wind === "00000KT" ? "Calm" : wind;
+}
+
 function renderHighlightedTaf(result) {
   const lines = splitTafLines(result.tafRaw);
   if (!result.period || !result.period.raw) {
@@ -547,7 +604,9 @@ function renderHighlightedTaf(result) {
 
   return lines
     .map((line, index) => {
-      const applicable = isApplicableTafLine(line, result.period.raw) || tafLineApplies(lines, index, result);
+      const applicable = isApplicableTafLine(line, result.period.raw)
+        || (result.applicablePeriods || []).some((period) => isApplicableTafLine(line, period.raw))
+        || tafLineApplies(lines, index, result);
       return renderTafLine(line, applicable, applicable ? tafMarker(result) : "");
     })
     .join("");
@@ -719,11 +778,14 @@ function decodeTafLine(line) {
   const remarks = decodeTafRemarks(tokens);
   if (remarks.length) items.push({ label: "Remarks", value: remarks.join("; ") });
 
+  const undecoded = decodeUndecodedTokens(tokens, "taf");
+  if (undecoded.length) items.push({ label: "Encoded / System", value: undecoded.join("; ") });
+
   return items.length ? items : [{ label: "Decode", value: "No decoded training items found for this line." }];
 }
 
 function decodeMetarLine(line) {
-  const tokens = line.trim().replace(/\s+\$$/, "").split(/\s+/);
+  const tokens = line.trim().split(/\s+/);
   const items = [];
   const station = tokens.find((token) => /^[A-Z0-9]{4}$/.test(token));
   if (station) items.push({ label: "Station", value: station });
@@ -740,6 +802,9 @@ function decodeMetarLine(line) {
   const visibility = decodeVisibilityToken(tokens);
   if (visibility) items.push({ label: "Visibility", value: visibility });
 
+  const rvr = decodeRvrTokens(tokens);
+  if (rvr.length) items.push({ label: "Runway Visibility", value: rvr.join("; ") });
+
   const weather = decodeWeatherTokens(tokens);
   if (weather.length) items.push({ label: "Weather", value: weather.join("; ") });
 
@@ -748,16 +813,92 @@ function decodeMetarLine(line) {
   if (tokens.includes("CLR")) items.push({ label: "Clouds", value: "Clear below reporting limits." });
   if (tokens.includes("SKC")) items.push({ label: "Clouds", value: "Sky clear." });
 
-  const tempDew = tokens.find((token) => /^(M?\d{2})\/(M?\d{2}|M?\/\/)$/.test(token));
+  const tempDew = tokens.find((token) => /^(M?\d{2}|M)\/(M?\d{2}|M|M?\/\/)$/.test(token));
   if (tempDew) items.push({ label: "Temperature", value: decodeTempDewpoint(tempDew) });
 
   const altimeter = tokens.find((token) => /^A\d{4}$/.test(token));
   if (altimeter) items.push({ label: "Altimeter", value: `${altimeter.slice(1, 3)}.${altimeter.slice(3)} inHg.` });
+  const qnh = tokens.find((token) => /^Q\d{4}$/.test(token));
+  if (qnh) items.push({ label: "Altimeter", value: `${qnh.slice(1)} hPa.` });
 
   const remarks = decodeMetarRemarks(tokens);
   if (remarks.length) items.push({ label: "Remarks", value: remarks.join("; ") });
 
+  const undecoded = decodeUndecodedTokens(tokens, "metar");
+  if (undecoded.length) items.push({ label: "Encoded / System", value: undecoded.join("; ") });
+
   return items.length ? items : [{ label: "Decode", value: "No decoded training items found for this METAR." }];
+}
+
+function decodeUndecodedTokens(tokens, reportType) {
+  const isKnown = reportType === "metar" ? isKnownMetarToken : isKnownTafToken;
+  return tokens
+    .filter((token, index) => !isKnown(token, index, tokens))
+    .map((token) => describeUndecodedToken(token, reportType));
+}
+
+function isKnownTafToken(token, index, tokens) {
+  if (isCommonAviationToken(token)) return true;
+  if (isWeatherToken(token)) return true;
+  if (/^FM\d{6}$/.test(token)) return true;
+  if (/^\d{4}\/\d{4}$/.test(token)) return true;
+  if (/^(TAF|AMD|COR|TEMPO|BECMG|NSW|CAVOK|NIL|CNL|LAST|NO|AFT|NEXT|RMK)$/.test(token)) return true;
+  if (/^PROB\d{2}$/.test(token)) return true;
+  if (/^(TX|TN)(M?\d{2})\/(\d{4})Z$/.test(token)) return true;
+  if (/^QNH\d{4}INS$/.test(token)) return true;
+  if (/^\d{4}Z$/.test(token) && ["AFT", "NEXT"].includes(tokens[index - 1])) return true;
+  if (token === "AMD" && tokens[index - 1] === "NO") return true;
+  if (token === "FZRANO") return true;
+  if (token === "LTG" || token === "DSNT") return true;
+  if (isDirectionToken(token) && tokens[index - 1] === "DSNT") return true;
+  return false;
+}
+
+function isKnownMetarToken(token, index, tokens) {
+  if (isCommonAviationToken(token)) return true;
+  if (isWeatherToken(token)) return true;
+  if (/^(METAR|SPECI|AUTO|COR|RMK|CAVOK|NIL)$/.test(token)) return true;
+  if (/^(AO1|AO2|TSNO|FZRANO|\$)$/.test(token)) return true;
+  if (/^SLP\d{3}$/.test(token)) return true;
+  if (/^T[01]\d{3}[01]\d{3}$/.test(token)) return true;
+  if (/^P\d{4}$/.test(token)) return true;
+  if (/^6\d{4}$/.test(token)) return true;
+  if (/^1[01]\d{3}$/.test(token)) return true;
+  if (/^2[01]\d{3}$/.test(token)) return true;
+  if (/^5\d{4}$/.test(token)) return true;
+  if (/^DZB\d{2}E\d{2}$/.test(token)) return true;
+  if (/^RA(B|E)\d{2}(\d{2})?$/.test(token)) return true;
+  if (token === "PK" || token === "WND") return true;
+  if (/^\d{3}\d{2,3}\/?(\d{4})?$/.test(token) && (tokens[index - 1] === "WND" || tokens[index - 2] === "PK")) return true;
+  if (token === "LTG" || token === "DSNT") return true;
+  if (isDirectionToken(token) && tokens[index - 1] === "DSNT") return true;
+  return false;
+}
+
+function isCommonAviationToken(token) {
+  return /^[A-Z0-9]{4}$/.test(token)
+    || /^\d{6}Z$/.test(token)
+    || /^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?KT$/.test(token)
+    || token === "P6SM"
+    || /^\d{1,2}(?:\/\d)?SM$/.test(token)
+    || /^\d{4}$/.test(token)
+    || /^R\d{2}[LCR]?\/[PM]?\d{4}V?[PM]?\d{4}FT$/.test(token)
+    || /^(FEW|SCT|BKN|OVC|VV)\d{3}(CB|TCU)?$/.test(token)
+    || /^(CLR|SKC)$/.test(token)
+    || /^(M?\d{2}|M)\/(M?\d{2}|M|M?\/\/)$/.test(token)
+    || /^A\d{4}$/.test(token)
+    || /^Q\d{4}$/.test(token);
+}
+
+function describeUndecodedToken(token, reportType) {
+  const reportName = reportType === "taf" ? "TAF" : "METAR";
+  if (/^\d+$/.test(token)) {
+    return `${token}: encoded numeric/system group retained for reference.`;
+  }
+  if (/^[A-Z0-9/+-]+$/.test(token)) {
+    return `${token}: encoded ${reportName} group retained for reference; this trainer does not have a plain-language decode for it yet.`;
+  }
+  return `${token}: unrecognized ${reportName} token retained for reference.`;
 }
 
 function decodeObservedTime(token) {
@@ -766,9 +907,9 @@ function decodeObservedTime(token) {
 
 function decodeTempDewpoint(token) {
   const [temperature, dewpoint] = token.split("/");
-  const decodedTemp = decodeSignedTemp(temperature);
-  const decodedDewpoint = dewpoint.includes("//") ? "not reported" : `${decodeSignedTemp(dewpoint)}C`;
-  return `Temperature ${decodedTemp}C, dewpoint ${decodedDewpoint}.`;
+  const decodedTemp = temperature === "M" ? "not reported" : `${decodeSignedTemp(temperature)}C`;
+  const decodedDewpoint = dewpoint.includes("//") || dewpoint === "M" ? "not reported" : `${decodeSignedTemp(dewpoint)}C`;
+  return `Temperature ${decodedTemp}, dewpoint ${decodedDewpoint}.`;
 }
 
 function decodeChangeType(token) {
@@ -784,6 +925,7 @@ function decodeTafBoundary(dayHour, minute = "00") {
 }
 
 function decodeWindToken(match) {
+  if (match[1] === "00000KT") return "Calm.";
   const direction = match[1].startsWith("VRB") ? "variable" : `${match[1].slice(0, 3)} degrees`;
   const speed = Number(match[2]);
   const gust = match[3] ? `, gusting ${Number(match[3])} kt` : "";
@@ -800,14 +942,35 @@ function decodeVisibilityToken(tokens) {
   return `${token.replace("SM", "")} statute miles.`;
 }
 
+function decodeRvrTokens(tokens) {
+  return tokens
+    .filter((token) => /^R\d{2}[LCR]?\/[PM]?\d{4}V?[PM]?\d{4}FT$/.test(token))
+    .map((token) => {
+      const match = token.match(/^R(\d{2}[LCR]?)\/([PM]?\d{4})(?:V([PM]?\d{4}))FT$/);
+      if (!match) return token;
+      const decodeValue = (value) => `${value.startsWith("P") ? "greater than " : value.startsWith("M") ? "less than " : ""}${Number(value.replace(/^[PM]/, "")).toLocaleString("en-US")} ft`;
+      return `Runway ${match[1]} RVR ${decodeValue(match[2])}${match[3] ? ` variable to ${decodeValue(match[3])}` : ""}.`;
+    });
+}
+
 function metersToStatuteMiles(meters) {
   return Math.round((meters / 1609.344) * 10) / 10;
 }
 
 function decodeWeatherTokens(tokens) {
   return tokens
-    .filter((token) => /^[-+]?([A-Z]{2,})+$/.test(token) && /(?:RA|SN|TS|SH|BR|FG|DZ|HZ|FU|GR|GS|PL|NSW|VCSH|VCTS)/.test(token))
+    .filter(isWeatherToken)
     .map(decodeWeatherToken);
+}
+
+function isWeatherToken(token) {
+  if (!/^[-+]?[A-Z]{2,}$/.test(token)) return false;
+  if (/^(METAR|SPECI|AUTO|COR|RMK|QNH|LAST|NEXT|AFT|NIL|SKC|CLR)$/.test(token)) return false;
+  if (/^[A-Z0-9]{4}$/.test(token)) return false;
+  if (/^(FEW|SCT|BKN|OVC|VV)\d{3}/.test(token)) return false;
+  const clean = token.replace(/^[-+]/, "");
+  if (clean === "NSW") return true;
+  return /^(VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+$/.test(clean);
 }
 
 function decodeWeatherToken(token) {
@@ -857,6 +1020,8 @@ function decodeTafRemarks(tokens) {
     if (token === "LAST" && tokens[index + 1] === "NO" && tokens[index + 2] === "AMD") remarks.push("Last forecast, no amendments.");
     if (token === "AFT" && /^\d{4}Z$/.test(tokens[index + 1] || "")) remarks.push(`After ${decodeTafBoundary(tokens[index + 1].slice(0, 4))}.`);
     if (token === "NEXT" && /^\d{4}Z$/.test(tokens[index + 1] || "")) remarks.push(`Next forecast by ${decodeTafBoundary(tokens[index + 1].slice(0, 4))}.`);
+    if (token === "FZRANO") remarks.push("Freezing rain sensor not available.");
+    if (token === "LTG" && tokens[index + 1] === "DSNT") remarks.push(`Lightning distant ${decodeDirection(tokens[index + 2] || "")}.`);
     if (token === "RMK") remarks.push(`Remarks: ${tokens.slice(index + 1).join(" ")}.`);
   });
   return remarks;
@@ -878,12 +1043,38 @@ function decodeMetarRemarks(tokens) {
     if (hourlyPrecip) remarks.push(`Hourly precipitation ${Number(hourlyPrecip[1]) / 100} inches.`);
     const sixHourPrecip = token.match(/^6(\d{4})$/);
     if (sixHourPrecip) remarks.push(`Six-hour precipitation ${Number(sixHourPrecip[1]) / 100} inches.`);
+    const maxTemp = token.match(/^1(0|1)(\d{3})$/);
+    if (maxTemp) remarks.push(`Six-hour maximum temperature ${decodeTenthsTemp(maxTemp[1], maxTemp[2])}C.`);
+    const minTemp = token.match(/^2(0|1)(\d{3})$/);
+    if (minTemp) remarks.push(`Six-hour minimum temperature ${decodeTenthsTemp(minTemp[1], minTemp[2])}C.`);
+    const pressureTendency = token.match(/^5(\d)(\d{3})$/);
+    if (pressureTendency) remarks.push(`Three-hour pressure tendency code ${pressureTendency[1]}, change ${Number(pressureTendency[2]) / 10} hPa.`);
     if (/^DZB\d{2}E\d{2}$/.test(token)) remarks.push(`Drizzle began and ended during the hour: ${token}.`);
+    const rainEvent = token.match(/^RA(B|E)(\d{2})(\d{2})?$/);
+    if (rainEvent) remarks.push(`Rain ${rainEvent[1] === "B" ? "began" : "ended"} at ${rainEvent[2]}${rainEvent[3] || ""}Z.`);
     if (/^TSNO$/.test(token)) remarks.push("Thunderstorm information not available.");
+    if (token === "FZRANO") remarks.push("Freezing rain sensor not available.");
+    if (token === "LTG" && rmk[index + 1] === "DSNT") remarks.push(`Lightning distant ${decodeDirection(rmk[index + 2] || "")}.`);
     if (token === "$") remarks.push("Automated station maintenance check indicator.");
-    if (token === "PK" && rmk[index + 1] === "WND") remarks.push(`Peak wind ${rmk[index + 2] || ""} ${rmk[index + 3] || ""}`.trim() + ".");
+    if (token === "PK" && rmk[index + 1] === "WND") remarks.push(decodePeakWind(rmk[index + 2], rmk[index + 3]));
   });
   return remarks.length ? remarks : [`Raw remarks: ${rmk.join(" ")}.`];
+}
+
+function decodePeakWind(wind, time) {
+  const match = String(wind || "").match(/^(\d{3})(\d{2,3})\/?(\d{4})?$/);
+  if (!match) return `Peak wind ${wind || ""} ${time || ""}.`.trim();
+  const timeToken = match[3] || (/^\d{4}$/.test(time || "") ? time : "");
+  return `Peak wind ${match[1]} degrees at ${Number(match[2])} kt${timeToken ? ` at ${timeToken}Z` : ""}.`;
+}
+
+function decodeDirection(value) {
+  const directions = { N: "north", NE: "northeast", E: "east", SE: "southeast", S: "south", SW: "southwest", W: "west", NW: "northwest" };
+  return directions[value] || value || "direction not reported";
+}
+
+function isDirectionToken(value) {
+  return /^(N|NE|E|SE|S|SW|W|NW)$/.test(value);
 }
 
 function decodeSeaLevelPressure(value) {

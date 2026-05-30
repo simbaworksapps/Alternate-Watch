@@ -43,12 +43,18 @@
 
           <label>
             <span>Takeoff Zulu</span>
-            <input id="takeoffTime" name="takeoffTime" value="1915Z" inputmode="numeric" maxlength="5" autocomplete="off" />
+            <div class="input-action-row">
+              <input id="takeoffTime" name="takeoffTime" value="1915Z" inputmode="numeric" maxlength="5" autocomplete="off" />
+              <button type="button" class="secondary-button time-jump-button" id="takeoff-plus-three" aria-label="Set takeoff to current Zulu plus 3 hours" title="Current Zulu plus 3 hours">+3</button>
+            </div>
           </label>
 
           <label>
             <span>Landing / ETA Zulu</span>
-            <input id="landingTime" name="landingTime" value="2215Z" inputmode="numeric" maxlength="5" autocomplete="off" />
+            <div class="input-action-row">
+              <input id="landingTime" name="landingTime" value="2215Z" inputmode="numeric" maxlength="5" autocomplete="off" />
+              <button type="button" class="secondary-button time-jump-button" id="landing-plus-eight" aria-label="Set landing to current Zulu plus 8 hours" title="Current Zulu plus 8 hours">+8</button>
+            </div>
           </label>
 
           <label class="full-span">
@@ -63,7 +69,24 @@
             <button type="button" class="secondary-button symbol-button" id="reset-alternates" aria-label="Reset default mission fields" title="Reset default mission fields">↻</button>
           </div>
 
-          <button type="submit">Check Mission</button>
+          <div class="mission-submit-row">
+            <button type="button" class="secondary-button symbol-button rulebook-button" id="rulebook-toggle" aria-expanded="false" aria-controls="rulebook-panel" aria-label="Show rulebook logic" title="Show rulebook logic">§</button>
+            <button type="submit" id="check-mission-button">Check Mission</button>
+          </div>
+
+          <section id="rulebook-panel" class="rulebook-panel" hidden>
+            <h2>Rulebook</h2>
+            <p>Training aid for identifying when weather or location may drive alternate planning review.</p>
+            <ul>
+              <li>Destination and alternates evaluate ETA plus or minus 1 hour.</li>
+              <li>Red weather: ceiling below 2,000 ft AGL or visibility below 3 SM.</li>
+              <li>Yellow weather: ceiling at or below 2,500 ft AGL, visibility at or below 5 SM, or wind above 15 kt.</li>
+              <li>Red wind chip: wind above 25 kt.</li>
+              <li>Takeoff review: ceiling below 300 ft flags red; below 200 ft drives takeoff alternate review.</li>
+              <li>OCONUS departure or destination shows an OCONUS chip, but filters focus on weather-driven status.</li>
+              <li>NOTAM feature currently unavailable.</li>
+            </ul>
+          </section>
         </form>
       </section>
 

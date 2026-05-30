@@ -1,5 +1,5 @@
 const rulesMetadata = {
-  caoDate: "2026-05-29",
+  caoDate: "2026-05-30",
   rulesProfile: "Prototype thresholds pending current AFMAN 11-202V3 / AMC supplement mapping",
   weatherSource: "Sample",
   notamSource: "Unavailable",
@@ -520,7 +520,7 @@ function getNextPrevailingStart(groups, startIndex, issuedAt, fallback) {
   const next = groups.slice(startIndex).find((group) => group.changeType === "FM" || group.changeType === "BECMG");
   if (!next) return fallback;
   if (next.changeType === "FM") return tafFmToDate(next.changeToken, issuedAt);
-  return tafWindowFromGroup(next, issuedAt).validFrom;
+  return tafWindowFromGroup(next, issuedAt).validTo;
 }
 
 function tafWindowFromGroup(group, issuedAt) {

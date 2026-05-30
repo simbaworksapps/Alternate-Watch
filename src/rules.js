@@ -62,7 +62,8 @@ function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulle
   }
 
   const hasTaf = Boolean(airport.tafRaw && airport.taf?.length);
-  const period = hasTaf ? findApplicablePeriod(airport.taf, targetTime) : null;
+  const tafEvaluation = hasTaf ? findEvaluatedPeriods(airport.taf, targetTime, ruleType) : { period: null, periods: [] };
+  const period = tafEvaluation.period;
   const activeNotams = rulesMetadata.notamAvailable ? findActiveNotams(airport.notams, targetTime) : [];
   const weatherStatus = evaluateWeather(period, ruleType, hasTaf);
   const notamStatus = evaluateNotams(activeNotams);
@@ -81,11 +82,13 @@ function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulle
     name: airport.name,
     status,
     cardStatus,
+    filterStatus: cardStatus,
     title: `${icao} ${role}`,
     reason: [weatherStatus.reason, notamStatus.reason, locationStatus.reason].filter(Boolean).join(" "),
     chips,
     evaluatedAt: targetTime,
     period,
+    applicablePeriods: tafEvaluation.periods,
     weatherImpacts: weatherStatus.impacts || {},
     locationImpact: locationStatus.impact,
     metar: airport.metar,
@@ -140,6 +143,35 @@ function findApplicablePeriod(periods, targetTime) {
   })[0];
 }
 
+function findEvaluatedPeriods(periods, targetTime, ruleType) {
+  const target = new Date(targetTime).getTime();
+  const windowMs = ruleType === "departure" ? 0 : 60 * 60 * 1000;
+  const startWindow = target - windowMs;
+  const endWindow = target + windowMs;
+  const applicable = periods.filter((period) => {
+    const start = new Date(period.validFrom).getTime();
+    const end = new Date(period.validTo).getTime();
+    return start <= endWindow && end >= startWindow;
+  });
+  if (!applicable.length) return { period: null, periods: [] };
+  return {
+    period: applicable.sort(compareWeatherPeriods)[0],
+    periods: applicable
+  };
+}
+
+function compareWeatherPeriods(left, right) {
+  const leftStatus = evaluateWeather(left, "alternate", true).status;
+  const rightStatus = evaluateWeather(right, "alternate", true).status;
+  if (STATUS_RANK[leftStatus] !== STATUS_RANK[rightStatus]) {
+    return STATUS_RANK[rightStatus] - STATUS_RANK[leftStatus];
+  }
+  const leftCeiling = Number.isFinite(left.ceilingFt) ? left.ceilingFt : 99999;
+  const rightCeiling = Number.isFinite(right.ceilingFt) ? right.ceilingFt : 99999;
+  if (leftCeiling !== rightCeiling) return leftCeiling - rightCeiling;
+  return (left.visibilitySm ?? 99) - (right.visibilitySm ?? 99);
+}
+
 function findActiveNotams(notams, targetTime) {
   const target = new Date(targetTime).getTime();
   return notams.filter((notam) => target >= new Date(notam.starts).getTime() && target <= new Date(notam.ends).getTime());
@@ -157,47 +189,39 @@ function evaluateWeather(period, ruleType, hasTaf = true) {
 
   const windStatus = evaluateWind(period.wind);
   const thresholds = {
-    departure: { redCeiling: 2000, redVisibility: 3, yellowCeiling: 2500, yellowVisibility: 5 },
+    departure: { redCeiling: 200, redVisibility: 3, yellowCeiling: 300, yellowVisibility: 5, redChipCeiling: 300 },
     destination: { redCeiling: 2000, redVisibility: 3, yellowCeiling: 2500, yellowVisibility: 5 },
     alternate: { redCeiling: 2000, redVisibility: 3, yellowCeiling: 2500, yellowVisibility: 5 }
   }[ruleType];
 
   const ceilingFt = getCeilingFeet(period);
-  if ((ceilingFt !== null && ceilingFt < thresholds.redCeiling) || period.visibilitySm < thresholds.redVisibility) {
-    return {
-      status: "red",
-      reason: `Forecast ${formatCeiling(ceilingFt)} / ${formatVisibility(period)} is below prototype ${ruleType} threshold.`,
-      impacts: {
-        ceiling: ceilingFt !== null && ceilingFt < thresholds.redCeiling ? "red" : null,
-        visibility: period.visibilitySm < thresholds.redVisibility ? "red" : null
-      }
-    };
+  const impacts = {};
+  if (ceilingFt !== null && ceilingFt < thresholds.redCeiling) {
+    impacts.ceiling = "red";
+  } else if (ruleType === "departure" && ceilingFt !== null && ceilingFt < thresholds.redChipCeiling) {
+    impacts.ceiling = "red";
+  } else if (ceilingFt !== null && ceilingFt <= thresholds.yellowCeiling) {
+    impacts.ceiling = "yellow";
+  }
+  if (period.visibilitySm < thresholds.redVisibility) {
+    impacts.visibility = "red";
+  } else if (period.visibilitySm <= thresholds.yellowVisibility) {
+    impacts.visibility = "yellow";
+  }
+  if (windStatus.impacts.wind) {
+    impacts.wind = windStatus.impacts.wind;
   }
 
-  if (windStatus.status === "red") {
-    return windStatus;
-  }
+  const status = Object.values(impacts).reduce((current, impact) =>
+    STATUS_RANK[impact] > STATUS_RANK[current] ? impact : current
+  , "green");
+  const reason = status === "red"
+    ? `Forecast ${formatCeiling(ceilingFt)} / ${formatVisibility(period)} is below prototype ${ruleType} threshold.`
+    : status === "yellow"
+      ? `Forecast ${formatCeiling(ceilingFt)} / ${formatVisibility(period)} is approaching prototype ${ruleType} threshold.`
+      : `Forecast ${formatCeiling(ceilingFt)} / ${formatVisibility(period)} is comfortably above prototype ${ruleType} threshold.`;
 
-  if ((ceilingFt !== null && ceilingFt <= thresholds.yellowCeiling) || period.visibilitySm <= thresholds.yellowVisibility) {
-    return {
-      status: "yellow",
-      reason: `Forecast ${formatCeiling(ceilingFt)} / ${formatVisibility(period)} is approaching prototype ${ruleType} threshold.`,
-      impacts: {
-        ceiling: ceilingFt !== null && ceilingFt <= thresholds.yellowCeiling ? "yellow" : null,
-        visibility: period.visibilitySm <= thresholds.yellowVisibility ? "yellow" : null
-      }
-    };
-  }
-
-  if (windStatus.status === "yellow") {
-    return windStatus;
-  }
-
-  return {
-    status: "green",
-    reason: `Forecast ${formatCeiling(ceilingFt)} / ${formatVisibility(period)} is comfortably above prototype ${ruleType} threshold.`,
-    impacts: {}
-  };
+  return { status, reason, impacts };
 }
 
 function getCeilingFeet(period) {
@@ -339,6 +363,6 @@ function summarizeProblemItems(results) {
     .filter((result) => result.status === problemStatus)
     .map((result) => ({
       icao: result.icao,
-      chips: (result.chips || []).filter((chip) => chip.status === problemStatus)
+      chips: result.chips || []
     }));
 }
