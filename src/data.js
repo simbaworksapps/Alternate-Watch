@@ -429,9 +429,12 @@ function parseTafPeriods(tafRaw) {
       conditional: group.conditional,
       ceilingFt: elements.ceilingFt,
       ceilingSource: elements.ceilingSource,
+      ceilingRaw: elements.ceilingRaw,
       visibilitySm: elements.visibilitySm,
       visibilitySource: elements.visibilitySource,
+      visibilityRaw: elements.visibilityRaw,
       wind: elements.wind,
+      windRaw: elements.windRaw,
       raw
     };
   });
@@ -440,12 +443,16 @@ function parseTafPeriods(tafRaw) {
 function extractWeatherElements(raw) {
   const ceiling = extractCeiling(raw);
   const visibility = extractVisibility(raw);
+  const wind = extractWind(raw);
   return {
     ceilingFt: ceiling.ceilingFt,
     ceilingSource: ceiling.ceilingSource,
+    ceilingRaw: ceiling.ceilingSource ? raw : null,
     visibilitySm: visibility.visibilitySm,
     visibilitySource: visibility.visibilitySource,
-    wind: extractWind(raw)
+    visibilityRaw: visibility.visibilitySource ? raw : null,
+    wind,
+    windRaw: wind ? raw : null
   };
 }
 
@@ -454,9 +461,12 @@ function mergeWeatherElements(group, elements, prevailing) {
   return {
     ceilingFt: elements.ceilingFt ?? base?.ceilingFt ?? null,
     ceilingSource: elements.ceilingSource ?? base?.ceilingSource ?? null,
+    ceilingRaw: elements.ceilingSource ? elements.ceilingRaw : base?.ceilingRaw ?? null,
     visibilitySm: elements.visibilitySm ?? base?.visibilitySm ?? 99,
     visibilitySource: elements.visibilitySource ?? base?.visibilitySource ?? "P6SM",
-    wind: elements.wind ?? base?.wind ?? "00000KT"
+    visibilityRaw: elements.visibilitySource ? elements.visibilityRaw : base?.visibilityRaw ?? null,
+    wind: elements.wind ?? base?.wind ?? "00000KT",
+    windRaw: elements.wind ? elements.windRaw : base?.windRaw ?? null
   };
 }
 
@@ -535,11 +545,11 @@ function tafWindowFromGroup(group, issuedAt) {
 }
 
 function extractWind(raw) {
-  return raw.match(/\b(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)\b/)?.[0] || null;
+  return normalizeWeatherRaw(raw).match(/\b(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)\b/)?.[0] || null;
 }
 
 function extractVisibility(raw) {
-  const tokens = raw.split(/\s+/);
+  const tokens = normalizeWeatherRaw(raw).split(/\s+/);
   let visibilitySource = null;
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
@@ -580,13 +590,34 @@ function parseFraction(value) {
 }
 
 function extractCeiling(raw) {
-  const matches = [...raw.matchAll(/\b(BKN|OVC|VV)(\d{3})(CB)?\b/g)];
+  const matches = [...normalizeWeatherRaw(raw).matchAll(/\b(BKN|OVC|VV)(\d{3})(CB)?\b/g)];
   if (!matches.length) return { ceilingFt: null, ceilingSource: null };
   const lowest = matches.reduce((current, match) => (Number(match[2]) < Number(current[2]) ? match : current));
   return {
     ceilingFt: Number(lowest[2]) * 100,
     ceilingSource: lowest[0]
   };
+}
+
+function normalizeWeatherRaw(raw) {
+  return String(raw || "")
+    .split(/\s+/)
+    .map((token) => recoverDataRepeatedSlashToken(token))
+    .filter(Boolean)
+    .join(" ");
+}
+
+function recoverDataRepeatedSlashToken(token) {
+  const value = String(token || "");
+  if (!/\/{2,}/.test(value)) return value;
+  const recovered = value.replace(/^\/+/, "").replace(/\/+$/, "");
+  return /^(FEW|SCT|BKN|OVC|VV)\d{3}(CB|TCU)?$/.test(recovered)
+    || /^(CB|TCU)$/.test(recovered)
+    || /^(NSC|NCD|SKC|CLR|CAVOK)$/.test(recovered)
+    || /^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)$/.test(recovered)
+    || /^[-+]?(VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+$/.test(recovered)
+    ? recovered
+    : "";
 }
 
 function tafTokenToDate(token) {

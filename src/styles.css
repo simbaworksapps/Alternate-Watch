@@ -1230,8 +1230,17 @@ body.search-open::before {
 }
 
 .airport-row {
+  align-items: baseline;
+  column-gap: 8px;
   display: grid;
-  gap: 2px;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.airport-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-meta {
@@ -1529,6 +1538,17 @@ dd {
   gap: 8px;
 }
 
+.taf-eval-time {
+  background: rgba(74, 163, 255, 0.12);
+  border: 1px solid rgba(74, 163, 255, 0.42);
+  border-radius: 999px;
+  color: #b8dcff;
+  font-size: 0.72rem;
+  font-weight: 1000;
+  line-height: 1;
+  padding: 4px 8px;
+}
+
 .vis-separator {
   color: var(--muted);
   font-weight: 1000;
@@ -1783,9 +1803,7 @@ ul {
   }
 
   .airport-row {
-    align-items: baseline;
     column-gap: 12px;
-    grid-template-columns: auto 1fr;
   }
 
   .issue-chips {
@@ -1868,6 +1886,10 @@ ul {
     position: relative;
   }
 
+  .airport-row {
+    padding-right: 74px;
+  }
+
   .card-meta {
     grid-column: 1 / -1;
     min-width: 0;
@@ -1889,6 +1911,20 @@ ul {
   .taf-decode-row summary,
   .metar-decode-row summary {
     overflow-wrap: anywhere;
+  }
+
+  .taf-decode-row.taf-applicable,
+  .taf-decode-row.taf-window {
+    margin-bottom: 8px;
+  }
+
+  .taf-decode-row.taf-applicable summary,
+  .taf-decode-row.taf-window summary {
+    padding-bottom: 5px;
+  }
+
+  .taf-markers {
+    margin-bottom: 3px;
   }
 
   .wx-grid {

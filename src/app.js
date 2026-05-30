@@ -1485,7 +1485,7 @@ function renderCard(result) {
               ${renderMetar(result.metar)}
             </section>
             <section class="taf-block">
-              <h4 class="taf-title">Full TAF ${renderTafValidityBadge(result.tafRaw, latestEvaluation.pulledAt)}</h4>
+              <h4 class="taf-title">Full TAF ${renderTafValidityBadge(result.tafRaw, latestEvaluation.pulledAt)} ${renderTafEvaluationTime(result.evaluatedAt)}</h4>
               ${taf}
             </section>
             <section class="notam-block">
@@ -1508,13 +1508,21 @@ function renderIssueChip(chip, icao = "") {
 
 function renderWeatherSourceTile(kind, label, value, result) {
   const status = result.weatherImpacts?.[kind] || "green";
-  const sourceKey = encodeTafKey(result.period?.raw || "");
+  const sourceKey = encodeTafKey(getWeatherSourceRaw(kind, result.period) || result.period?.raw || "");
   return `
     <div class="${impactClass(status)} wx-source-tile" role="button" tabindex="0" data-source-kind="${kind}" data-source-status="${status}" data-source-key="${escapeHtml(sourceKey)}" title="Jump to ${escapeHtml(label.toLowerCase())} source">
       <dt>${escapeHtml(label)}</dt>
       <dd>${value}</dd>
     </div>
   `;
+}
+
+function getWeatherSourceRaw(kind, period) {
+  if (!period) return "";
+  if (kind === "ceiling") return period.ceilingRaw || "";
+  if (kind === "visibility") return period.visibilityRaw || "";
+  if (kind === "wind") return period.windRaw || "";
+  return "";
 }
 
 function getWeatherProductChips(result) {
@@ -1554,6 +1562,15 @@ function renderTafValidityBadge(tafRaw, referenceValue) {
       ? { label: "Future", className: "age-yellow" }
       : { label: "Current", className: "age-green" };
   return `<span class="data-age taf-age ${status.className}">${status.label}</span>`;
+}
+
+function renderTafEvaluationTime(value) {
+  return `<span class="taf-eval-time">Eval ${formatTafReferenceTime(value)}</span>`;
+}
+
+function formatTafReferenceTime(value) {
+  const date = new Date(value);
+  return `${String(date.getUTCDate()).padStart(2, "0")}${String(date.getUTCHours()).padStart(2, "0")}${String(date.getUTCMinutes()).padStart(2, "0")}Z`;
 }
 
 function renderNotam(notam) {
@@ -1664,7 +1681,7 @@ function renderTafSourceTokens(line) {
 function getTafSourceTokenClasses(token) {
   const classes = [];
   if (/^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)$/.test(token)) classes.push("taf-source-wind");
-  if (token === "P6SM" || /^\d{1,2}(?:\/\d)?SM$/.test(token) || /^\d{4}$/.test(token) || matchCompactVisibilityWeatherToken(token)) classes.push("taf-source-visibility");
+  if (token === "P6SM" || /^\d{1,2}(?:\/\d)?SM$/.test(token) || /^\d{4}$/.test(token) || /^\d{4}(N|NE|E|SE|S|SW|W|NW)$/.test(token) || matchCompactVisibilityWeatherToken(token)) classes.push("taf-source-visibility");
   if (/^(BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU)?$/.test(token)) classes.push("taf-source-ceiling");
   return classes;
 }
@@ -1808,7 +1825,7 @@ function tafMarker(result) {
 }
 
 function decodeTafLine(line) {
-  const tokens = line.trim().split(/\s+/);
+  const tokens = normalizeReportTokens(line.trim().split(/\s+/));
   const items = [];
   const changeType = decodeChangeType(tokens[0]);
   if (changeType) items.push({ label: "Change", value: changeType });
@@ -1823,6 +1840,8 @@ function decodeTafLine(line) {
 
   const wind = line.match(/\b((?:\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS))\b/);
   if (wind) items.push({ label: "Wind", value: decodeWindToken(wind) });
+  const variableWind = tokens.find((token) => /^\d{3}V\d{3}$/.test(token));
+  if (variableWind) items.push({ label: "Wind", value: `Wind direction varying from ${variableWind.slice(0, 3)} degrees to ${variableWind.slice(4, 7)} degrees.` });
 
   const visibility = decodeVisibilityToken(tokens);
   if (visibility) items.push({ label: "Visibility", value: visibility });
@@ -1844,7 +1863,7 @@ function decodeTafLine(line) {
 }
 
 function decodeMetarLine(line) {
-  const tokens = line.trim().split(/\s+/);
+  const tokens = normalizeReportTokens(line.trim().split(/\s+/));
   const items = [];
   const station = tokens.find((token) => /^[A-Z0-9]{4}$/.test(token));
   if (station) items.push({ label: "Station", value: station });
@@ -1875,6 +1894,9 @@ function decodeMetarLine(line) {
   if (tokens.includes("CLR")) items.push({ label: "Clouds", value: "Clear below reporting limits." });
   if (tokens.includes("SKC")) items.push({ label: "Clouds", value: "Sky clear." });
   if (tokens.includes("NSC")) items.push({ label: "Clouds", value: "No significant cloud." });
+  if (tokens.includes("NCD")) items.push({ label: "Clouds", value: "No cloud detected by automated sensor." });
+  const missingGroups = decodeMissingSlashGroups(tokens);
+  if (missingGroups.length) items.push({ label: "Encoded / System", value: missingGroups.join("; ") });
 
   const tempDew = tokens.find((token) => /^(M?\d{2}|M)\/(M?\d{2}|M|M?\/\/)$/.test(token));
   if (tempDew) items.push({ label: "Temperature", value: decodeTempDewpoint(tempDew) });
@@ -1899,7 +1921,7 @@ function decodeMetarLine(line) {
 function decodeUndecodedTokens(tokens, reportType) {
   const isKnown = reportType === "metar" ? isKnownMetarToken : isKnownTafToken;
   return tokens
-    .filter((token, index) => !isKnown(token, index, tokens))
+    .filter((token, index) => !hasRepeatedSlash(token) && !isKnown(token, index, tokens))
     .map((token) => describeUndecodedToken(token, reportType));
 }
 
@@ -1913,6 +1935,7 @@ function isKnownTafToken(token, index, tokens) {
   if (/^(TX|TN)(M?\d{2})\/(\d{4})Z$/.test(token)) return true;
   if (/^QNH\d{4}INS$/.test(token)) return true;
   if (/^\d{4}Z$/.test(token) && ["AFT", "NEXT"].includes(tokens[index - 1])) return true;
+  if (/^\d{4}(N|NE|E|SE|S|SW|W|NW)$/.test(token)) return true;
   if (token === "AMD" && tokens[index - 1] === "NO") return true;
   if (token === "FZRANO") return true;
   if (token === "LTG" || token === "DSNT") return true;
@@ -1923,17 +1946,26 @@ function isKnownTafToken(token, index, tokens) {
 function isKnownMetarToken(token, index, tokens) {
   if (isCommonAviationToken(token)) return true;
   if (isWeatherToken(token)) return true;
-  if (/^(METAR|SPECI|AUTO|COR|RMK|CAVOK|NIL|NSC)$/.test(token)) return true;
-  if (/^(AO1|AO2|TSNO|FZRANO|\$)$/.test(token)) return true;
+  if (/^(METAR|SPECI|AUTO|COR|RMK|CAVOK|NIL|NSC|NCD)$/.test(token)) return true;
+  if (/^(AO1|AO2|A01|A02|TSNO|FZRANO|\$)$/.test(token)) return true;
   if (/^(NOSIG|OBST|OBSC|BIRD|HAZARD|RWY|MT|PT)$/.test(token)) return true;
+  if (/^(BLU|WHT|GRN|YLO|AMB|RED|BLACK)$/.test(token) && tokens.includes("RMK")) return true;
   if (/^(TEMPO|BECMG|INTER|WIND)$/.test(token)) return true;
   if (/^R\d{2}[LCR]?\/\d{6}$/.test(token)) return true;
+  if (/^R\d{2}[LCR]?\/[PM]?\d{4}[UDN]?$/.test(token)) return true;
   if (/^PP\d{3}$/.test(token)) return true;
   if (/^QFE\d{3,4}\/\d{3,4}$/.test(token)) return true;
+  if (/^\/{2,}$/.test(token)) return true;
+  if (/^\/+\d+\/+$/.test(token)) return true;
+  if (/^\d{4}(N|NE|E|SE|S|SW|W|NW)$/.test(token)) return true;
+  if (/^(FEW|SCT|BKN|OVC|VV)\d{3}\/{2,}(CB|TCU)?$/.test(token)) return true;
+  if (/^\/{3,}(CB|TCU)$/.test(token)) return true;
   if (matchCompactVisibilityWeatherToken(token)) return true;
   if (/^\d{3,4}FT$/.test(token) && (tokens[index - 1] === "WIND" || matchWindToken(tokens[index + 1]))) return true;
+  if (/^\d{3}V\d{3}$/.test(token) && (matchWindToken(tokens[index - 1]) || matchWindToken(tokens[index - 2]))) return true;
   if (/^\d{2}\/\d{2}$/.test(token) && tokens[index - 1] === "RWY") return true;
   if (/^SLP\d{3}$/.test(token)) return true;
+  if (/^SLTP\d{3}$/.test(token)) return true;
   if (/^T[01]\d{3}[01]\d{3}$/.test(token)) return true;
   if (/^P\d{4}$/.test(token)) return true;
   if (/^6\d{4}$/.test(token)) return true;
@@ -1942,10 +1974,16 @@ function isKnownMetarToken(token, index, tokens) {
   if (/^5\d{4}$/.test(token)) return true;
   if (/^DZB\d{2}E\d{2}$/.test(token)) return true;
   if (/^RA(B|E)\d{2}(\d{2})?$/.test(token)) return true;
+  if (/^TS(B|E)\d{2}(\d{2})?$/.test(token)) return true;
+  if (/^(HZY|8\/\d{3})$/.test(token) && tokens.includes("RMK")) return true;
+  if (/^(ST\dST\d|ST|TR|CB\/[A-Z-]+|DENSITY|ALT|FT)$/.test(token) && tokens.includes("RMK")) return true;
+  if (/^\d{3,5}$/.test(token) && tokens[index - 2] === "DENSITY" && tokens[index - 1] === "ALT") return true;
   if (token === "PK" || token === "WND") return true;
   if (/^\d{3}\d{2,3}\/?(\d{4})?$/.test(token) && (tokens[index - 1] === "WND" || tokens[index - 2] === "PK")) return true;
   if (token === "LTG" || token === "DSNT") return true;
+  if (token === "AND" && (isDirectionToken(tokens[index - 1]) || isDirectionToken(tokens[index + 1]))) return true;
   if (isDirectionToken(token) && tokens[index - 1] === "DSNT") return true;
+  if (isDirectionToken(token) && tokens[index - 1] === "AND") return true;
   return false;
 }
 
@@ -1958,11 +1996,38 @@ function isCommonAviationToken(token) {
     || /^\d{4}$/.test(token)
     || /^R\d{2}[LCR]?\/[PM]?\d{4}V?[PM]?\d{4}FT$/.test(token)
     || /^(FEW|SCT|BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU)?$/.test(token)
+    || /^(FEW|SCT|BKN|OVC|VV)\d{3}\/{2,}(CB|TCU)?$/.test(token)
     || /^\/\/\/(CB|TCU)$/.test(token)
+    || /^\/{3,}(CB|TCU)$/.test(token)
     || /^(CLR|SKC|NSC)$/.test(token)
     || /^(M?\d{2}|M)\/(M?\d{2}|M|M?\/\/)$/.test(token)
     || /^A\d{4}$/.test(token)
     || /^Q\d{4}$/.test(token);
+}
+
+function hasRepeatedSlash(token) {
+  return /\/{2,}/.test(String(token || ""));
+}
+
+function normalizeReportTokens(tokens) {
+  return tokens
+    .map((token) => recoverRepeatedSlashToken(token))
+    .filter(Boolean);
+}
+
+function recoverRepeatedSlashToken(token) {
+  const value = String(token || "");
+  if (!hasRepeatedSlash(value)) return value;
+  const recovered = value.replace(/^\/+/, "").replace(/\/+$/, "");
+  return isRecoverableSlashToken(recovered) ? recovered : "";
+}
+
+function isRecoverableSlashToken(token) {
+  return /^(FEW|SCT|BKN|OVC|VV)\d{3}(CB|TCU)?$/.test(token)
+    || /^(CB|TCU)$/.test(token)
+    || /^(NSC|NCD|SKC|CLR|CAVOK)$/.test(token)
+    || /^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)$/.test(token)
+    || isWeatherToken(token);
 }
 
 function describeUndecodedToken(token, reportType) {
@@ -2014,11 +2079,14 @@ function decodeWindToken(match) {
 function decodeVisibilityToken(tokens) {
   const token = tokens.find((item) => item === "P6SM" || /^\d{1,2}(?:\/\d)?SM$/.test(item) || /^\d{4}$/.test(item));
   const compact = tokens.find(matchCompactVisibilityWeatherToken);
-  if (!token && !compact) return null;
+  const directional = tokens.find((item) => /^\d{4}(N|NE|E|SE|S|SW|W|NW)$/.test(item));
+  if (!token && !compact && !directional) return null;
   if (!token && compact) {
     const match = matchCompactVisibilityWeatherToken(compact);
     return decodeMetersVisibility(match[1]);
   }
+  if (token && directional) return `${decodeMetersVisibility(token)} Directional visibility ${decodeDirectionalVisibility(directional)}`;
+  if (directional) return `Directional visibility ${decodeDirectionalVisibility(directional)}`;
   if (token === "P6SM") return "Greater than 6 statute miles.";
   if (/^\d{4}$/.test(token)) return decodeMetersVisibility(token);
   return `${token.replace("SM", "")} statute miles.`;
@@ -2026,13 +2094,19 @@ function decodeVisibilityToken(tokens) {
 
 function decodeRvrTokens(tokens) {
   return tokens
-    .filter((token) => /^R\d{2}[LCR]?\/[PM]?\d{4}V?[PM]?\d{4}FT$/.test(token))
+    .filter((token) => /^R\d{2}[LCR]?\/[PM]?\d{4}(?:V[PM]?\d{4})?(?:FT|[UDN])?$/.test(token))
     .map((token) => {
-      const match = token.match(/^R(\d{2}[LCR]?)\/([PM]?\d{4})(?:V([PM]?\d{4}))FT$/);
+      const match = token.match(/^R(\d{2}[LCR]?)\/([PM]?\d{4})(?:V([PM]?\d{4}))?(FT|[UDN])?$/);
       if (!match) return token;
-      const decodeValue = (value) => `${value.startsWith("P") ? "greater than " : value.startsWith("M") ? "less than " : ""}${Number(value.replace(/^[PM]/, "")).toLocaleString("en-US")} ft`;
-      return `Runway ${match[1]} RVR ${decodeValue(match[2])}${match[3] ? ` variable to ${decodeValue(match[3])}` : ""}.`;
+      const unit = match[4] === "FT" ? "ft" : "meters";
+      const trend = { U: "increasing", D: "decreasing", N: "no significant change" }[match[4]] || "";
+      const decodeValue = (value) => `${value.startsWith("P") ? "greater than " : value.startsWith("M") ? "less than " : ""}${Number(value.replace(/^[PM]/, "")).toLocaleString("en-US")} ${unit}`;
+      return `Runway ${match[1]} RVR ${decodeValue(match[2])}${match[3] ? ` variable to ${decodeValue(match[3])}` : ""}${trend ? `, ${trend}` : ""}.`;
     });
+}
+
+function decodeMissingSlashGroups(tokens) {
+  return tokens.filter((token) => !hasRepeatedSlash(token) && /^\/+\d+\/+$/.test(token));
 }
 
 function decodeRunwayStateTokens(tokens) {
@@ -2043,6 +2117,12 @@ function decodeRunwayStateTokens(tokens) {
 
 function decodeMetersVisibility(value) {
   return value === "9999" ? "Unlimited." : `${Number(value).toLocaleString("en-US")} meters, equivalent to ${metersToStatuteMiles(Number(value)).toFixed(1)} statute miles.`;
+}
+
+function decodeDirectionalVisibility(token) {
+  const match = String(token || "").match(/^(\d{4})(N|NE|E|SE|S|SW|W|NW)$/);
+  if (!match) return token;
+  return `${Number(match[1]).toLocaleString("en-US")} meters ${decodeDirection(match[2])}.`;
 }
 
 function metersToStatuteMiles(meters) {
@@ -2065,6 +2145,7 @@ function isWeatherToken(token) {
   if (/^(FEW|SCT|BKN|OVC|VV)\d{3}/.test(token)) return false;
   const clean = token.replace(/^[-+]/, "");
   if (clean === "NSW") return true;
+  if (/^RE(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|TS|SH|FZ)+$/.test(clean)) return true;
   return /^(VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+$/.test(clean);
 }
 
@@ -2106,10 +2187,12 @@ function decodeWeatherToken(token) {
     ["SS", "sandstorm"],
     ["DS", "duststorm"]
   ];
+  const recent = clean.startsWith("RE");
+  const weatherCode = recent ? clean.slice(2) : clean;
   codes.forEach(([code, label]) => {
-    if (clean.includes(code)) parts.push(label);
+    if (weatherCode.includes(code)) parts.push(label);
   });
-  return `${intensity}${parts.join(" ")}.`.trim();
+  return `${recent ? "Recent " : intensity}${parts.join(" ")}.`.trim();
 }
 
 function matchCompactVisibilityWeatherToken(token) {
@@ -2119,9 +2202,16 @@ function matchCompactVisibilityWeatherToken(token) {
 
 function decodeCloudTokens(tokens) {
   return tokens
-    .filter((token) => /^(FEW|SCT|BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU)?$/.test(token) || /^\/\/\/(CB|TCU)$/.test(token))
+    .filter((token) => /^(FEW|SCT|BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU)?$/.test(token) || /^(FEW|SCT|BKN|OVC|VV)\d{3}\/{2,}(CB|TCU)?$/.test(token) || /^\/{3,}(CB|TCU)$/.test(token) || /^(CB|TCU)$/.test(token))
     .map((token) => {
-      const bareType = token.match(/^\/\/\/(CB|TCU)$/);
+      if (token === "CB" || token === "TCU") return `${token === "CB" ? "Cumulonimbus" : "Towering cumulus"}, base not reported.`;
+      const appendedMissing = token.match(/^(FEW|SCT|BKN|OVC|VV)(\d{3})\/{2,}(CB|TCU)?$/);
+      if (appendedMissing) {
+        const coverage = { FEW: "Few", SCT: "Scattered", BKN: "Broken", OVC: "Overcast", VV: "Vertical visibility" }[appendedMissing[1]];
+        const cloudType = appendedMissing[3] === "CB" ? " cumulonimbus" : appendedMissing[3] === "TCU" ? " towering cumulus" : "";
+        return `${coverage}${cloudType} at ${(Number(appendedMissing[2]) * 100).toLocaleString("en-US")} ft AGL; additional cloud detail not reported.`;
+      }
+      const bareType = token.match(/^\/{3,}(CB|TCU)$/);
       if (bareType) return `${bareType[1] === "CB" ? "Cumulonimbus" : "Towering cumulus"}, base not reported.`;
       const match = token.match(/^(FEW|SCT|BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU)?$/);
       const coverage = { FEW: "Few", SCT: "Scattered", BKN: "Broken", OVC: "Overcast", VV: "Vertical visibility" }[match[1]];
@@ -2197,51 +2287,81 @@ function decodeMetarRemarks(tokens) {
   const remarks = [];
   const rmk = tokens.slice(rmkIndex + 1);
   rmk.forEach((token, index) => {
-    if (token === "AO1") remarks.push("Automated station without precipitation discriminator.");
-    if (token === "AO2") remarks.push("Automated station with precipitation discriminator.");
-    const slp = token.match(/^SLP(\d{3})$/);
-    if (slp) remarks.push(`Sea level pressure ${decodeSeaLevelPressure(slp[1])} hPa.`);
-    const preciseTemp = token.match(/^T(0|1)(\d{3})(0|1)(\d{3})$/);
-    if (preciseTemp) remarks.push(`Precise temperature ${decodeTenthsTemp(preciseTemp[1], preciseTemp[2])}C, precise dewpoint ${decodeTenthsTemp(preciseTemp[3], preciseTemp[4])}C.`);
-    const hourlyPrecip = token.match(/^P(\d{4})$/);
-    if (hourlyPrecip) remarks.push(`Hourly precipitation ${Number(hourlyPrecip[1]) / 100} inches.`);
-    const sixHourPrecip = token.match(/^6(\d{4})$/);
-    if (sixHourPrecip) remarks.push(`Six-hour precipitation ${Number(sixHourPrecip[1]) / 100} inches.`);
-    const maxTemp = token.match(/^1(0|1)(\d{3})$/);
-    if (maxTemp) remarks.push(`Six-hour maximum temperature ${decodeTenthsTemp(maxTemp[1], maxTemp[2])}C.`);
-    const minTemp = token.match(/^2(0|1)(\d{3})$/);
-    if (minTemp) remarks.push(`Six-hour minimum temperature ${decodeTenthsTemp(minTemp[1], minTemp[2])}C.`);
-    const pressureTendency = token.match(/^5(\d)(\d{3})$/);
-    if (pressureTendency) remarks.push(`Three-hour pressure tendency code ${pressureTendency[1]}, change ${Number(pressureTendency[2]) / 10} hPa.`);
-    const runwayState = token.match(/^R(\d{2}[LCR]?)\/([0-9/])([0-9/])([0-9/]{2})([0-9/]{2})$/);
-    if (runwayState) remarks.push(decodeRunwayState(runwayState));
-    const pressurePrecip = token.match(/^PP(\d{3})$/);
-    if (pressurePrecip) remarks.push(`Pressure tendency or precipitation group ${token} retained for reference.`);
-    const qfe = token.match(/^QFE(\d{3,4})\/(\d{3,4})$/);
-    if (qfe) remarks.push(`QFE ${qfe[1]} mmHg / ${qfe[2]} hPa.`);
-    if (/^DZB\d{2}E\d{2}$/.test(token)) remarks.push(`Drizzle began and ended during the hour: ${token}.`);
-    const rainEvent = token.match(/^RA(B|E)(\d{2})(\d{2})?$/);
-    if (rainEvent) remarks.push(`Rain ${rainEvent[1] === "B" ? "began" : "ended"} at ${rainEvent[2]}${rainEvent[3] || ""}Z.`);
-    if (/^TSNO$/.test(token)) remarks.push("Thunderstorm information not available.");
-    if (token === "FZRANO") remarks.push("Freezing rain sensor not available.");
-    if (token === "TEMPO") remarks.push("Temporary trend condition follows.");
-    if (token === "WIND" && /^\d{3,4}FT$/.test(rmk[index + 1] || "") && /^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)$/.test(rmk[index + 2] || "")) {
-      const height = Number(rmk[index + 1].replace("FT", "")).toLocaleString("en-US");
-      remarks.push(`Wind at ${height} ft: ${decodeWindToken(matchWindToken(rmk[index + 2]))}`);
-    }
-    if (token === "LTG" && rmk[index + 1] === "DSNT") remarks.push(`Lightning distant ${decodeDirection(rmk[index + 2] || "")}.`);
-    if (token === "$") remarks.push("Automated station maintenance check indicator.");
-    if (token === "PK" && rmk[index + 1] === "WND") remarks.push(decodePeakWind(rmk[index + 2], rmk[index + 3]));
-    if (token === "OBST" && rmk[index + 1] === "OBSC") remarks.push("Obstruction obscuring observed.");
-    if (token === "MT" && rmk[index + 1] === "OBSC") remarks.push("Mountains obscured.");
-    if (token === "MT" && rmk[index + 1] === "PT" && rmk[index + 2] === "OBSC") remarks.push("Mountains partially obscured.");
-    if (token === "NOSIG") remarks.push("No significant change expected.");
-    if (token === "BIRD" && rmk[index + 1] === "HAZARD") {
-      const runway = rmk[index + 2] === "RWY" ? ` runway ${rmk[index + 3] || ""}` : "";
-      remarks.push(`Bird hazard${runway}.`.trim());
-    }
+    decodeMetarRemarkToken(token, index, rmk).forEach((remark) => remarks.push(remark));
   });
   return remarks.length ? remarks : [`Raw remarks: ${rmk.join(" ")}.`];
+}
+
+function getMetarRemarkDecoders() {
+  return [
+  (token) => token === "AO1" || token === "A01" ? "Automated station without precipitation discriminator." : null,
+  (token) => token === "AO2" || token === "A02" ? "Automated station with precipitation discriminator." : null,
+  (token) => matchDecode(token, /^SLP(\d{3})$/, (match) => `Sea level pressure ${decodeSeaLevelPressure(match[1])} hPa.`),
+  (token) => matchDecode(token, /^SLTP(\d{3})$/, (match) => `SLTP pressure group ${token}; likely sea-level pressure ${decodeSeaLevelPressure(match[1])} hPa, retained with original spelling.`),
+  (token) => matchDecode(token, /^T(0|1)(\d{3})(0|1)(\d{3})$/, (match) => `Precise temperature ${decodeTenthsTemp(match[1], match[2])}C, precise dewpoint ${decodeTenthsTemp(match[3], match[4])}C.`),
+  (token) => matchDecode(token, /^P(\d{4})$/, (match) => `Hourly precipitation ${Number(match[1]) / 100} inches.`),
+  (token) => matchDecode(token, /^6(\d{4})$/, (match) => `Six-hour precipitation ${Number(match[1]) / 100} inches.`),
+  (token) => matchDecode(token, /^1(0|1)(\d{3})$/, (match) => `Six-hour maximum temperature ${decodeTenthsTemp(match[1], match[2])}C.`),
+  (token) => matchDecode(token, /^2(0|1)(\d{3})$/, (match) => `Six-hour minimum temperature ${decodeTenthsTemp(match[1], match[2])}C.`),
+  (token) => matchDecode(token, /^5(\d)(\d{3})$/, (match) => `Three-hour pressure tendency code ${match[1]}, change ${Number(match[2]) / 10} hPa.`),
+  (token) => matchDecode(token, /^R(\d{2}[LCR]?)\/([0-9/])([0-9/])([0-9/]{2})([0-9/]{2})$/, decodeRunwayState),
+  (token) => matchDecode(token, /^PP(\d{3})$/, () => `Pressure tendency or precipitation group ${token} retained for reference.`),
+  (token) => matchDecode(token, /^QFE(\d{3,4})\/(\d{3,4})$/, (match) => `QFE ${match[1]} mmHg / ${match[2]} hPa.`),
+  (token) => decodeMilitaryColourState(token) || null,
+  (token) => token === "HZY" ? "Hazy." : null,
+  (token) => matchDecode(token, /^8\/(\d{3})$/, (match) => `Sky condition remark 8/${match[1]} retained for reference; cloud-layer type codes are ${match[1].split("").join(", ")}.`),
+  (token) => /^ST\dST\d$/.test(token) ? `Stratus cloud layer/type remark ${token}.` : null,
+  (token, index, rmk) => token === "ST" && rmk[index + 1] === "TR" ? "Stratus trace." : null,
+  (token) => matchDecode(token, /^CB\/([A-Z-]+)$/, (match) => `Cumulonimbus observed ${decodeSector(match[1])}.`),
+  (token, index, rmk) => token === "DENSITY" && rmk[index + 1] === "ALT" && /^\d{3,5}$/.test(rmk[index + 2] || "") ? `Density altitude ${Number(rmk[index + 2]).toLocaleString("en-US")} ft.` : null,
+  (token) => /^DZB\d{2}E\d{2}$/.test(token) ? `Drizzle began and ended during the hour: ${token}.` : null,
+  (token) => matchDecode(token, /^RA(B|E)(\d{2})(\d{2})?$/, (match) => `Rain ${match[1] === "B" ? "began" : "ended"} at ${match[2]}${match[3] || ""}Z.`),
+  (token) => matchDecode(token, /^TS(B|E)(\d{2})(\d{2})?$/, (match) => `Thunderstorm ${match[1] === "B" ? "began" : "ended"} at ${match[2]}${match[3] || ""}Z.`),
+  (token) => token === "TSNO" ? "Thunderstorm information not available." : null,
+  (token) => token === "FZRANO" ? "Freezing rain sensor not available." : null,
+  (token) => token === "TEMPO" ? "Temporary trend condition follows." : null,
+  (token, index, rmk) => {
+    if (token !== "WIND" || !/^\d{3,4}FT$/.test(rmk[index + 1] || "") || !matchWindToken(rmk[index + 2])) return null;
+    const height = Number(rmk[index + 1].replace("FT", "")).toLocaleString("en-US");
+    return `Wind at ${height} ft: ${decodeWindToken(matchWindToken(rmk[index + 2]))}`;
+  },
+  (token, index, rmk) => token === "LTG" && rmk[index + 1] === "DSNT" ? `Lightning distant ${decodeDirectionSequence(rmk.slice(index + 2))}.` : null,
+  (token) => token === "$" ? "Automated station maintenance check indicator." : null,
+  (token, index, rmk) => token === "PK" && rmk[index + 1] === "WND" ? decodePeakWind(rmk[index + 2], rmk[index + 3]) : null,
+  (token, index, rmk) => token === "OBST" && rmk[index + 1] === "OBSC" ? "Obstruction obscuring observed." : null,
+  (token, index, rmk) => token === "MT" && rmk[index + 1] === "OBSC" ? "Mountains obscured." : null,
+  (token, index, rmk) => token === "MT" && rmk[index + 1] === "PT" && rmk[index + 2] === "OBSC" ? "Mountains partially obscured." : null,
+  (token) => token === "NOSIG" ? "No significant change expected." : null,
+  (token, index, rmk) => {
+    if (token !== "BIRD" || rmk[index + 1] !== "HAZARD") return null;
+    const runway = rmk[index + 2] === "RWY" ? ` runway ${rmk[index + 3] || ""}` : "";
+    return `Bird hazard${runway}.`.trim();
+  }
+  ];
+}
+
+function decodeMetarRemarkToken(token, index, rmk) {
+  return getMetarRemarkDecoders()
+    .map((decoder) => decoder(token, index, rmk))
+    .filter(Boolean);
+}
+
+function matchDecode(token, pattern, decode) {
+  const match = String(token || "").match(pattern);
+  return match ? decode(match) : null;
+}
+
+function decodeMilitaryColourState(token) {
+  const states = {
+    BLU: "Military aerodrome colour state blue: generally good operating weather.",
+    WHT: "Military aerodrome colour state white: generally good operating weather.",
+    GRN: "Military aerodrome colour state green.",
+    YLO: "Military aerodrome colour state yellow.",
+    AMB: "Military aerodrome colour state amber.",
+    RED: "Military aerodrome colour state red: poor operating weather.",
+    BLACK: "Military aerodrome colour state black: very poor or unsuitable operating weather."
+  };
+  return states[token] || "";
 }
 
 function decodeRunwayState(match) {
@@ -2258,6 +2378,25 @@ function decodePeakWind(wind, time) {
 function decodeDirection(value) {
   const directions = { N: "north", NE: "northeast", E: "east", SE: "southeast", S: "south", SW: "southwest", W: "west", NW: "northwest" };
   return directions[value] || value || "direction not reported";
+}
+
+function decodeDirectionSequence(tokens) {
+  const directions = [];
+  for (const token of tokens) {
+    if (token === "AND") continue;
+    if (!isDirectionToken(token)) break;
+    directions.push(decodeDirection(token));
+  }
+  if (!directions.length) return "direction not reported";
+  if (directions.length === 1) return directions[0];
+  return `${directions.slice(0, -1).join(", ")} and ${directions[directions.length - 1]}`;
+}
+
+function decodeSector(value) {
+  return String(value || "")
+    .split("-")
+    .map(decodeDirection)
+    .join(" through ");
 }
 
 function isDirectionToken(value) {
