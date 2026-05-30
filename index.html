@@ -28,12 +28,18 @@
         <form id="mission-form" class="mission-form">
           <label>
             <span>Departure</span>
-            <input id="departure" name="departure" value="KMCF" maxlength="4" autocomplete="off" />
+            <div class="input-action-row">
+              <input id="departure" name="departure" value="KMCF" maxlength="4" autocomplete="off" />
+              <button type="button" class="secondary-button symbol-button search-button" id="departure-search" data-search-target="departure" aria-expanded="false" aria-controls="airfield-search-panel" aria-label="Search departure airfield" title="Search departure airfield"><span class="search-icon" aria-hidden="true"></span></button>
+            </div>
           </label>
 
           <label>
             <span>Destination</span>
-            <input id="destination" name="destination" value="KMCF" maxlength="4" autocomplete="off" />
+            <div class="input-action-row">
+              <input id="destination" name="destination" value="KMCF" maxlength="4" autocomplete="off" />
+              <button type="button" class="secondary-button symbol-button search-button" id="destination-search" data-search-target="destination" aria-expanded="false" aria-controls="airfield-search-panel" aria-label="Search destination airfield" title="Search destination airfield"><span class="search-icon" aria-hidden="true"></span></button>
+            </div>
           </label>
 
           <label>
@@ -58,28 +64,43 @@
           </label>
 
           <label class="full-span">
-            <span>Alternates</span>
-            <input id="alternates" name="alternates" value="KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI, KGSB" autocomplete="off" />
+            <span>Alternates <span class="inline-count" id="alternates-count">10</span></span>
+            <div class="input-action-row">
+              <input id="alternates" name="alternates" value="KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI, KGSB" autocomplete="off" />
+              <button type="button" class="secondary-button symbol-button search-button" id="alternates-search" data-search-target="alternates" aria-expanded="false" aria-controls="airfield-search-panel" aria-label="Search alternate airfields" title="Search alternate airfields"><span class="search-icon" aria-hidden="true"></span></button>
+            </div>
           </label>
 
           <div class="alternate-actions">
-            <button type="button" class="secondary-button symbol-button" id="clear-alternates" aria-label="Clear all mission fields" title="Clear all mission fields">X</button>
-            <button type="button" class="secondary-button symbol-button" id="random-mission" aria-label="Generate a random mission" title="Generate a random mission">?</button>
-            <button type="button" class="secondary-button symbol-button" id="practice-weather" aria-label="Generate a bad-weather practice mission" title="Generate a bad-weather practice mission">!</button>
-            <button type="button" class="secondary-button symbol-button" id="reset-alternates" aria-label="Reset default mission fields" title="Reset default mission fields">↻</button>
+            <button type="button" class="secondary-button symbol-button" id="clear-alternates" aria-label="Clear all mission fields" title="Clear all mission fields">&#8623;</button>
+            <button type="button" class="secondary-button symbol-button dice-button" id="random-mission" aria-label="Random" title="Random"><span class="dice-icon" aria-hidden="true"></span></button>
+            <button type="button" class="secondary-button symbol-button dice-button risk-dice-button" id="practice-weather" aria-label="Random Bad Weather" title="Random Bad Weather"><span class="dice-icon risk-dice-icon" aria-hidden="true"></span></button>
+            <button type="button" class="secondary-button symbol-button" id="reset-alternates" aria-label="Reset default mission fields" title="Reset default mission fields">&#10227;</button>
           </div>
 
           <div class="mission-submit-row">
-            <button type="button" class="secondary-button symbol-button rulebook-button" id="rulebook-toggle" aria-expanded="false" aria-controls="rulebook-panel" aria-label="Show rulebook logic" title="Show rulebook logic">§</button>
+            <button type="button" class="secondary-button symbol-button settings-button" id="defaults-toggle" aria-expanded="false" aria-controls="defaults-panel" aria-label="Set default mission fields" title="Set default mission fields">&#9881;</button>
             <button type="submit" id="check-mission-button">Check Mission</button>
+            <button type="button" class="secondary-button symbol-button rulebook-button compass-button" id="rulebook-toggle" aria-expanded="false" aria-controls="rulebook-panel" aria-label="Show guidebook logic" title="Show guidebook logic"><span class="compass-icon" aria-hidden="true"></span></button>
           </div>
 
           <section id="rulebook-panel" class="rulebook-panel" hidden>
             <div class="rulebook-header">
-              <h2>Rulebook</h2>
-              <button type="button" class="secondary-button rulebook-close" id="rulebook-close" aria-label="Close rulebook">X</button>
+              <h2>Guidebook</h2>
+              <button type="button" class="secondary-button rulebook-close" id="rulebook-close" aria-label="Close guidebook">X</button>
             </div>
             <p>Training aid for identifying when weather or location may drive alternate planning review.</p>
+            <h3>Controls</h3>
+            <ul>
+              <li>White dice: random mission.</li>
+              <li>Red dice: random bad-weather practice mission.</li>
+              <li>Magnifier: search airfields by ICAO, name, or city.</li>
+              <li>Compass: guidebook and trigger-point logic.</li>
+              <li>Gear: set the saved departure, destination, and alternates used by refresh.</li>
+              <li>Zap: clear mission fields.</li>
+              <li>Refresh: restore default mission fields.</li>
+            </ul>
+            <h3>Logic</h3>
             <ul>
               <li>Destination and alternates evaluate ETA plus or minus 1 hour.</li>
               <li>Red weather: ceiling below 2,000 ft AGL or visibility below 3 SM.</li>
@@ -89,6 +110,41 @@
               <li>OCONUS departure or destination shows an OCONUS chip, but filters focus on weather-driven status.</li>
               <li>NOTAM feature currently unavailable.</li>
             </ul>
+          </section>
+
+          <section id="defaults-panel" class="rulebook-panel defaults-panel" hidden>
+            <div class="rulebook-header">
+              <h2>Defaults</h2>
+              <button type="button" class="secondary-button rulebook-close" id="defaults-close" aria-label="Close defaults">X</button>
+            </div>
+            <p>Set the mission fields restored by the refresh button on this device.</p>
+            <label>
+              <span>Default departure</span>
+              <input id="default-departure" maxlength="4" autocomplete="off" />
+            </label>
+            <label>
+              <span>Default destination</span>
+              <input id="default-destination" maxlength="4" autocomplete="off" />
+            </label>
+            <label>
+              <span>Default alternates</span>
+              <input id="default-alternates" autocomplete="off" />
+            </label>
+            <div class="defaults-actions">
+              <button type="button" class="secondary-button" id="defaults-use-current">Use Current</button>
+              <button type="button" class="secondary-button" id="defaults-factory">Factory</button>
+              <button type="button" id="defaults-save">Save</button>
+            </div>
+          </section>
+
+          <section id="airfield-search-panel" class="rulebook-panel airfield-search-panel" hidden>
+            <div class="rulebook-header">
+              <h2 id="airfield-search-title">Search Airfield</h2>
+              <button type="button" class="secondary-button rulebook-close" id="airfield-search-close" aria-label="Close airfield search">X</button>
+            </div>
+            <input id="airfield-search-input" autocomplete="off" placeholder="Search ICAO, name, or city" />
+            <p class="search-helper" id="airfield-search-helper">Type MacDill, MCF, Tampa, or KMCF. If an airfield is not listed, type the ICAO here to use it anyway, or close search and enter it directly.</p>
+            <div id="airfield-search-results" class="airfield-search-results" role="listbox"></div>
           </section>
         </form>
       </section>
@@ -130,6 +186,7 @@
 
     <script src="./src/data.js"></script>
     <script src="./src/rules.js"></script>
+    <script src="./src/airports.js"></script>
     <script src="./src/app.js"></script>
   </body>
 </html>

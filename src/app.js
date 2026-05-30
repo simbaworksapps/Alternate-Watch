@@ -7,6 +7,13 @@ const missionSummary = document.querySelector("#mission-summary");
 const filterButtons = document.querySelectorAll(".filter-button");
 const submitButton = document.querySelector("#check-mission-button");
 const defaultAlternates = "KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI, KGSB";
+const appDefaultMission = {
+  departure: "KMCF",
+  destination: "KMCF",
+  alternates: defaultAlternates
+};
+const missionDefaultsStorageKey = "alternateWatchMissionDefaults";
+const airfieldHistoryStorageKey = "alternateWatchAirfieldHistory";
 const randomMissionFields = [
   "KMCF", "KTPA", "KCOF", "KHST", "KPAM", "KVPS", "KWRB", "KCHS", "KBHM", "KMEI", "KGSB",
   "KDOV", "KILM", "KRIC", "KJFK", "KBOS", "KORD", "KDEN", "KSEA", "KSFO", "PHNL",
@@ -15,13 +22,102 @@ const randomMissionFields = [
 const practiceWeatherFields = [
   "KMEI", "KWRB", "KVPS", "KCOF", "KCHS", "KILM", "KRIC", "KDOV", "KBOS", "KJFK",
   "KSEA", "KPDX", "KSFO", "KDEN", "KORD", "PAFA", "PANC", "CYFB", "BIKF", "EGUN",
-  "EGUL", "ETAR", "LPLA", "PGUA", "PHNL", "RJTY", "RKSO"
+  "EGUL", "ETAR", "LPLA", "PGUA", "PHNL", "RJTY", "RKSO", "CYQX", "CYYT", "CYHZ",
+  "CYUL", "CYYZ", "CYWG", "CYVR", "PABE", "PAOM", "PADQ", "PAJN", "PAKT", "KJNU",
+  "KAST", "KOTH", "KSFO", "KLAX", "KLAS", "KPHX", "KABQ", "KAMA", "KICT", "KMCI",
+  "KMSP", "KDTW", "KCLE", "KPIT", "KIAD", "KATL", "KCLT", "KMIA", "KMSY", "KIAH",
+  "KDFW", "KSAT", "KELP", "KBOI", "KBIL", "KGTF", "KFAR", "KBTV", "KPWM", "LIRF",
+  "LEMD", "LFPG", "EHAM", "EDDF", "EDDM", "LOWW", "EPWA", "ENGM", "ESSA", "EFHK",
+  "BIKF", "EINN", "EGLL", "EGPK", "EGPO", "EGCC", "RJAA", "RJBB", "RKSI", "RODN",
+  "YSSY", "YMML", "NZAA", "NZWN", "FACT", "FAOR", "SBGL", "SBGR", "SAEZ", "SCEL"
+];
+const globalPracticeWeatherFields = [
+  ...practiceWeatherFields,
+  "KALB", "KBDL", "KBGR", "KBNA", "KBUF", "KBWI", "KCAE", "KCHS", "KCRP", "KCVG",
+  "KDAL", "KDAY", "KDSM", "KERI", "KEWR", "KFLL", "KFSD", "KGEG", "KGJT", "KGRB",
+  "KGRR", "KGSO", "KHSV", "KIND", "KJAN", "KJAX", "KLBB", "KLGA", "KLIT", "KMEM",
+  "KMKE", "KMLI", "KMLU", "KMOB", "KMYR", "KOKC", "KOMA", "KORF", "KPBI", "KPDX",
+  "KPHL", "KPNS", "KRDU", "KROA", "KROC", "KRSW", "KSAV", "KSDF", "KSGF", "KSHV",
+  "KSLC", "KSMF", "KSNA", "KSPI", "KSTL", "KSYR", "KTLH", "KTUL", "KTYS", "KXNA",
+  "PACD", "PADL", "PAEN", "PAGK", "PAGY", "PAHO", "PAIL", "PAKN", "PALH", "PAMC",
+  "PAMR", "PASN", "PATA", "PATK", "PAUN", "PAVD", "PAWG", "PAWG", "PAWS", "PFYU",
+  "PHJR", "PHKO", "PHLI", "PHMK", "PHTO", "PGUM", "PTKK", "PTPN", "PTRO", "PWAK",
+  "CYYC", "CYEG", "CYFB", "CYOW", "CYQB", "CYQR", "CYQT", "CYUL", "CYVR", "CYYJ",
+  "CYYR", "CYYT", "CYXY", "MMMX", "MMUN", "MMSD", "MMTJ", "TJSJ", "TXKF", "MYNN",
+  "MKJP", "MDSD", "MBPV", "TNCM", "TBPB", "TTPP", "EGAA", "EGBB", "EGGD", "EGKK",
+  "EGNT", "EGNX", "EGSS", "EGTE", "EGVN", "EGWU", "EGXC", "EGYD", "EGYE", "EGYP",
+  "EICK", "EIDW", "EINN", "EHGG", "EHBK", "EHEH", "EBBR", "EBLG", "ELLX", "LSGG",
+  "LSZH", "LFSB", "LFBO", "LFLL", "LFML", "LFRS", "EDDK", "EDDL", "EDDS", "EDDV",
+  "EDFH", "EDLW", "ETAD", "ETAR", "ETNG", "ETNH", "ETHF", "ETHN", "ETIC", "ETIK",
+  "ETMN", "ETNL", "ETNS", "ETNT", "LEBL", "LEMG", "LEPA", "LEST", "LPPT", "LPPR",
+  "LPLA", "LIRN", "LIMC", "LIML", "LIPE", "LIPZ", "LOWG", "LOWI", "LOWS", "LKPR",
+  "LHBP", "LRBS", "LROP", "LDZA", "LJLJ", "LYBE", "LGAV", "LGRP", "LTBA", "LTFM",
+  "LTAI", "LTAC", "LLBG", "OJAI", "OLBA", "OKBK", "OEDF", "OEJN", "OERK", "OTBD",
+  "OTHH", "OMAA", "OMDB", "OMDW", "OOMS", "OIII", "OIMM", "OAKB", "OPKC", "OPLA",
+  "VIDP", "VABB", "VOBL", "VOMM", "VCBI", "VTBS", "VTSP", "WMKK", "WSSS", "WIII",
+  "RPLL", "RPLC", "RCKH", "RCTP", "VHHH", "ZBAA", "ZSPD", "ZGGG", "RJTT", "RJFF",
+  "RJOA", "RJSM", "RJTA", "RJTE", "RJTF", "RKJK", "RKPK", "RKSS", "RKTN", "ROAH",
+  "ROKJ", "ROTM", "YBBN", "YPDN", "YPPH", "YSCB", "YSWG", "NZCH", "NZQN", "NFFN",
+  "NTAA", "NSTU", "FALE", "FAPE", "FQMA", "HKJK", "HAAB", "DNMM", "DGAA", "GMMN",
+  "GOBD", "DFFD", "DRRN", "FKKD", "FZAA", "SBBR", "SBCF", "SBCT", "SBEG", "SBFZ",
+  "SBPA", "SBRF", "SBSV", "SPJC", "SKBO", "SEQM", "SUMU", "SABE", "SACO", "SAME"
+];
+const practiceScanChunkSize = 75;
+const practiceScanMessages = [
+  "HUNTING BAD WEATHER",
+  "PULLING AWC WX",
+  "LOOKING FOR TROUBLE",
+  "CHECKING TAFS",
+  "FINDING THE SOUP",
+  "CHECKING METARS",
+  "ASKING TAF TO CONFESS",
+  "CHECKING WINDS",
+  "VIS WENT HIDING",
+  "SORTING RED WX",
+  "THE METAR LOOKS GUILTY",
+  "CHECKING METARS",
+  "CIGS BEING SNEAKY",
+  "ETA WINDOW CHECK",
+  "INTERROGATING THE TAF",
+  "CHASING LOW CEILINGS",
+  "WINDS ACTING UP",
+  "FINDING THE NOPE LINE",
+  "WEATHER SAID HOLD MY COFFEE",
+  "THE CLOUDS HAVE NOTES",
+  "LOOKING FOR ALTERNATE BAIT",
+  "WHERE DID THE RUNWAY GO",
+  "CHECKING THE NASTY STUFF",
+  "BUILDING A SPICY SCENARIO",
+  "BUILDING SCENARIO"
+];
+const globalRandomMissionFields = globalPracticeWeatherFields;
+const randomMissionMessages = [
+  "THROWING DARTS AT MAP",
+  "SPINNING THE GLOBE",
+  "PICKING A RUNWAY ROMANCE",
+  "BUILDING A CHAOS ROUTE",
+  "LET THE TAF COOK",
+  "SHAKING THE AIRFIELD BAG",
+  "ASKING DISPATCH NICELY",
+  "PLOT TWIST INBOUND",
+  "FINDING A PLACE TO GO",
+  "ALT WEATHER ROULETTE",
+  "MAKING THE MAP SWEAT",
+  "ROUTE MACHINE GO BRR",
+  "SCENARIO IN THE OVEN",
+  "PICKING SOMEWHERE SPICY",
+  "GIVING THE CREW HOMEWORK"
 ];
 let currentFilter = "all";
 let latestEvaluation = null;
 let missionNotice = "";
 let missionDataOverride = null;
 let submitFeedbackTimer = null;
+let lastLiveRedPractice = null;
+let activeDiceAction = null;
+let activeAirfieldTarget = null;
+let airfieldSearchIndex = null;
+const scenarioHistory = [];
 
 init();
 
@@ -37,6 +133,7 @@ function init() {
   });
   document.querySelector("#takeoffTime").addEventListener("blur", normalizeZuluField);
   document.querySelector("#landingTime").addEventListener("blur", normalizeZuluField);
+  document.querySelector("#alternates").addEventListener("input", updateAlternatesCount);
   document.querySelector("#takeoff-plus-three").addEventListener("click", () => {
     setZuluOffsetField("takeoffTime", 3);
   });
@@ -51,14 +148,20 @@ function init() {
     resetMissionDefaults();
     await render();
   });
-  document.querySelector("#random-mission").addEventListener("click", async () => {
-    generateRandomMission();
-    await render(true);
-  });
+  document.querySelector("#previous-scenario")?.addEventListener("click", restorePreviousScenario);
+  resetRandomMissionButton();
+  document.querySelector("#random-mission").addEventListener("click", rollRandomMission);
   document.querySelector("#practice-weather").addEventListener("click", generatePracticeWeatherMission);
   document.querySelector("#rulebook-toggle").addEventListener("click", toggleRulebook);
   document.querySelector("#rulebook-close").addEventListener("click", closeRulebook);
-  document.querySelector("#reset-alternates").textContent = "R";
+  document.querySelector("#defaults-toggle").addEventListener("click", toggleDefaultsPanel);
+  document.querySelector("#defaults-close").addEventListener("click", closeDefaultsPanel);
+  document.querySelector("#defaults-use-current").addEventListener("click", populateDefaultsFromCurrent);
+  document.querySelector("#defaults-factory").addEventListener("click", populateFactoryDefaults);
+  document.querySelector("#defaults-save").addEventListener("click", saveDefaultsFromPanel);
+  setupAirfieldSearch();
+  resetPracticeWeatherButton();
+  updateAlternatesCount();
   document.querySelector("#expand-all").addEventListener("click", () => setAllCardsOpen(true));
   document.querySelector("#collapse-all").addEventListener("click", () => setAllCardsOpen(false));
   banner.addEventListener("click", scrollToHighestPriorityItem);
@@ -75,13 +178,29 @@ function init() {
   banner.addEventListener("click", handleSummaryIssueClick);
   banner.addEventListener("keydown", handleSummaryIssueKeydown);
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeRulebook();
+    if (event.key === "Escape") {
+      closeRulebook();
+      closeDefaultsPanel();
+      closeAirfieldSearch();
+    }
   });
   document.addEventListener("click", (event) => {
-    if (!document.body.classList.contains("rulebook-open")) return;
-    const panel = document.querySelector("#rulebook-panel");
-    const toggle = document.querySelector("#rulebook-toggle");
-    if (!panel.contains(event.target) && event.target !== toggle) closeRulebook();
+    if (document.body.classList.contains("rulebook-open")) {
+      const panel = document.querySelector("#rulebook-panel");
+      const toggle = document.querySelector("#rulebook-toggle");
+      if (!panel.contains(event.target) && !toggle.contains(event.target)) closeRulebook();
+    }
+    if (document.body.classList.contains("defaults-open")) {
+      const panel = document.querySelector("#defaults-panel");
+      const toggle = document.querySelector("#defaults-toggle");
+      if (!panel.contains(event.target) && !toggle.contains(event.target)) closeDefaultsPanel();
+    }
+    if (document.body.classList.contains("search-open")) {
+      const panel = document.querySelector("#airfield-search-panel");
+      const toggles = [...document.querySelectorAll(".search-button")];
+      const clickedToggle = toggles.some((toggle) => toggle.contains(event.target));
+      if (!panel.contains(event.target) && !clickedToggle) closeAirfieldSearch();
+    }
   });
 }
 
@@ -109,12 +228,14 @@ function setDefaultTimes() {
 function resetMissionDefaults() {
   const takeoff = new Date();
   const landing = new Date(takeoff.getTime() + 3 * 60 * 60 * 1000);
-  document.querySelector("#departure").value = "KMCF";
-  document.querySelector("#destination").value = "KMCF";
+  const defaults = getMissionDefaults();
+  document.querySelector("#departure").value = defaults.departure;
+  document.querySelector("#destination").value = defaults.destination;
   document.querySelector("#missionDate").value = takeoff.toISOString().slice(0, 10);
   document.querySelector("#takeoffTime").value = formatZuluTime(takeoff);
   document.querySelector("#landingTime").value = formatZuluTime(landing);
-  document.querySelector("#alternates").value = defaultAlternates;
+  document.querySelector("#alternates").value = defaults.alternates;
+  updateAlternatesCount();
 }
 
 function clearMissionInputs() {
@@ -124,62 +245,321 @@ function clearMissionInputs() {
   document.querySelector("#takeoffTime").value = "";
   document.querySelector("#landingTime").value = "";
   document.querySelector("#alternates").value = "";
+  updateAlternatesCount();
 }
 
 function generateRandomMission() {
   missionNotice = "";
-  const [departure, destination, alternate] = pickUnique(randomMissionFields, 3);
+  const [departure, destination, alternate] = pickUnique(getDiceAirfieldPool(), 3);
   applyMissionFields(departure, destination, [alternate]);
+}
+
+function resetRandomMissionButton() {
+  const button = document.querySelector("#random-mission");
+  button.innerHTML = '<span class="dice-icon" aria-hidden="true"></span>';
+}
+
+function triggerDiceSettle(button) {
+  button.classList.remove("dice-settle");
+  void button.offsetWidth;
+  button.classList.add("dice-settle");
+  window.setTimeout(() => button.classList.remove("dice-settle"), 520);
+}
+
+async function rollRandomMission() {
+  const button = document.querySelector("#random-mission");
+  const previousAction = activeDiceAction;
+  if (previousAction?.type === "random") {
+    cancelDiceAction("CANCELING ROLL", true);
+    return;
+  }
+  if (previousAction) cancelDiceAction("SWITCHING ROLLS");
+
+  const action = startDiceAction("random");
+  const previousInputs = getRawInputValues();
+  button.classList.add("dice-thinking");
+
+  try {
+    setRandomDiceMessage(action, randomMissionMessages);
+    pushScenarioHistory(previousInputs);
+    generateRandomMission();
+    if (!isActiveDiceAction(action)) {
+      setRawInputValues(previousInputs);
+      scenarioHistory.pop();
+      updatePreviousScenarioButton();
+      return;
+    }
+
+    await render(true);
+    if (!isActiveDiceAction(action)) {
+      setRawInputValues(previousInputs);
+      scenarioHistory.pop();
+      updatePreviousScenarioButton();
+      await render();
+    }
+  } finally {
+    button.classList.remove("dice-thinking");
+    resetRandomMissionButton();
+    triggerDiceSettle(button);
+    finishDiceAction(action);
+  }
 }
 
 async function generatePracticeWeatherMission() {
   const button = document.querySelector("#practice-weather");
-  button.disabled = true;
-  button.textContent = "...";
-  setSubmitButtonStatus("searching");
+  const previousAction = activeDiceAction;
+  if (previousAction?.type === "practice") {
+    cancelDiceAction("CANCELING ROLL", true);
+    return;
+  }
+  if (previousAction) cancelDiceAction("SWITCHING ROLLS");
+
+  const action = startDiceAction("practice");
+  const previousInputs = getRawInputValues();
+  button.classList.add("dice-thinking");
+  setSubmitButtonStatus("scanning");
 
   try {
     const takeoff = new Date();
     const landing = new Date(takeoff.getTime() + 3 * 60 * 60 * 1000);
-    const missionData = await getLiveMissionData(practiceWeatherFields);
-    let selected = findRedPracticeSelection(missionData, takeoff, landing, practiceWeatherFields);
+    const practicePool = getDiceAirfieldPool();
+    const scanFields = pickUnique(practicePool, practicePool.length);
+    let selected = { count: 0 };
+    let scanned = 0;
 
-    if (!selected) {
-      const practiceData = getRedPracticeMissionData();
-      selected = findRedPracticeSelection(practiceData, takeoff, landing, Object.keys(practiceData.airports));
-      missionDataOverride = practiceData;
-      missionNotice = "Unable to find enough live red-weather airfields; sample red practice fields loaded.";
-    } else {
-      missionDataOverride = null;
-      missionNotice = "";
+    for (let index = 0; index < scanFields.length; index += practiceScanChunkSize) {
+      if (!isActiveDiceAction(action)) break;
+      const chunk = scanFields.slice(index, index + practiceScanChunkSize);
+      const nextScanned = Math.min(index + chunk.length, scanFields.length);
+      setRandomDiceMessage(action, practiceScanMessages, ` ${nextScanned}/${scanFields.length}`);
+      const missionData = await getLiveMissionData(chunk);
+      if (!isActiveDiceAction(action)) break;
+      const chunkSelected = findRedPracticeSelection(missionData, takeoff, landing, chunk, (count) => {
+        setSubmitButtonStatus(`found-${Math.max(count, selected.count)}`);
+      });
+      scanned += chunk.length;
+      setRandomDiceMessage(action, practiceScanMessages, ` ${Math.min(scanned, scanFields.length)}/${scanFields.length}`);
+      if (chunkSelected.count > selected.count) selected = chunkSelected;
+      if (selected.count === 3) break;
     }
 
-    applyMissionFields(selected[0], selected[1], [selected[2]], takeoff, landing);
+    if (!isActiveDiceAction(action)) {
+      return;
+    }
+
+    if (selected.count > 0) {
+      missionDataOverride = null;
+      lastLiveRedPractice = selected;
+      missionNotice = selected.count === 3
+        ? "Live red-weather practice mission loaded."
+        : `Only found ${selected.count}/3 live red-weather fields; live partial practice mission loaded.`;
+    } else if (lastLiveRedPractice) {
+      selected = lastLiveRedPractice;
+      missionDataOverride = null;
+      missionNotice = "No new live red-weather fields found; last live red practice mission reused.";
+    } else {
+      const practiceData = getRedPracticeMissionData();
+      selected = findRedPracticeSelection(practiceData, takeoff, landing, Object.keys(practiceData.airports));
+      selected.sample = true;
+      missionDataOverride = practiceData;
+      missionNotice = "No live red-weather fields found; sample red practice fields loaded.";
+    }
+
+    pushScenarioHistory(previousInputs);
+    applyMissionFields(selected.departure, selected.destination, [selected.alternate], takeoff, landing);
+    if (!isActiveDiceAction(action)) {
+      setRawInputValues(previousInputs);
+      scenarioHistory.pop();
+      updatePreviousScenarioButton();
+      return;
+    }
     await render(true);
+    if (!isActiveDiceAction(action)) {
+      setRawInputValues(previousInputs);
+      scenarioHistory.pop();
+      updatePreviousScenarioButton();
+      await render();
+      return;
+    }
+    const finalStatus = selected.sample ? "partial" : selected.count === 3 ? "success" : selected.count > 0 ? "partial" : "unable";
+    setSubmitButtonStatus(selected.sample ? "sample" : finalStatus === "partial" ? `partial-${selected.count}` : finalStatus);
   } finally {
-    button.disabled = false;
-    button.textContent = "!";
+    button.classList.remove("dice-thinking");
+    triggerDiceSettle(button);
+    resetPracticeWeatherButton();
+    finishDiceAction(action);
   }
 }
 
-function findRedPracticeSelection(missionData, takeoff, landing, fields) {
-  const candidates = pickUnique(fields, fields.length);
-  for (const destination of candidates) {
-    const [departure, alternate] = pickUnique(candidates.filter((icao) => icao !== destination), 2);
-    if (!departure || !alternate) continue;
-    const evaluated = evaluateMission({
-      departure,
-      destination,
-      takeoffTime: takeoff.toISOString(),
-      landingTime: landing.toISOString(),
-      alternates: [alternate]
-    }, missionData);
-    const destinationResult = evaluated.results.find((result) => result.icao === destination && result.role === "Destination");
-    if ((destinationResult?.filterStatus || destinationResult?.cardStatus) === "red") {
-      return [departure, destination, alternate];
-    }
+function startDiceAction(type) {
+  const action = { type, id: Date.now() + Math.random(), cancelled: false, lastMessage: "" };
+  activeDiceAction = action;
+  return action;
+}
+
+function setRandomDiceMessage(action, messages, suffix = "") {
+  const message = pickRandomMessage(messages, action.lastMessage);
+  action.lastMessage = message;
+  setSubmitButtonMessage(`${message}${suffix}`);
+}
+
+function pickRandomMessage(messages, previousMessage = "") {
+  const choices = messages.filter((message) => message !== previousMessage);
+  const pool = choices.length ? choices : messages;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function cancelDiceAction(message, showCancelled = false) {
+  if (!activeDiceAction) return;
+  activeDiceAction.cancelled = true;
+  setSubmitButtonMessage(message);
+  if (showCancelled) {
+    window.setTimeout(() => {
+      if (!activeDiceAction) setSubmitButtonStatus("cancelled");
+    }, 160);
   }
-  return null;
+}
+
+function isActiveDiceAction(action) {
+  return activeDiceAction === action && !action.cancelled;
+}
+
+function finishDiceAction(action) {
+  if (activeDiceAction === action) {
+    activeDiceAction = null;
+  }
+}
+
+function resetPracticeWeatherButton() {
+  const button = document.querySelector("#practice-weather");
+  button.innerHTML = '<span class="dice-icon risk-dice-icon" aria-hidden="true"></span>';
+}
+
+function getRawInputValues() {
+  return {
+    departure: document.querySelector("#departure").value,
+    destination: document.querySelector("#destination").value,
+    missionDate: document.querySelector("#missionDate").value,
+    takeoffTime: document.querySelector("#takeoffTime").value,
+    landingTime: document.querySelector("#landingTime").value,
+    alternates: document.querySelector("#alternates").value
+  };
+}
+
+function setRawInputValues(values) {
+  document.querySelector("#departure").value = values.departure;
+  document.querySelector("#destination").value = values.destination;
+  document.querySelector("#missionDate").value = values.missionDate;
+  document.querySelector("#takeoffTime").value = values.takeoffTime;
+  document.querySelector("#landingTime").value = values.landingTime;
+  document.querySelector("#alternates").value = values.alternates;
+  updateAlternatesCount();
+}
+
+function pushScenarioHistory(values) {
+  scenarioHistory.push({ ...values });
+  while (scenarioHistory.length > 5) scenarioHistory.shift();
+  updatePreviousScenarioButton();
+}
+
+async function restorePreviousScenario() {
+  if (!scenarioHistory.length) return;
+  if (activeDiceAction) activeDiceAction.cancelled = true;
+  const previous = scenarioHistory.pop();
+  setRawInputValues(previous);
+  updatePreviousScenarioButton();
+  setSubmitButtonMessage("BACK ONE ROLL");
+  await render(true);
+}
+
+function updatePreviousScenarioButton() {
+  const button = document.querySelector("#previous-scenario");
+  if (!button) return;
+  button.disabled = scenarioHistory.length === 0;
+  button.title = scenarioHistory.length ? `Previous scenario (${scenarioHistory.length})` : "Previous scenario";
+  button.setAttribute("aria-label", button.title);
+}
+
+function findRedPracticeSelection(missionData, takeoff, landing, fields, onProgress = null) {
+  const candidates = pickUnique(fields, fields.length);
+  const redOptions = [];
+  for (const candidate of candidates) {
+    const others = candidates.filter((icao) => icao !== candidate);
+    const [firstOther, secondOther] = pickUnique(others, 2);
+    if (!firstOther || !secondOther) continue;
+
+    const roleOptions = [
+      { departure: candidate, destination: firstOther, alternate: secondOther, targetRole: "Departure" },
+      { departure: firstOther, destination: candidate, alternate: secondOther, targetRole: "Destination" },
+      { departure: firstOther, destination: secondOther, alternate: candidate, targetRole: "Alternate" }
+    ];
+
+    for (const option of roleOptions) {
+      const evaluated = evaluateMission({
+        departure: option.departure,
+        destination: option.destination,
+        takeoffTime: takeoff.toISOString(),
+        landingTime: landing.toISOString(),
+        alternates: [option.alternate]
+      }, missionData);
+      const target = evaluated.results.find((result) => result.icao === candidate && result.role === option.targetRole);
+      if ((target?.filterStatus || target?.cardStatus) === "red") {
+        redOptions.push({
+          ...option,
+          icao: candidate,
+          priority: getRedWeatherPriority(target)
+        });
+        onProgress?.(Math.min(3, selectRedPracticeRoles(redOptions, candidates).count));
+        break;
+      }
+    }
+    if (selectRedPracticeRoles(redOptions, candidates).count === 3) break;
+  }
+  return selectRedPracticeRoles(redOptions, candidates);
+}
+
+function getRedWeatherPriority(result) {
+  const impacts = result.weatherImpacts || {};
+  if (impacts.ceiling === "red" || impacts.visibility === "red") return 0;
+  if (impacts.wind === "red") return 1;
+  return 2;
+}
+
+function selectRedPracticeRoles(redOptions, fields) {
+  const selected = {};
+  const used = new Set();
+  const sorted = [...redOptions].sort((left, right) => left.priority - right.priority);
+
+  sorted.forEach((option) => {
+    const key = option.targetRole.toLowerCase();
+    if (!selected[key] && !used.has(option.icao)) {
+      selected[key] = option.icao;
+      used.add(option.icao);
+    }
+  });
+
+  sorted.forEach((option) => {
+    if (used.has(option.icao)) return;
+    const openRole = ["departure", "destination", "alternate"].find((role) => !selected[role]);
+    if (openRole) {
+      selected[openRole] = option.icao;
+      used.add(option.icao);
+    }
+  });
+
+  const redCount = Math.min(3, Object.values(selected).length);
+
+  pickUnique(fields.filter((icao) => !used.has(icao)), 3).forEach((icao) => {
+    const openRole = ["departure", "destination", "alternate"].find((role) => !selected[role]);
+    if (openRole) selected[openRole] = icao;
+  });
+
+  return {
+    departure: selected.departure,
+    destination: selected.destination,
+    alternate: selected.alternate,
+    count: redCount
+  };
 }
 
 function applyMissionFields(departure, destination, alternates, takeoff = new Date(), landing = null) {
@@ -190,6 +570,7 @@ function applyMissionFields(departure, destination, alternates, takeoff = new Da
   document.querySelector("#takeoffTime").value = formatZuluTime(takeoff);
   document.querySelector("#landingTime").value = formatZuluTime(eta);
   document.querySelector("#alternates").value = alternates.join(", ");
+  updateAlternatesCount();
 }
 
 function pickUnique(values, count) {
@@ -426,6 +807,7 @@ function toggleRulebook() {
   const panel = document.querySelector("#rulebook-panel");
   const button = document.querySelector("#rulebook-toggle");
   const isOpen = panel.hidden;
+  if (isOpen) closeDefaultsPanel();
   panel.hidden = !isOpen;
   button.setAttribute("aria-expanded", String(isOpen));
   document.body.classList.toggle("rulebook-open", isOpen);
@@ -439,10 +821,341 @@ function closeRulebook() {
   document.body.classList.remove("rulebook-open");
 }
 
+function toggleDefaultsPanel() {
+  const panel = document.querySelector("#defaults-panel");
+  const button = document.querySelector("#defaults-toggle");
+  const isOpen = panel.hidden;
+  if (isOpen) {
+    closeRulebook();
+    populateDefaultsPanel(getMissionDefaults());
+  }
+  panel.hidden = !isOpen;
+  button.setAttribute("aria-expanded", String(isOpen));
+  document.body.classList.toggle("defaults-open", isOpen);
+}
+
+function closeDefaultsPanel() {
+  const panel = document.querySelector("#defaults-panel");
+  const button = document.querySelector("#defaults-toggle");
+  panel.hidden = true;
+  button.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("defaults-open");
+}
+
+function getMissionDefaults() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(missionDefaultsStorageKey));
+    return normalizeMissionDefaults({ ...appDefaultMission, ...(stored || {}) });
+  } catch (error) {
+    return { ...appDefaultMission };
+  }
+}
+
+function normalizeMissionDefaults(defaults) {
+  return {
+    departure: normalizeIcao(defaults.departure || appDefaultMission.departure) || appDefaultMission.departure,
+    destination: normalizeIcao(defaults.destination || appDefaultMission.destination) || appDefaultMission.destination,
+    alternates: normalizeAlternates(defaults.alternates || appDefaultMission.alternates) || appDefaultMission.alternates
+  };
+}
+
+function normalizeAlternates(value) {
+  return String(value || "")
+    .split(",")
+    .map(normalizeIcao)
+    .filter(Boolean)
+    .join(", ");
+}
+
+function populateDefaultsPanel(defaults) {
+  const normalized = normalizeMissionDefaults(defaults);
+  document.querySelector("#default-departure").value = normalized.departure;
+  document.querySelector("#default-destination").value = normalized.destination;
+  document.querySelector("#default-alternates").value = normalized.alternates;
+}
+
+function populateDefaultsFromCurrent() {
+  populateDefaultsPanel({
+    departure: document.querySelector("#departure").value,
+    destination: document.querySelector("#destination").value,
+    alternates: document.querySelector("#alternates").value
+  });
+}
+
+function populateFactoryDefaults() {
+  populateDefaultsPanel(appDefaultMission);
+}
+
+function saveDefaultsFromPanel() {
+  const defaults = normalizeMissionDefaults({
+    departure: document.querySelector("#default-departure").value,
+    destination: document.querySelector("#default-destination").value,
+    alternates: document.querySelector("#default-alternates").value
+  });
+  try {
+    localStorage.setItem(missionDefaultsStorageKey, JSON.stringify(defaults));
+  } catch (error) {
+    // If storage is unavailable, still apply the values to the current form.
+  }
+  document.querySelector("#departure").value = defaults.departure;
+  document.querySelector("#destination").value = defaults.destination;
+  document.querySelector("#alternates").value = defaults.alternates;
+  updateAlternatesCount();
+  closeDefaultsPanel();
+}
+
+function setupAirfieldSearch() {
+  document.querySelectorAll(".search-button").forEach((button) => {
+    button.addEventListener("click", () => openAirfieldSearch(button.dataset.searchTarget));
+  });
+
+  document.querySelector("#airfield-search-close").addEventListener("click", closeAirfieldSearch);
+  document.querySelector("#airfield-search-input").addEventListener("input", renderAirfieldSearchResults);
+  document.querySelector("#airfield-search-input").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const firstResult = document.querySelector(".airfield-result");
+      firstResult?.click();
+    }
+  });
+  document.querySelector("#airfield-search-results").addEventListener("click", (event) => {
+    const result = event.target.closest(".airfield-result");
+    if (!result) return;
+    selectAirfield(result.dataset.icao);
+  });
+}
+
+function openAirfieldSearch(target) {
+  if (!["departure", "destination", "alternates"].includes(target)) return;
+  closeRulebook();
+  closeDefaultsPanel();
+  activeAirfieldTarget = target;
+
+  const panel = document.querySelector("#airfield-search-panel");
+  const input = document.querySelector("#airfield-search-input");
+  document.querySelector("#airfield-search-title").textContent = `Search ${target === "departure" ? "Departure" : target === "destination" ? "Destination" : "Alternates"}`;
+  input.value = "";
+  panel.hidden = false;
+  document.body.classList.add("search-open");
+  setSearchButtonsExpanded(true);
+  renderAirfieldSearchResults();
+  window.setTimeout(() => input.focus(), 0);
+}
+
+function closeAirfieldSearch() {
+  const panel = document.querySelector("#airfield-search-panel");
+  if (!panel) return;
+  panel.hidden = true;
+  document.body.classList.remove("search-open");
+  setSearchButtonsExpanded(false);
+  activeAirfieldTarget = null;
+}
+
+function setSearchButtonsExpanded(isExpanded) {
+  document.querySelectorAll(".search-button").forEach((button) => {
+    button.setAttribute("aria-expanded", String(isExpanded && button.dataset.searchTarget === activeAirfieldTarget));
+  });
+}
+
+function renderAirfieldSearchResults() {
+  const results = document.querySelector("#airfield-search-results");
+  const query = document.querySelector("#airfield-search-input").value.trim();
+  const matches = query ? searchAirfields(query) : getRecentAirfields();
+  if (!matches.length) {
+    results.innerHTML = `<p class="search-empty">${query ? "No matching airfield found." : "No recent airfields yet."}</p>`;
+    return;
+  }
+
+  results.innerHTML = matches
+    .map((record) => `
+      <button type="button" class="airfield-result ${record.recent ? "airfield-result-history" : ""}" data-icao="${escapeHtml(record.icao)}" role="option">
+        <span class="airfield-result-code">${escapeHtml(record.icao)}</span>
+        <span class="airfield-result-name">${escapeHtml(record.name || record.icao)}</span>
+      </button>
+    `)
+    .join("");
+}
+
+function searchAirfields(query) {
+  const normalizedQuery = query.trim().toUpperCase();
+  const compactQuery = normalizedQuery.replace(/\s+/g, "");
+  const matches = buildAirfieldSearchIndex()
+    .map((record) => ({
+      ...record,
+      score: scoreAirfieldSearchRecord(record, normalizedQuery, compactQuery)
+    }))
+    .filter((record) => record.score > 0)
+    .sort((left, right) => right.score - left.score || left.icao.localeCompare(right.icao))
+    .slice(0, 12);
+  if (/^[A-Z0-9]{4}$/.test(normalizedQuery) && !matches.some((record) => record.icao === normalizedQuery)) {
+    matches.push({ icao: normalizedQuery, name: "Use typed ICAO", city: "Not in offline search list", country: "", score: 1 });
+  }
+  return matches;
+}
+
+function scoreAirfieldSearchRecord(record, query, compactQuery) {
+  const fields = [record.icao, record.shortCode, record.iata, record.name, record.city, record.country, record.type, record.aliases]
+    .filter(Boolean)
+    .map((value) => String(value).toUpperCase());
+  if (record.icao === query || record.shortCode === query || record.iata === query) return 100;
+  if (fields.some((value) => value.startsWith(query))) return 80;
+  if (fields.some((value) => value.replace(/\s+/g, "").startsWith(compactQuery))) return 70;
+  if (fields.some((value) => value.includes(query))) return 55;
+  if (fields.some((value) => value.replace(/\s+/g, "").includes(compactQuery))) return 45;
+  return 0;
+}
+
+function buildAirfieldSearchIndex() {
+  if (airfieldSearchIndex) return airfieldSearchIndex;
+  const sampleAirports = getMissionData().airports;
+  const records = new Map();
+
+  const addRecord = (record) => {
+    if (!record.icao) return;
+    const previous = records.get(record.icao) || {};
+    records.set(record.icao, {
+      ...previous,
+      ...record,
+      aliases: [previous.aliases, record.aliases].filter(Boolean).join(" ")
+    });
+  };
+
+  (window.AIRPORT_SEARCH_DATA || []).forEach(([icao, name, city, country, type, iata]) => {
+    addRecord({
+      icao,
+      shortCode: icao.slice(1),
+      iata,
+      name,
+      city,
+      country,
+      type,
+      aliases: ""
+    });
+  });
+
+  const icaos = new Set([...Object.keys(sampleAirports), ...Object.keys(airportNameFallbacks), ...globalRandomMissionFields, ...globalPracticeWeatherFields]);
+  [...icaos].forEach((icao) => {
+    const sample = sampleAirports[icao] || {};
+    addRecord({
+      icao,
+      shortCode: icao.slice(1),
+      name: sample.name || airportNameFallbacks[icao] || icao,
+      city: getAirfieldCityAlias(icao),
+      country: sample.conus === false || !isLikelyConus(icao) ? "OCONUS" : "CONUS",
+      aliases: getAirfieldCityAlias(icao)
+    });
+  });
+
+  airfieldSearchIndex = [...records.values()].sort((left, right) => left.icao.localeCompare(right.icao));
+  return airfieldSearchIndex;
+}
+
+function getDiceAirfieldPool() {
+  const knownTrainingFields = [...globalRandomMissionFields, ...globalPracticeWeatherFields];
+  const databaseFields = buildAirfieldSearchIndex()
+    .filter((record) => ["large", "medium"].includes(record.type))
+    .map((record) => record.icao);
+  return [...new Set([...knownTrainingFields, ...databaseFields])].filter((icao) => /^[A-Z][A-Z0-9]{3}$/.test(icao));
+}
+
+function getAirfieldCityAlias(icao) {
+  const aliases = {
+    KMCF: "Tampa",
+    KTPA: "Tampa",
+    KCOF: "Cocoa Beach Patrick",
+    KHST: "Homestead Miami",
+    KPAM: "Panama City Tyndall",
+    KVPS: "Valparaiso Eglin",
+    KWRB: "Warner Robins",
+    KCHS: "Charleston",
+    KBHM: "Birmingham",
+    KMEI: "Meridian",
+    KGSB: "Goldsboro Seymour Johnson",
+    KEND: "Enid Vance",
+    KDOV: "Dover",
+    KJFK: "New York",
+    KORD: "Chicago",
+    KSFO: "San Francisco",
+    EGUN: "Mildenhall",
+    EGUL: "Lakenheath",
+    ETAR: "Ramstein",
+    ETAD: "Spangdahlem Spengalem Spang",
+    LPLA: "Lajes",
+    PGUA: "Guam Andersen",
+    PHNL: "Honolulu Hickam",
+    RKSO: "Osan",
+    RJTY: "Yokota"
+  };
+  return aliases[icao] || "";
+}
+
+function selectAirfield(icao) {
+  if (!activeAirfieldTarget) return;
+  const field = document.querySelector(`#${activeAirfieldTarget}`);
+  saveRecentAirfield(icao);
+  if (activeAirfieldTarget === "alternates") {
+    addAlternateAirfield(icao);
+    document.querySelector("#airfield-search-input").value = "";
+    renderAirfieldSearchResults();
+    document.querySelector("#airfield-search-input").focus();
+    return;
+  }
+  field.value = icao;
+  closeAirfieldSearch();
+  field.focus();
+}
+
+function addAlternateAirfield(icao) {
+  const field = document.querySelector("#alternates");
+  const alternates = field.value
+    .split(",")
+    .map(normalizeIcao)
+    .filter(Boolean);
+  if (!alternates.includes(icao)) alternates.push(icao);
+  field.value = alternates.join(", ");
+  updateAlternatesCount();
+}
+
+function updateAlternatesCount() {
+  const count = document.querySelector("#alternates").value
+    .split(",")
+    .map(normalizeIcao)
+    .filter(Boolean).length;
+  const badge = document.querySelector("#alternates-count");
+  if (badge) badge.textContent = String(count);
+}
+
+function getRecentAirfields() {
+  const history = readAirfieldHistory();
+  const byIcao = new Map(buildAirfieldSearchIndex().map((record) => [record.icao, record]));
+  return history
+    .map((icao) => ({ ...(byIcao.get(icao) || { icao, name: icao }), recent: true }))
+    .slice(0, 10);
+}
+
+function readAirfieldHistory() {
+  try {
+    const history = JSON.parse(localStorage.getItem(airfieldHistoryStorageKey));
+    return Array.isArray(history) ? history.filter((icao) => /^[A-Z0-9]{4}$/.test(icao)) : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveRecentAirfield(icao) {
+  const normalized = normalizeIcao(icao);
+  const history = [normalized, ...readAirfieldHistory().filter((item) => item !== normalized)].slice(0, 12);
+  try {
+    localStorage.setItem(airfieldHistoryStorageKey, JSON.stringify(history));
+  } catch (error) {
+    // Recent search history is helpful, but not required for the app to run.
+  }
+}
+
 function setSubmitButtonStatus(status) {
   if (!submitButton) return;
   window.clearTimeout(submitFeedbackTimer);
-  submitButton.classList.remove("button-searching", "button-success", "button-unable");
+  submitButton.classList.remove("button-searching", "button-success", "button-partial", "button-unable");
 
   if (status === "searching") {
     submitButton.disabled = true;
@@ -451,10 +1164,30 @@ function setSubmitButtonStatus(status) {
     return;
   }
 
+  if (status === "scanning" || status === "pulling" || /^found-\d$/.test(status)) {
+    submitButton.disabled = true;
+    submitButton.textContent = status === "scanning"
+      ? "SCANNING AWC"
+      : status === "pulling"
+        ? "PULLING WX"
+        : `FOUND ${status.slice(-1)}/3 RED`;
+    submitButton.classList.add("button-searching");
+    return;
+  }
+
   submitButton.disabled = false;
   if (status === "success") {
     submitButton.textContent = "SUCCESS";
     submitButton.classList.add("button-success");
+  } else if (/^partial-\d$/.test(status)) {
+    submitButton.textContent = `FOUND ${status.slice(-1)}/3 RED`;
+    submitButton.classList.add("button-partial");
+  } else if (status === "sample") {
+    submitButton.textContent = "SAMPLE LOADED";
+    submitButton.classList.add("button-partial");
+  } else if (status === "cancelled") {
+    submitButton.textContent = "SCAN CANCELED";
+    submitButton.classList.add("button-partial");
   } else if (status === "unable") {
     submitButton.textContent = "UNABLE";
     submitButton.classList.add("button-unable");
@@ -464,9 +1197,18 @@ function setSubmitButtonStatus(status) {
   }
 
   submitFeedbackTimer = window.setTimeout(() => {
-    submitButton.classList.remove("button-success", "button-unable");
+    submitButton.classList.remove("button-success", "button-partial", "button-unable");
     submitButton.textContent = "Check Mission";
   }, 2400);
+}
+
+function setSubmitButtonMessage(message, options = {}) {
+  if (!submitButton) return;
+  window.clearTimeout(submitFeedbackTimer);
+  submitButton.disabled = true;
+  submitButton.textContent = message;
+  submitButton.classList.remove("button-success", "button-partial", "button-unable");
+  submitButton.classList.add("button-searching");
 }
 
 function formatMissionSummary(inputs) {
@@ -634,29 +1376,50 @@ function renderHighlightedTaf(result) {
 
   return lines
     .map((line, index) => {
-      const markers = checks.filter((check) => tafLineAppliesAt(lines, index, check.time));
+      const markers = checks
+        .filter((check) => tafLineAppliesAt(lines, index, check.time))
+        .map((check) => ({
+          label: check.label,
+          type: check.type,
+          status: getTafLineStatus(line, check.time, result)
+        }));
       const exact = markers.some((marker) => marker.type === "exact");
       const context = markers.some((marker) => marker.type === "window");
       const state = exact ? "exact" : context ? "window" : "none";
-      const visibleMarkers = exact
-        ? markers.filter((marker) => marker.type === "exact")
-        : markers.filter((marker) => marker.type === "window");
-      return renderTafLine(line, state, visibleMarkers.map((marker) => marker.label));
+      return renderTafLine(line, state, markers);
     })
     .join("");
 }
 
 function renderTafLine(line, state, markers) {
   const stateClass = state === "exact" ? " taf-applicable" : state === "window" ? " taf-window" : "";
+  const status = markers.reduce((current, marker) =>
+    STATUS_RANK[marker.status] > STATUS_RANK[current] ? marker.status : current
+  , "green");
+  const statusClass = markers.length ? ` taf-status-${status}` : "";
   return `
-    <details class="taf-decode-row${stateClass}">
+    <details class="taf-decode-row${stateClass}${statusClass}">
       <summary title="Tap to decode this TAF line">
         <span>${escapeHtml(line)}</span>
-        ${markers.length ? `<span class="taf-markers">${markers.map((marker) => `<span class="taf-marker">${escapeHtml(marker)}</span>`).join("")}</span>` : ""}
+        ${markers.length ? `<span class="taf-markers">${markers.map((marker) => `<span class="taf-marker marker-${marker.status}">${escapeHtml(marker.label)}</span>`).join("")}</span>` : ""}
       </summary>
       <div class="taf-decode">${renderTafDecode(line)}</div>
     </details>
   `;
+}
+
+function getTafLineStatus(line, target, result) {
+  const targetMs = target.getTime();
+  const ruleType = result.role === "Departure" ? "departure" : result.role === "Destination" ? "destination" : "alternate";
+  const matchingPeriods = (result.taf || []).filter((period) => {
+    const start = new Date(period.validFrom).getTime();
+    const end = new Date(period.validTo).getTime();
+    return isApplicableTafLine(line, period.raw) && targetMs >= start && targetMs < end;
+  });
+  if (!matchingPeriods.length) return "green";
+  return matchingPeriods
+    .map((period) => evaluateWeather(period, ruleType, true).status)
+    .reduce((current, status) => STATUS_RANK[status] > STATUS_RANK[current] ? status : current, "green");
 }
 
 function renderTafDecode(line) {

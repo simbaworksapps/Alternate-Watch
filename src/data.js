@@ -7,6 +7,7 @@ const rulesMetadata = {
 };
 
 const airportNameFallbacks = {
+  KEND: "Vance AFB",
   EGUN: "RAF Mildenhall",
   EGUL: "RAF Lakenheath",
   EGVA: "RAF Fairford",
