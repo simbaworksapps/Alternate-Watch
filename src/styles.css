@@ -75,9 +75,11 @@ input {
 
 .brand-row {
   align-items: center;
+  --tracer-end: clamp(120px, calc(100vw - 230px), 235px);
   display: flex;
   gap: 12px;
   margin-bottom: 18px;
+  overflow: hidden;
   position: relative;
 }
 
@@ -1152,11 +1154,11 @@ body.search-open::before {
   }
   82% {
     opacity: 1;
-    transform: translateX(300px) scaleX(1) skewX(-6deg);
+    transform: translateX(var(--tracer-end)) scaleX(1) skewX(-6deg);
   }
   100% {
     opacity: 0;
-    transform: translateX(342px) scaleX(0.95) skewX(-6deg);
+    transform: translateX(var(--tracer-end)) scaleX(0.92) skewX(-6deg);
   }
 }
 
@@ -1576,13 +1578,8 @@ mark,
   border-color: var(--red);
 }
 
-.taf-decode-row.taf-applicable summary,
-.taf-decode-row.taf-window summary,
 mark.taf-applicable {
-  align-items: center;
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
+  display: inline;
 }
 
 .taf-decode {
@@ -1640,6 +1637,8 @@ mark.taf-applicable {
   display: inline-flex;
   flex: 0 0 auto;
   gap: 4px;
+  margin-left: 6px;
+  vertical-align: text-bottom;
 }
 
 .taf-window .taf-marker {
