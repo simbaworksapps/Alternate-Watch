@@ -1515,9 +1515,13 @@ function setupAlternateListInput(selector, countUpdater) {
     countUpdater();
   });
   field.addEventListener("input", () => {
-    const previous = field.value;
-    const shouldFormat = /[\s;]/.test(previous) || /[a-z]/.test(previous) || /[A-Za-z0-9]{5,}/.test(previous.replace(/[\s,;]+/g, ""));
-    if (shouldFormat) formatAlternateListField(field, /[\s,;]$/.test(previous));
+    const selectionStart = field.selectionStart;
+    const selectionEnd = field.selectionEnd;
+    const upperValue = field.value.toUpperCase();
+    if (field.value !== upperValue) {
+      field.value = upperValue;
+      field.setSelectionRange(selectionStart, selectionEnd);
+    }
     countUpdater();
   });
   field.addEventListener("blur", () => {
