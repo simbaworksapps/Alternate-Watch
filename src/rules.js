@@ -155,9 +155,43 @@ function findEvaluatedPeriods(periods, targetTime, ruleType) {
   });
   if (!applicable.length) return { period: null, periods: [] };
   return {
-    period: applicable.sort(compareWeatherPeriods)[0],
+    period: buildWorstApplicablePeriod(applicable),
     periods: applicable
   };
+}
+
+function buildWorstApplicablePeriod(periods) {
+  const ranked = [...periods].sort(compareWeatherPeriods);
+  const ceilingPeriod = [...periods].sort(compareCeilingPeriods)[0];
+  const visibilityPeriod = [...periods].sort(compareVisibilityPeriods)[0];
+  const windPeriod = [...periods].sort(compareWindPeriods)[0];
+  const base = ranked[0];
+
+  return {
+    ...base,
+    ceilingFt: ceilingPeriod?.ceilingFt ?? base.ceilingFt,
+    ceilingSource: ceilingPeriod?.ceilingSource ?? base.ceilingSource,
+    ceilingRaw: ceilingPeriod?.ceilingRaw ?? base.ceilingRaw,
+    visibilitySm: visibilityPeriod?.visibilitySm ?? base.visibilitySm,
+    visibilitySource: visibilityPeriod?.visibilitySource ?? base.visibilitySource,
+    visibilityRaw: visibilityPeriod?.visibilityRaw ?? base.visibilityRaw,
+    wind: windPeriod?.wind ?? base.wind,
+    windRaw: windPeriod?.windRaw ?? base.windRaw
+  };
+}
+
+function compareCeilingPeriods(left, right) {
+  const leftCeiling = Number.isFinite(left.ceilingFt) ? left.ceilingFt : 99999;
+  const rightCeiling = Number.isFinite(right.ceilingFt) ? right.ceilingFt : 99999;
+  return leftCeiling - rightCeiling;
+}
+
+function compareVisibilityPeriods(left, right) {
+  return (left.visibilitySm ?? 99) - (right.visibilitySm ?? 99);
+}
+
+function compareWindPeriods(left, right) {
+  return getMaxWindSpeed(right.wind) - getMaxWindSpeed(left.wind);
 }
 
 function compareWeatherPeriods(left, right) {
@@ -166,10 +200,11 @@ function compareWeatherPeriods(left, right) {
   if (STATUS_RANK[leftStatus] !== STATUS_RANK[rightStatus]) {
     return STATUS_RANK[rightStatus] - STATUS_RANK[leftStatus];
   }
-  const leftCeiling = Number.isFinite(left.ceilingFt) ? left.ceilingFt : 99999;
-  const rightCeiling = Number.isFinite(right.ceilingFt) ? right.ceilingFt : 99999;
-  if (leftCeiling !== rightCeiling) return leftCeiling - rightCeiling;
-  return (left.visibilitySm ?? 99) - (right.visibilitySm ?? 99);
+  const ceilingSort = compareCeilingPeriods(left, right);
+  if (ceilingSort !== 0) return ceilingSort;
+  const visibilitySort = compareVisibilityPeriods(left, right);
+  if (visibilitySort !== 0) return visibilitySort;
+  return compareWindPeriods(left, right);
 }
 
 function findActiveNotams(notams, targetTime) {

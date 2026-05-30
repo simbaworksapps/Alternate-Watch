@@ -1395,15 +1395,21 @@ body.search-open::before {
 }
 
 .source-focus.scroll-focus-red summary {
-  box-shadow: 0 0 0 3px rgba(255, 95, 86, 0.82), 0 0 24px rgba(255, 95, 86, 0.34);
+  background: rgba(255, 95, 86, 0.22);
+  border-color: var(--red);
+  box-shadow: inset 0 0 0 1px rgba(255, 95, 86, 0.82);
 }
 
 .source-focus.scroll-focus-yellow summary {
-  box-shadow: 0 0 0 3px rgba(243, 178, 60, 0.82), 0 0 24px rgba(243, 178, 60, 0.34);
+  background: rgba(243, 178, 60, 0.2);
+  border-color: var(--yellow);
+  box-shadow: inset 0 0 0 1px rgba(243, 178, 60, 0.82);
 }
 
 .source-focus.scroll-focus-green summary {
-  box-shadow: 0 0 0 3px rgba(46, 212, 122, 0.82), 0 0 24px rgba(46, 212, 122, 0.34);
+  background: rgba(46, 212, 122, 0.16);
+  border-color: var(--green);
+  box-shadow: inset 0 0 0 1px rgba(46, 212, 122, 0.82);
 }
 
 .notam-item {
@@ -1543,10 +1549,27 @@ dd {
   border: 1px solid rgba(74, 163, 255, 0.42);
   border-radius: 999px;
   color: #b8dcff;
+  cursor: pointer;
   font-size: 0.72rem;
   font-weight: 1000;
   line-height: 1;
   padding: 4px 8px;
+}
+
+.taf-eval-time:hover,
+.taf-eval-time:focus-visible,
+.taf-age[role="button"]:hover,
+.taf-age[role="button"]:focus-visible,
+.metar-age[role="button"]:hover,
+.metar-age[role="button"]:focus-visible {
+  background: rgba(74, 163, 255, 0.2);
+  box-shadow: 0 0 0 2px rgba(74, 163, 255, 0.2), 0 0 14px rgba(74, 163, 255, 0.26);
+  outline: none;
+}
+
+.taf-age[role="button"],
+.metar-age[role="button"] {
+  cursor: pointer;
 }
 
 .vis-separator {
@@ -1638,6 +1661,32 @@ mark,
   border-color: var(--red);
 }
 
+.eval-time-token-focus {
+  background: rgba(74, 163, 255, 0.34);
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgba(74, 163, 255, 0.92), 0 0 14px rgba(74, 163, 255, 0.32);
+  color: #e7f4ff;
+  padding: 1px 2px;
+}
+
+.eval-time-token-focus.eval-time-token-green {
+  background: rgba(46, 212, 122, 0.28);
+  box-shadow: 0 0 0 1px rgba(46, 212, 122, 0.9), 0 0 14px rgba(46, 212, 122, 0.28);
+  color: #dffbe9;
+}
+
+.eval-time-token-focus.eval-time-token-yellow {
+  background: rgba(243, 178, 60, 0.32);
+  box-shadow: 0 0 0 1px rgba(243, 178, 60, 0.9), 0 0 14px rgba(243, 178, 60, 0.28);
+  color: #fff1c4;
+}
+
+.eval-time-token-focus.eval-time-token-red {
+  background: rgba(255, 95, 86, 0.34);
+  box-shadow: 0 0 0 1px rgba(255, 95, 86, 0.9), 0 0 14px rgba(255, 95, 86, 0.28);
+  color: #ffe5e2;
+}
+
 mark.taf-applicable {
   display: inline;
 }
@@ -1699,8 +1748,8 @@ mark.taf-applicable {
   float: right;
   gap: 4px;
   margin-left: 6px;
-  margin-top: 1px;
-  vertical-align: text-bottom;
+  margin-top: 0;
+  vertical-align: bottom;
 }
 
 .taf-window .taf-marker {
@@ -1920,11 +1969,12 @@ ul {
 
   .taf-decode-row.taf-applicable summary,
   .taf-decode-row.taf-window summary {
-    padding-bottom: 5px;
+    padding-bottom: 3px;
   }
 
   .taf-markers {
-    margin-bottom: 3px;
+    margin-bottom: -3px;
+    margin-top: 2px;
   }
 
   .wx-grid {

@@ -188,6 +188,12 @@ function init() {
   banner.addEventListener("keydown", handleSummaryIssueKeydown);
   cards.addEventListener("click", handleWeatherSourceClick);
   cards.addEventListener("keydown", handleWeatherSourceKeydown);
+  cards.addEventListener("click", handleTafEvalClick);
+  cards.addEventListener("keydown", handleTafEvalKeydown);
+  cards.addEventListener("click", handleTafValidityClick);
+  cards.addEventListener("keydown", handleTafValidityKeydown);
+  cards.addEventListener("click", handleMetarAgeClick);
+  cards.addEventListener("keydown", handleMetarAgeKeydown);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeRulebook();
@@ -821,6 +827,103 @@ function jumpToWeatherSource(tile) {
     line.classList.remove("source-focus", focusClass);
     line.querySelectorAll(".taf-source-focus").forEach((token) => token.classList.remove("taf-source-focus", focusClass));
   }, 1800);
+}
+
+function handleTafEvalClick(event) {
+  const pill = event.target.closest("[data-taf-eval]");
+  if (!pill) return;
+  event.preventDefault();
+  event.stopPropagation();
+  pulseEvaluatedTafLines(pill);
+}
+
+function handleTafEvalKeydown(event) {
+  const pill = event.target.closest("[data-taf-eval]");
+  if (!pill || !["Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+  pulseEvaluatedTafLines(pill);
+}
+
+function pulseEvaluatedTafLines(pill) {
+  const card = pill.closest(".result-card");
+  if (!card) return;
+  const lines = [...card.querySelectorAll(".taf-decode-row.taf-applicable")];
+  if (!lines.length) return;
+  lines[0].scrollIntoView({ behavior: "smooth", block: "center" });
+  const timeTokens = lines.flatMap((line) => [...line.querySelectorAll(".taf-source-time")]);
+  timeTokens.forEach((token) => token.classList.remove("eval-time-token-focus"));
+  void lines[0].offsetWidth;
+  timeTokens.forEach((token) => token.classList.add("eval-time-token-focus"));
+  window.setTimeout(() => {
+    timeTokens.forEach((token) => token.classList.remove("eval-time-token-focus"));
+  }, 1500);
+}
+
+function handleTafValidityClick(event) {
+  const pill = event.target.closest("[data-taf-validity]");
+  if (!pill) return;
+  event.preventDefault();
+  event.stopPropagation();
+  pulseTafValidityToken(pill);
+}
+
+function handleTafValidityKeydown(event) {
+  const pill = event.target.closest("[data-taf-validity]");
+  if (!pill || !["Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+  pulseTafValidityToken(pill);
+}
+
+function pulseTafValidityToken(pill) {
+  const card = pill.closest(".result-card");
+  if (!card) return;
+  const firstLine = card.querySelector(".taf-decode-row");
+  if (!firstLine) return;
+  const token = [...firstLine.querySelectorAll(".taf-source-time")].find((item) => item.textContent.includes("/"))
+    || firstLine.querySelector(".taf-source-time");
+  if (!token) return;
+  token.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  const focusClass = pill.classList.contains("age-red")
+    ? "eval-time-token-red"
+    : pill.classList.contains("age-yellow")
+      ? "eval-time-token-yellow"
+      : "eval-time-token-green";
+  token.classList.remove("eval-time-token-focus", "eval-time-token-red", "eval-time-token-yellow", "eval-time-token-green");
+  void token.offsetWidth;
+  token.classList.add("eval-time-token-focus", focusClass);
+  window.setTimeout(() => token.classList.remove("eval-time-token-focus", focusClass), 1500);
+}
+
+function handleMetarAgeClick(event) {
+  const pill = event.target.closest("[data-metar-age]");
+  if (!pill) return;
+  event.preventDefault();
+  event.stopPropagation();
+  pulseMetarObservedToken(pill);
+}
+
+function handleMetarAgeKeydown(event) {
+  const pill = event.target.closest("[data-metar-age]");
+  if (!pill || !["Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+  pulseMetarObservedToken(pill);
+}
+
+function pulseMetarObservedToken(pill) {
+  const card = pill.closest(".result-card");
+  if (!card) return;
+  const token = card.querySelector(".metar-source-time");
+  if (!token) return;
+  token.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  const focusClass = pill.classList.contains("age-red")
+    ? "eval-time-token-red"
+    : pill.classList.contains("age-yellow")
+      ? "eval-time-token-yellow"
+      : "eval-time-token-green";
+  token.classList.remove("eval-time-token-focus", "eval-time-token-red", "eval-time-token-yellow", "eval-time-token-green");
+  void token.offsetWidth;
+  token.classList.add("eval-time-token-focus", focusClass);
+  window.setTimeout(() => token.classList.remove("eval-time-token-focus", focusClass), 1500);
 }
 
 function getInputs() {
@@ -1549,7 +1652,7 @@ function renderMetarAgeBadge(metar, referenceValue) {
   const ageMinutes = Math.max(0, Math.floor((new Date(referenceValue).getTime() - observedAt.getTime()) / 60000));
   const ageClass = ageMinutes >= 60 ? "age-red" : ageMinutes >= 30 ? "age-yellow" : "age-green";
   const label = ageMinutes >= 60 ? "60+ min old" : ageMinutes >= 30 ? "30+ min old" : `${ageMinutes} min old`;
-  return `<span class="data-age metar-age ${ageClass}">${label}</span>`;
+  return `<span class="data-age metar-age ${ageClass}" role="button" tabindex="0" data-metar-age="true" title="Highlight METAR observation time">${label}</span>`;
 }
 
 function renderTafValidityBadge(tafRaw, referenceValue) {
@@ -1561,11 +1664,11 @@ function renderTafValidityBadge(tafRaw, referenceValue) {
     : reference < window.start.getTime()
       ? { label: "Future", className: "age-yellow" }
       : { label: "Current", className: "age-green" };
-  return `<span class="data-age taf-age ${status.className}">${status.label}</span>`;
+  return `<span class="data-age taf-age ${status.className}" role="button" tabindex="0" data-taf-validity="true" title="Highlight TAF validity window">${status.label}</span>`;
 }
 
 function renderTafEvaluationTime(value) {
-  return `<span class="taf-eval-time">Eval ${formatTafReferenceTime(value)}</span>`;
+  return `<span class="taf-eval-time" role="button" tabindex="0" data-taf-eval="true" title="Highlight TAF lines applicable to this evaluated time">Eval ${formatTafReferenceTime(value)}</span>`;
 }
 
 function formatTafReferenceTime(value) {
@@ -1680,6 +1783,7 @@ function renderTafSourceTokens(line) {
 
 function getTafSourceTokenClasses(token) {
   const classes = [];
+  if (/^FM\d{6}$/.test(token) || /^\d{4}\/\d{4}$/.test(token)) classes.push("taf-source-time");
   if (/^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)$/.test(token)) classes.push("taf-source-wind");
   if (token === "P6SM" || /^\d{1,2}(?:\/\d)?SM$/.test(token) || /^\d{4}$/.test(token) || /^\d{4}(N|NE|E|SE|S|SW|W|NW)$/.test(token) || matchCompactVisibilityWeatherToken(token)) classes.push("taf-source-visibility");
   if (/^(BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU)?$/.test(token)) classes.push("taf-source-ceiling");
@@ -1714,11 +1818,24 @@ function renderMetar(metar) {
   return `
     <details class="metar-decode-row">
       <summary title="Tap to decode this METAR">
-        <span>${escapeHtml(metar)}</span>
+        <span>${renderMetarSourceTokens(metar)}</span>
       </summary>
       <div class="taf-decode">${renderMetarDecode(metar)}</div>
     </details>
   `;
+}
+
+function renderMetarSourceTokens(metar) {
+  return String(metar || "")
+    .trim()
+    .split(/(\s+)/)
+    .map((part) => {
+      if (/^\s+$/.test(part)) return part;
+      return /^\d{6}Z$/.test(part)
+        ? `<span class="metar-source-time">${escapeHtml(part)}</span>`
+        : escapeHtml(part);
+    })
+    .join("");
 }
 
 function renderMetarDecode(metar) {
