@@ -78,7 +78,7 @@ async function render() {
   latestEvaluation = evaluateMission(inputs, missionData);
 
   caoDate.textContent = `CAO ${formatCaoDate(rulesMetadata.caoDate)}`;
-  pulledAt.innerHTML = `Data pulled: ${formatDateTime(latestEvaluation.pulledAt)} ${renderDataAgeBadge(latestEvaluation.sourceIssuedAt)}`;
+  pulledAt.innerHTML = `Data pulled: ${formatDateTime(latestEvaluation.pulledAt)} ${renderDataAgeBadge(latestEvaluation.pulledAt)}`;
   missionSummary.textContent = formatMissionSummary(inputs);
   missionSummary.dataset.source = rulesMetadata.weatherSource;
   if (rulesMetadata.weatherSource !== "AWC") {
@@ -328,7 +328,7 @@ function renderCard(result) {
           <details class="details-block" open>
             <summary>METAR / TAF / NOTAMs</summary>
             <section class="metar-block">
-              <h4>METAR</h4>
+              <h4 class="metar-title">METAR ${renderMetarAgeBadge(result.metar, latestEvaluation.pulledAt)}</h4>
               ${renderMetar(result.metar)}
             </section>
             <section class="taf-block">
@@ -364,6 +364,15 @@ function renderDataAgeBadge(pulledAtValue) {
   return `<span class="data-age age-green">Fresh</span>`;
 }
 
+function renderMetarAgeBadge(metar, referenceValue) {
+  const observedAt = getMetarObservedAt(metar, referenceValue);
+  if (!observedAt) return "";
+  const ageMinutes = Math.max(0, Math.floor((new Date(referenceValue).getTime() - observedAt.getTime()) / 60000));
+  const ageClass = ageMinutes >= 60 ? "age-red" : ageMinutes >= 30 ? "age-yellow" : "age-green";
+  const label = ageMinutes >= 60 ? "60+ min old" : ageMinutes >= 30 ? "30+ min old" : `${ageMinutes} min old`;
+  return `<span class="data-age metar-age ${ageClass}">${label}</span>`;
+}
+
 function renderNotam(notam) {
   const impactClass = notam.impact === "closed" ? " notam-closed" : notam.impact === "limiting" ? " notam-limiting" : "";
   return `<li class="notam-item${impactClass}"><strong>${escapeHtml(notam.id)}</strong> ${escapeHtml(notam.raw)}</li>`;
@@ -385,7 +394,7 @@ function formatVisibilityDisplay(period) {
   const source = period.visibilitySource;
   if (source === "9999M") return "Unlimited";
   if (/^\d{4}M$/.test(source || "")) {
-    return `${Number(source.slice(0, 4)).toLocaleString("en-US")}m / ${period.visibilitySm.toFixed(1)}SM`;
+    return `${Number(source.slice(0, 4)).toLocaleString("en-US")}m <span class="vis-separator">|</span> ${period.visibilitySm.toFixed(1)}SM`;
   }
   return source || `${period.visibilitySm} SM`;
 }
@@ -645,8 +654,14 @@ function decodeVisibilityToken(tokens) {
   const token = tokens.find((item) => item === "P6SM" || /^\d{1,2}(?:\/\d)?SM$/.test(item) || /^\d{4}$/.test(item));
   if (!token) return null;
   if (token === "P6SM") return "Greater than 6 statute miles.";
-  if (/^\d{4}$/.test(token)) return token === "9999" ? "Unlimited." : `${Number(token).toLocaleString("en-US")} meters.`;
+  if (/^\d{4}$/.test(token)) {
+    return token === "9999" ? "Unlimited." : `${Number(token).toLocaleString("en-US")} meters, equivalent to ${metersToStatuteMiles(Number(token)).toFixed(1)} statute miles.`;
+  }
   return `${token.replace("SM", "")} statute miles.`;
+}
+
+function metersToStatuteMiles(meters) {
+  return Math.round((meters / 1609.344) * 10) / 10;
 }
 
 function decodeWeatherTokens(tokens) {
@@ -743,6 +758,23 @@ function decodeTenthsTemp(sign, value) {
 
 function decodeSignedTemp(value) {
   return value.startsWith("M") ? `-${Number(value.slice(1))}` : `${Number(value)}`;
+}
+
+function getMetarObservedAt(metar, referenceValue) {
+  const token = String(metar || "").match(/\b(\d{2})(\d{2})(\d{2})Z\b/);
+  if (!token) return null;
+  const reference = new Date(referenceValue);
+  const observed = new Date(Date.UTC(
+    reference.getUTCFullYear(),
+    reference.getUTCMonth(),
+    Number(token[1]),
+    Number(token[2]),
+    Number(token[3])
+  ));
+  const diff = observed - reference;
+  if (diff > 15 * 24 * 60 * 60 * 1000) observed.setUTCMonth(observed.getUTCMonth() - 1);
+  if (diff < -15 * 24 * 60 * 60 * 1000) observed.setUTCMonth(observed.getUTCMonth() + 1);
+  return observed;
 }
 
 function escapeHtml(value) {

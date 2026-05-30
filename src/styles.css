@@ -822,6 +822,23 @@ dd {
   margin-top: 12px;
 }
 
+.metar-title {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.metar-age {
+  font-size: 0.66rem;
+}
+
+.vis-separator {
+  color: var(--muted);
+  font-weight: 1000;
+  margin: 0 2px;
+}
+
 .details-block {
   margin-top: 12px;
 }
