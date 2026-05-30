@@ -834,6 +834,7 @@ function handleTafEvalClick(event) {
   if (!pill) return;
   event.preventDefault();
   event.stopPropagation();
+  triggerPillFeedback(pill);
   pulseEvaluatedTafLines(pill);
 }
 
@@ -864,6 +865,7 @@ function handleTafValidityClick(event) {
   if (!pill) return;
   event.preventDefault();
   event.stopPropagation();
+  triggerPillFeedback(pill);
   pulseTafValidityToken(pill);
 }
 
@@ -899,6 +901,7 @@ function handleMetarAgeClick(event) {
   if (!pill) return;
   event.preventDefault();
   event.stopPropagation();
+  triggerPillFeedback(pill);
   pulseMetarObservedToken(pill);
 }
 
@@ -924,6 +927,14 @@ function pulseMetarObservedToken(pill) {
   void token.offsetWidth;
   token.classList.add("eval-time-token-focus", focusClass);
   window.setTimeout(() => token.classList.remove("eval-time-token-focus", focusClass), 1500);
+}
+
+function triggerPillFeedback(pill) {
+  pill.classList.remove("tap-glow");
+  void pill.offsetWidth;
+  pill.classList.add("tap-glow");
+  pill.blur();
+  window.setTimeout(() => pill.classList.remove("tap-glow"), 420);
 }
 
 function getInputs() {

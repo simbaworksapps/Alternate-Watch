@@ -1551,6 +1551,9 @@ dd {
   font-weight: 1000;
   line-height: 1;
   padding: 4px 8px;
+  transform: translateY(0);
+  transition: box-shadow 160ms ease, transform 120ms ease, filter 160ms ease, background 160ms ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .taf-eval-time:hover,
@@ -1567,6 +1570,21 @@ dd {
 .taf-age[role="button"],
 .metar-age[role="button"] {
   cursor: pointer;
+  transform: translateY(0);
+  transition: box-shadow 160ms ease, transform 120ms ease, filter 160ms ease, background 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.taf-eval-time:active,
+.taf-age[role="button"]:active,
+.metar-age[role="button"]:active {
+  transform: translateY(1px) scale(0.96);
+}
+
+.taf-eval-time.tap-glow,
+.taf-age[role="button"].tap-glow,
+.metar-age[role="button"].tap-glow {
+  animation: tapPulse 420ms ease;
 }
 
 .vis-separator {
