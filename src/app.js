@@ -6,6 +6,16 @@ const pulledAt = document.querySelector("#pulled-at");
 const missionSummary = document.querySelector("#mission-summary");
 const filterButtons = document.querySelectorAll(".filter-button");
 const defaultAlternates = "KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI, KGSB";
+const randomMissionFields = [
+  "KMCF", "KTPA", "KCOF", "KHST", "KPAM", "KVPS", "KWRB", "KCHS", "KBHM", "KMEI", "KGSB",
+  "KDOV", "KILM", "KRIC", "KJFK", "KBOS", "KORD", "KDEN", "KSEA", "KSFO", "PHNL",
+  "PGUA", "EGUN", "EGUL", "ETAR", "LPLA", "RKSO", "RJTY"
+];
+const practiceWeatherFields = [
+  "KMEI", "KWRB", "KVPS", "KCOF", "KCHS", "KILM", "KRIC", "KDOV", "KBOS", "KJFK",
+  "KSEA", "KPDX", "KSFO", "KDEN", "KORD", "PAFA", "PANC", "CYFB", "BIKF", "EGUN",
+  "EGUL", "ETAR", "LPLA", "PGUA", "PHNL", "RJTY", "RKSO"
+];
 let currentFilter = "all";
 let latestEvaluation = null;
 
@@ -13,6 +23,7 @@ init();
 
 function init() {
   setDefaultTimes();
+  setupBrandAnimation();
   registerServiceWorker();
   render();
   form.addEventListener("submit", (event) => {
@@ -30,6 +41,11 @@ function init() {
     resetMissionDefaults();
     render();
   });
+  document.querySelector("#random-mission").addEventListener("click", () => {
+    generateRandomMission();
+    render();
+  });
+  document.querySelector("#practice-weather").addEventListener("click", generatePracticeWeatherMission);
   document.querySelector("#expand-all").addEventListener("click", () => setAllCardsOpen(true));
   document.querySelector("#collapse-all").addEventListener("click", () => setAllCardsOpen(false));
   banner.addEventListener("click", scrollToHighestPriorityItem);
@@ -45,6 +61,23 @@ function init() {
   });
   banner.addEventListener("click", handleSummaryIssueClick);
   banner.addEventListener("keydown", handleSummaryIssueKeydown);
+}
+
+function setupBrandAnimation() {
+  const brandRow = document.querySelector(".brand-row");
+  const brandLink = document.querySelector(".brand-link");
+  const title = document.querySelector("#app-title");
+  if (!brandRow || !brandLink || !title) return;
+
+  const playBrandAnimation = () => {
+    brandRow.classList.remove("brand-animate");
+    void brandRow.offsetWidth;
+    brandRow.classList.add("brand-animate");
+  };
+
+  brandLink.addEventListener("mouseenter", playBrandAnimation);
+  brandLink.addEventListener("focus", playBrandAnimation);
+  title.addEventListener("click", playBrandAnimation);
 }
 
 function setDefaultTimes() {
@@ -71,6 +104,59 @@ function clearMissionInputs() {
   document.querySelector("#alternates").value = "";
 }
 
+function generateRandomMission() {
+  const [departure, destination, alternate] = pickUnique(randomMissionFields, 3);
+  applyMissionFields(departure, destination, [alternate]);
+}
+
+async function generatePracticeWeatherMission() {
+  const button = document.querySelector("#practice-weather");
+  button.disabled = true;
+  button.textContent = "...";
+
+  try {
+    const takeoff = new Date();
+    const landing = new Date(takeoff.getTime() + 3 * 60 * 60 * 1000);
+    const candidateInputs = {
+      departure: "KMCF",
+      destination: "KMCF",
+      takeoffTime: takeoff.toISOString(),
+      landingTime: landing.toISOString(),
+      alternates: practiceWeatherFields
+    };
+    const missionData = await getLiveMissionData(practiceWeatherFields);
+    const evaluated = evaluateMission(candidateInputs, missionData);
+    const issueFields = evaluated.results
+      .filter((result) => result.status !== "green")
+      .map((result) => result.icao);
+    const selected = pickUnique(issueFields.length >= 3 ? issueFields : practiceWeatherFields, 3);
+    applyMissionFields(selected[0], selected[1], [selected[2]], takeoff, landing);
+    await render();
+  } finally {
+    button.disabled = false;
+    button.textContent = "!";
+  }
+}
+
+function applyMissionFields(departure, destination, alternates, takeoff = new Date(), landing = null) {
+  const eta = landing || new Date(takeoff.getTime() + 3 * 60 * 60 * 1000);
+  document.querySelector("#departure").value = departure;
+  document.querySelector("#destination").value = destination;
+  document.querySelector("#missionDate").value = takeoff.toISOString().slice(0, 10);
+  document.querySelector("#takeoffTime").value = formatZuluTime(takeoff);
+  document.querySelector("#landingTime").value = formatZuluTime(eta);
+  document.querySelector("#alternates").value = alternates.join(", ");
+}
+
+function pickUnique(values, count) {
+  const pool = [...new Set(values)].filter(Boolean);
+  for (let index = pool.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [pool[index], pool[randomIndex]] = [pool[randomIndex], pool[index]];
+  }
+  return pool.slice(0, count);
+}
+
 async function render() {
   const inputs = getInputs();
   setLoadingState(true);
@@ -82,7 +168,7 @@ async function render() {
   missionSummary.textContent = formatMissionSummary(inputs);
   missionSummary.dataset.source = rulesMetadata.weatherSource;
   if (rulesMetadata.weatherSource !== "AWC") {
-    missionSummary.textContent += " | WX LIVE UNAVAILABLE";
+    missionSummary.textContent += " | WX !";
   }
 
   banner.className = `decision-banner status-${latestEvaluation.summary.status}`;
@@ -280,6 +366,7 @@ function formatZuluFromIso(value) {
 
 function renderCard(result) {
   const cardStatus = result.cardStatus || result.status;
+  const wxSource = rulesMetadata.weatherSource === "AWC" ? "AWC" : "!";
   const taf = result.tafRaw
     ? `<div class="taf-line">${renderHighlightedTaf(result)}</div>`
     : `<p class="raw-line">No full TAF available.</p>`;
@@ -314,7 +401,7 @@ function renderCard(result) {
             </div>
             <div class="card-meta">
               <p class="evaluated-at">Evaluated at ${formatDateTime(result.evaluatedAt)}</p>
-              <p class="source-labels">WX: ${escapeHtml(rulesMetadata.weatherSource)} | NOTAM: ${escapeHtml(rulesMetadata.notamSource)}</p>
+              <p class="source-labels">WX: <span class="${rulesMetadata.weatherSource === "AWC" ? "" : "wx-failed"}">${escapeHtml(wxSource)}</span> | NOTAM: ${escapeHtml(rulesMetadata.notamSource)}</p>
             </div>
             <div class="card-status">
               <span class="status-pill">${cardStatus}</span>

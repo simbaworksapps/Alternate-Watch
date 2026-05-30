@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#070b10" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Alternate Watch" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Alternate Watch</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./public/SIMBA.jpg" type="image/jpeg" />
@@ -12,12 +15,13 @@
   <body>
     <main class="app-shell">
       <section class="mission-panel" aria-labelledby="app-title">
-        <header class="brand-row">
+        <header class="brand-row brand-animate">
           <a class="brand-link" href="https://www.linkedin.com/in/james-m-rumpsa/" target="_blank" rel="noopener noreferrer" aria-label="Open James Rumpsa LinkedIn profile">
             <img src="./public/SIMBA.jpg" alt="Simba logo" class="brand-mark" />
           </a>
+          <span class="brand-tracer" aria-hidden="true"></span>
           <div>
-            <h1 id="app-title">Alternate Watch</h1>
+            <h1 id="app-title" data-text="Alternate Watch">Alternate Watch</h1>
           </div>
         </header>
 
@@ -53,8 +57,10 @@
           </label>
 
           <div class="alternate-actions">
-            <button type="button" class="secondary-button" id="clear-alternates">Clear</button>
-            <button type="button" class="secondary-button" id="reset-alternates">Reset Defaults</button>
+            <button type="button" class="secondary-button symbol-button" id="clear-alternates" aria-label="Clear all mission fields" title="Clear all mission fields">X</button>
+            <button type="button" class="secondary-button symbol-button" id="random-mission" aria-label="Generate a random mission" title="Generate a random mission">?</button>
+            <button type="button" class="secondary-button symbol-button" id="practice-weather" aria-label="Generate a bad-weather practice mission" title="Generate a bad-weather practice mission">!</button>
+            <button type="button" class="secondary-button symbol-button" id="reset-alternates" aria-label="Reset default mission fields" title="Reset default mission fields">↻</button>
           </div>
 
           <button type="submit">Check Mission</button>

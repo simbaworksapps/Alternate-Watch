@@ -6,6 +6,23 @@ const rulesMetadata = {
   notamAvailable: false
 };
 
+const airportNameFallbacks = {
+  EGUN: "RAF Mildenhall",
+  EGUL: "RAF Lakenheath",
+  EGVA: "RAF Fairford",
+  ETAR: "Ramstein AB",
+  ETAD: "Spangdahlem AB",
+  LPLA: "Lajes Field",
+  PGUA: "Andersen AFB",
+  PHIK: "Hickam AFB",
+  RKSO: "Osan AB",
+  RKJK: "Kunsan AB",
+  RJTY: "Yokota AB",
+  RJOI: "MCAS Iwakuni",
+  OKAS: "Ali Al Salem AB",
+  OTBH: "Al Udeid AB"
+};
+
 async function getLiveMissionData(icaos) {
   const sampleData = getMissionData();
   const uniqueIcaos = [...new Set(icaos.filter(Boolean).map((icao) => icao.toUpperCase()))];
@@ -13,9 +30,10 @@ async function getLiveMissionData(icaos) {
 
   try {
     const ids = encodeURIComponent(uniqueIcaos.join(","));
-    const [metarText, tafText] = await Promise.all([
+    const [metarText, tafText, stationInfo] = await Promise.all([
       fetchWeatherText("metar", ids),
-      fetchWeatherText("taf", ids)
+      fetchWeatherText("taf", ids),
+      fetchStationInfo(ids)
     ]);
 
     const metars = parseRawReports(metarText);
@@ -29,7 +47,7 @@ async function getLiveMissionData(icaos) {
       const taf = tafRaw ? parseTafPeriods(tafRaw) : sample.taf || [];
 
       airports[icao] = {
-        name: sample.name || icao,
+        name: getAirportName(icao, sample, stationInfo),
         conus: sample.conus ?? isLikelyConus(icao),
         metar,
         tafRaw,
@@ -45,9 +63,49 @@ async function getLiveMissionData(icaos) {
       airports
     };
   } catch (error) {
-    rulesMetadata.weatherSource = "Sample";
-    return sampleData;
+    rulesMetadata.weatherSource = "Unavailable";
+    return createUnavailableMissionData(uniqueIcaos);
   }
+}
+
+function createUnavailableMissionData(icaos) {
+  return {
+    pulledAt: new Date().toISOString(),
+    sourceIssuedAt: new Date().toISOString(),
+    wxUnavailable: true,
+    airports: icaos.reduce((airports, icao) => {
+      airports[icao] = {
+        name: airportNameFallbacks[icao] || icao,
+        conus: isLikelyConus(icao),
+        metar: null,
+        tafRaw: null,
+        taf: [],
+        notams: []
+      };
+      return airports;
+    }, {})
+  };
+}
+
+async function fetchStationInfo(encodedIds) {
+  const proxyUrl = `./api/weather?type=stationinfo&ids=${encodedIds}`;
+  const directUrl = `https://aviationweather.gov/api/data/stationinfo?ids=${encodedIds}&format=json`;
+
+  try {
+    const proxyResponse = await fetch(proxyUrl);
+    if (proxyResponse.ok) return normalizeStationInfo(await proxyResponse.json());
+  } catch (error) {
+    // Static previews and GitHub Pages do not provide the proxy endpoint.
+  }
+
+  try {
+    const directResponse = await fetch(directUrl);
+    if (directResponse.ok) return normalizeStationInfo(await directResponse.json());
+  } catch (error) {
+    // Station names are helpful, but weather evaluation can continue without them.
+  }
+
+  return {};
 }
 
 async function fetchWeatherText(type, encodedIds) {
@@ -64,6 +122,33 @@ async function fetchWeatherText(type, encodedIds) {
   const directResponse = await fetch(directUrl);
   if (!directResponse.ok) throw new Error("AWC request failed");
   return directResponse.text();
+}
+
+function normalizeStationInfo(payload) {
+  const rows = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.features)
+      ? payload.features.map((feature) => feature.properties || feature)
+      : [];
+
+  return rows.reduce((stations, row) => {
+    const icao = String(row.icaoId || row.stationId || row.id || row.icao || "").toUpperCase();
+    if (!/^[A-Z0-9]{4}$/.test(icao)) return stations;
+    const name = row.site || row.name || row.stationName || row.airportName || row.city || "";
+    if (name) stations[icao] = cleanAirportName(name);
+    return stations;
+  }, {});
+}
+
+function getAirportName(icao, sample, stationInfo) {
+  return sample.name || stationInfo[icao] || airportNameFallbacks[icao] || icao;
+}
+
+function cleanAirportName(value) {
+  return String(value)
+    .replace(/\s+/g, " ")
+    .replace(/\bAIRPORT\b$/i, "Airport")
+    .trim();
 }
 
 function getMissionData() {

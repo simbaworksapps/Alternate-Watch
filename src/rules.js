@@ -26,6 +26,27 @@ window.evaluateMission = evaluateMission;
 function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulledAt) {
   const airport = missionData.airports[icao];
 
+  if (missionData.wxUnavailable) {
+    return {
+      icao,
+      role,
+      name: airport?.name || icao,
+      status: "yellow",
+      cardStatus: "yellow",
+      title: `${icao} weather unavailable`,
+      reason: "Live AWC weather could not be pulled. Current METAR/TAF data is unavailable.",
+      chips: [{ label: "WX !", status: "yellow" }],
+      evaluatedAt: targetTime,
+      period: null,
+      weatherImpacts: { wx: "yellow" },
+      locationImpact: null,
+      metar: null,
+      tafRaw: null,
+      taf: [],
+      notams: []
+    };
+  }
+
   if (!airport) {
     return {
       icao,
