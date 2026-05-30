@@ -1394,18 +1394,18 @@ body.search-open::before {
   box-shadow: 0 0 0 3px rgba(46, 212, 122, 0.82), 0 0 24px rgba(46, 212, 122, 0.34);
 }
 
-.taf-decode-row.taf-applicable.source-focus.scroll-focus-red summary,
-.taf-decode-row.taf-window.source-focus.scroll-focus-red summary {
+.taf-decode-row.taf-applicable.source-focus.source-focus-red summary,
+.taf-decode-row.taf-window.source-focus.source-focus-red summary {
   box-shadow: 0 0 14px rgba(255, 95, 86, 0.42);
 }
 
-.taf-decode-row.taf-applicable.source-focus.scroll-focus-yellow summary,
-.taf-decode-row.taf-window.source-focus.scroll-focus-yellow summary {
+.taf-decode-row.taf-applicable.source-focus.source-focus-yellow summary,
+.taf-decode-row.taf-window.source-focus.source-focus-yellow summary {
   box-shadow: 0 0 14px rgba(243, 178, 60, 0.38);
 }
 
-.taf-decode-row.taf-applicable.source-focus.scroll-focus-green summary,
-.taf-decode-row.taf-window.source-focus.scroll-focus-green summary {
+.taf-decode-row.taf-applicable.source-focus.source-focus-green summary,
+.taf-decode-row.taf-window.source-focus.source-focus-green summary {
   box-shadow: 0 0 14px rgba(46, 212, 122, 0.38);
 }
 

@@ -821,10 +821,11 @@ function jumpToWeatherSource(tile) {
 
   line.scrollIntoView({ behavior: "smooth", block: "center" });
   const focusClass = getIssueFocusClass("", status);
-  line.classList.add("source-focus", focusClass);
+  const sourceFocusClass = `source-focus-${status}`;
+  line.classList.add("source-focus", sourceFocusClass);
   line.querySelectorAll(`.taf-source-${kind}`).forEach((token) => token.classList.add("taf-source-focus", focusClass));
   window.setTimeout(() => {
-    line.classList.remove("source-focus", focusClass);
+    line.classList.remove("source-focus", sourceFocusClass);
     line.querySelectorAll(".taf-source-focus").forEach((token) => token.classList.remove("taf-source-focus", focusClass));
   }, 1800);
 }
