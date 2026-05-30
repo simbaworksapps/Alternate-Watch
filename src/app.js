@@ -329,7 +329,7 @@ function renderCard(result) {
             <summary>METAR / TAF / NOTAMs</summary>
             <section class="metar-block">
               <h4>METAR</h4>
-              <p>${result.metar || "No METAR available."}</p>
+              ${renderMetar(result.metar)}
             </section>
             <section class="taf-block">
               <h4>Full TAF</h4>
@@ -393,17 +393,57 @@ function formatVisibilityDisplay(period) {
 function renderHighlightedTaf(result) {
   const lines = splitTafLines(result.tafRaw);
   if (!result.period || !result.period.raw) {
-    return lines.map((line) => `<div>${escapeHtml(line)}</div>`).join("");
+    return lines.map((line) => renderTafLine(line, false, "")).join("");
   }
 
   return lines
     .map((line, index) => {
-      const escapedLine = escapeHtml(line);
-      return isApplicableTafLine(line, result.period.raw) || tafLineApplies(lines, index, result)
-        ? `<mark class="taf-applicable" title="Applicable TAF period"><span>${escapedLine}</span><span class="taf-marker">${tafMarker(result)}</span></mark>`
-        : `<div>${escapedLine}</div>`;
+      const applicable = isApplicableTafLine(line, result.period.raw) || tafLineApplies(lines, index, result);
+      return renderTafLine(line, applicable, applicable ? tafMarker(result) : "");
     })
     .join("");
+}
+
+function renderTafLine(line, applicable, marker) {
+  return `
+    <details class="taf-decode-row${applicable ? " taf-applicable" : ""}">
+      <summary title="Tap to decode this TAF line">
+        <span>${escapeHtml(line)}</span>
+        ${marker ? `<span class="taf-marker">${marker}</span>` : ""}
+      </summary>
+      <div class="taf-decode">${renderTafDecode(line)}</div>
+    </details>
+  `;
+}
+
+function renderTafDecode(line) {
+  const decoded = decodeTafLine(line);
+  return `
+    <dl>
+      ${decoded.map((item) => `<div><dt>${escapeHtml(item.label)}</dt><dd>${escapeHtml(item.value)}</dd></div>`).join("")}
+    </dl>
+  `;
+}
+
+function renderMetar(metar) {
+  if (!metar) return `<p>No METAR available.</p>`;
+  return `
+    <details class="metar-decode-row">
+      <summary title="Tap to decode this METAR">
+        <span>${escapeHtml(metar)}</span>
+      </summary>
+      <div class="taf-decode">${renderMetarDecode(metar)}</div>
+    </details>
+  `;
+}
+
+function renderMetarDecode(metar) {
+  const decoded = decodeMetarLine(metar);
+  return `
+    <dl>
+      ${decoded.map((item) => `<div><dt>${escapeHtml(item.label)}</dt><dd>${escapeHtml(item.value)}</dd></div>`).join("")}
+    </dl>
+  `;
 }
 
 function splitTafLines(value) {
@@ -499,6 +539,210 @@ function tafDayHourMinuteToDate(day, hour, minute, referenceDate) {
 
 function tafMarker(result) {
   return result.role === "Departure" ? "T" : "L";
+}
+
+function decodeTafLine(line) {
+  const tokens = line.trim().split(/\s+/);
+  const items = [];
+  const changeType = decodeChangeType(tokens[0]);
+  if (changeType) items.push({ label: "Change", value: changeType });
+
+  const window = line.match(/\b(\d{4})\/(\d{4})\b/);
+  const fm = line.match(/\bFM(\d{6})\b/);
+  if (window) {
+    items.push({ label: "Valid", value: `${decodeTafBoundary(window[1])} to ${decodeTafBoundary(window[2])}` });
+  } else if (fm) {
+    items.push({ label: "From", value: decodeTafBoundary(fm[1].slice(0, 4), fm[1].slice(4, 6)) });
+  }
+
+  const wind = line.match(/\b((?:\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT)\b/);
+  if (wind) items.push({ label: "Wind", value: decodeWindToken(wind) });
+
+  const visibility = decodeVisibilityToken(tokens);
+  if (visibility) items.push({ label: "Visibility", value: visibility });
+
+  const weather = decodeWeatherTokens(tokens);
+  if (weather.length) items.push({ label: "Weather", value: weather.join("; ") });
+
+  const clouds = decodeCloudTokens(tokens);
+  if (clouds.length) items.push({ label: "Clouds", value: clouds.join("; ") });
+
+  const remarks = decodeTafRemarks(tokens);
+  if (remarks.length) items.push({ label: "Remarks", value: remarks.join("; ") });
+
+  return items.length ? items : [{ label: "Decode", value: "No decoded training items found for this line." }];
+}
+
+function decodeMetarLine(line) {
+  const tokens = line.trim().replace(/\s+\$$/, "").split(/\s+/);
+  const items = [];
+  const station = tokens.find((token) => /^[A-Z0-9]{4}$/.test(token));
+  if (station) items.push({ label: "Station", value: station });
+
+  const observed = tokens.find((token) => /^\d{6}Z$/.test(token));
+  if (observed) items.push({ label: "Observed", value: decodeObservedTime(observed) });
+
+  if (tokens.includes("AUTO")) items.push({ label: "Report Type", value: "Automated observation." });
+  if (tokens.includes("COR")) items.push({ label: "Correction", value: "Corrected report." });
+
+  const wind = line.match(/\b((?:\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT)\b/);
+  if (wind) items.push({ label: "Wind", value: decodeWindToken(wind) });
+
+  const visibility = decodeVisibilityToken(tokens);
+  if (visibility) items.push({ label: "Visibility", value: visibility });
+
+  const weather = decodeWeatherTokens(tokens);
+  if (weather.length) items.push({ label: "Weather", value: weather.join("; ") });
+
+  const clouds = decodeCloudTokens(tokens);
+  if (clouds.length) items.push({ label: "Clouds", value: clouds.join("; ") });
+  if (tokens.includes("CLR")) items.push({ label: "Clouds", value: "Clear below reporting limits." });
+  if (tokens.includes("SKC")) items.push({ label: "Clouds", value: "Sky clear." });
+
+  const tempDew = tokens.find((token) => /^(M?\d{2})\/(M?\d{2}|M?\/\/)$/.test(token));
+  if (tempDew) items.push({ label: "Temperature", value: decodeTempDewpoint(tempDew) });
+
+  const altimeter = tokens.find((token) => /^A\d{4}$/.test(token));
+  if (altimeter) items.push({ label: "Altimeter", value: `${altimeter.slice(1, 3)}.${altimeter.slice(3)} inHg.` });
+
+  const remarks = decodeMetarRemarks(tokens);
+  if (remarks.length) items.push({ label: "Remarks", value: remarks.join("; ") });
+
+  return items.length ? items : [{ label: "Decode", value: "No decoded training items found for this METAR." }];
+}
+
+function decodeObservedTime(token) {
+  return `${token.slice(0, 2)} ${token.slice(2, 4)}${token.slice(4, 6)}Z`;
+}
+
+function decodeTempDewpoint(token) {
+  const [temperature, dewpoint] = token.split("/");
+  const decodedTemp = decodeSignedTemp(temperature);
+  const decodedDewpoint = dewpoint.includes("//") ? "not reported" : `${decodeSignedTemp(dewpoint)}C`;
+  return `Temperature ${decodedTemp}C, dewpoint ${decodedDewpoint}.`;
+}
+
+function decodeChangeType(token) {
+  if (token === "TEMPO") return "Temporary condition.";
+  if (token === "BECMG") return "Becoming condition.";
+  if (/^FM\d{6}$/.test(token)) return "From condition.";
+  if (/^PROB\d{2}$/.test(token)) return `${token.slice(4)} percent probability condition.`;
+  return null;
+}
+
+function decodeTafBoundary(dayHour, minute = "00") {
+  return `${dayHour.slice(0, 2)} ${dayHour.slice(2, 4)}${minute}Z`;
+}
+
+function decodeWindToken(match) {
+  const direction = match[1].startsWith("VRB") ? "variable" : `${match[1].slice(0, 3)} degrees`;
+  const speed = Number(match[2]);
+  const gust = match[3] ? `, gusting ${Number(match[3])} kt` : "";
+  return `${direction} at ${speed} kt${gust}.`;
+}
+
+function decodeVisibilityToken(tokens) {
+  const token = tokens.find((item) => item === "P6SM" || /^\d{1,2}(?:\/\d)?SM$/.test(item) || /^\d{4}$/.test(item));
+  if (!token) return null;
+  if (token === "P6SM") return "Greater than 6 statute miles.";
+  if (/^\d{4}$/.test(token)) return token === "9999" ? "Unlimited." : `${Number(token).toLocaleString("en-US")} meters.`;
+  return `${token.replace("SM", "")} statute miles.`;
+}
+
+function decodeWeatherTokens(tokens) {
+  return tokens
+    .filter((token) => /^[-+]?([A-Z]{2,})+$/.test(token) && /(?:RA|SN|TS|SH|BR|FG|DZ|HZ|FU|GR|GS|PL|NSW|VCSH|VCTS)/.test(token))
+    .map(decodeWeatherToken);
+}
+
+function decodeWeatherToken(token) {
+  if (token === "NSW") return "No significant weather.";
+  const intensity = token.startsWith("-") ? "Light " : token.startsWith("+") ? "Heavy " : "";
+  const clean = token.replace(/^[-+]/, "");
+  const parts = [];
+  const codes = [
+    ["VC", "in the vicinity"],
+    ["SH", "showers"],
+    ["TS", "thunderstorm"],
+    ["RA", "rain"],
+    ["SN", "snow"],
+    ["DZ", "drizzle"],
+    ["BR", "mist"],
+    ["FG", "fog"],
+    ["HZ", "haze"],
+    ["FU", "smoke"],
+    ["GR", "hail"],
+    ["GS", "small hail"],
+    ["PL", "ice pellets"]
+  ];
+  codes.forEach(([code, label]) => {
+    if (clean.includes(code)) parts.push(label);
+  });
+  return `${intensity}${parts.join(" ")}.`.trim();
+}
+
+function decodeCloudTokens(tokens) {
+  return tokens
+    .filter((token) => /^(FEW|SCT|BKN|OVC|VV)\d{3}(CB|TCU)?$/.test(token))
+    .map((token) => {
+      const match = token.match(/^(FEW|SCT|BKN|OVC|VV)(\d{3})(CB|TCU)?$/);
+      const coverage = { FEW: "Few", SCT: "Scattered", BKN: "Broken", OVC: "Overcast", VV: "Vertical visibility" }[match[1]];
+      const cloudType = match[3] === "CB" ? " cumulonimbus" : match[3] === "TCU" ? " towering cumulus" : "";
+      return `${coverage}${cloudType} at ${(Number(match[2]) * 100).toLocaleString("en-US")} ft AGL.`;
+    });
+}
+
+function decodeTafRemarks(tokens) {
+  const remarks = [];
+  tokens.forEach((token, index) => {
+    const qnh = token.match(/^QNH(\d{4})INS$/);
+    if (qnh) remarks.push(`QNH ${qnh[1].slice(0, 2)}.${qnh[1].slice(2)} inches.`);
+    const temp = token.match(/^(TX|TN)(M?\d{2})\/(\d{4})Z$/);
+    if (temp) remarks.push(`${temp[1] === "TX" ? "Maximum" : "Minimum"} temperature ${decodeSignedTemp(temp[2])}C at ${decodeTafBoundary(temp[3])}.`);
+    if (token === "LAST" && tokens[index + 1] === "NO" && tokens[index + 2] === "AMD") remarks.push("Last forecast, no amendments.");
+    if (token === "AFT" && /^\d{4}Z$/.test(tokens[index + 1] || "")) remarks.push(`After ${decodeTafBoundary(tokens[index + 1].slice(0, 4))}.`);
+    if (token === "NEXT" && /^\d{4}Z$/.test(tokens[index + 1] || "")) remarks.push(`Next forecast by ${decodeTafBoundary(tokens[index + 1].slice(0, 4))}.`);
+    if (token === "RMK") remarks.push(`Remarks: ${tokens.slice(index + 1).join(" ")}.`);
+  });
+  return remarks;
+}
+
+function decodeMetarRemarks(tokens) {
+  const rmkIndex = tokens.indexOf("RMK");
+  if (rmkIndex === -1) return [];
+  const remarks = [];
+  const rmk = tokens.slice(rmkIndex + 1);
+  rmk.forEach((token, index) => {
+    if (token === "AO1") remarks.push("Automated station without precipitation discriminator.");
+    if (token === "AO2") remarks.push("Automated station with precipitation discriminator.");
+    const slp = token.match(/^SLP(\d{3})$/);
+    if (slp) remarks.push(`Sea level pressure ${decodeSeaLevelPressure(slp[1])} hPa.`);
+    const preciseTemp = token.match(/^T(0|1)(\d{3})(0|1)(\d{3})$/);
+    if (preciseTemp) remarks.push(`Precise temperature ${decodeTenthsTemp(preciseTemp[1], preciseTemp[2])}C, precise dewpoint ${decodeTenthsTemp(preciseTemp[3], preciseTemp[4])}C.`);
+    const hourlyPrecip = token.match(/^P(\d{4})$/);
+    if (hourlyPrecip) remarks.push(`Hourly precipitation ${Number(hourlyPrecip[1]) / 100} inches.`);
+    const sixHourPrecip = token.match(/^6(\d{4})$/);
+    if (sixHourPrecip) remarks.push(`Six-hour precipitation ${Number(sixHourPrecip[1]) / 100} inches.`);
+    if (/^DZB\d{2}E\d{2}$/.test(token)) remarks.push(`Drizzle began and ended during the hour: ${token}.`);
+    if (/^TSNO$/.test(token)) remarks.push("Thunderstorm information not available.");
+    if (token === "$") remarks.push("Automated station maintenance check indicator.");
+    if (token === "PK" && rmk[index + 1] === "WND") remarks.push(`Peak wind ${rmk[index + 2] || ""} ${rmk[index + 3] || ""}`.trim() + ".");
+  });
+  return remarks.length ? remarks : [`Raw remarks: ${rmk.join(" ")}.`];
+}
+
+function decodeSeaLevelPressure(value) {
+  const pressure = Number(value) / 10;
+  return pressure < 50 ? (1000 + pressure).toFixed(1) : (900 + pressure).toFixed(1);
+}
+
+function decodeTenthsTemp(sign, value) {
+  const amount = Number(value) / 10;
+  return `${sign === "1" ? "-" : ""}${amount.toFixed(1)}`;
+}
+
+function decodeSignedTemp(value) {
+  return value.startsWith("M") ? `-${Number(value.slice(1))}` : `${Number(value)}`;
 }
 
 function escapeHtml(value) {

@@ -104,11 +104,17 @@ function evaluateLocation(airport, ruleType) {
 
 function findApplicablePeriod(periods, targetTime) {
   const target = new Date(targetTime).getTime();
-  return periods.find((period) => {
+  const applicable = periods.filter((period) => {
     const start = new Date(period.validFrom).getTime();
     const end = new Date(period.validTo).getTime();
     return target >= start && target <= end;
   });
+  if (!applicable.length) return null;
+
+  return applicable.sort((left, right) => {
+    if (left.conditional !== right.conditional) return left.conditional ? -1 : 1;
+    return new Date(right.validFrom).getTime() - new Date(left.validFrom).getTime();
+  })[0];
 }
 
 function findActiveNotams(notams, targetTime) {

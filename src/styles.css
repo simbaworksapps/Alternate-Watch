@@ -833,7 +833,47 @@ dd {
   list-style-position: inside;
 }
 
-mark {
+.metar-decode-row,
+.taf-decode-row {
+  margin: 4px 0;
+}
+
+.metar-decode-row summary,
+.taf-decode-row summary {
+  border-radius: 6px;
+  color: var(--ink);
+  cursor: pointer;
+  display: block;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.86rem;
+  font-weight: 900;
+  line-height: 1.55;
+  list-style: none;
+  padding: 2px 4px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.metar-decode-row summary::-webkit-details-marker,
+.taf-decode-row summary::-webkit-details-marker {
+  display: none;
+}
+
+.metar-decode-row summary:hover,
+.metar-decode-row summary:focus-visible,
+.taf-decode-row summary:hover,
+.taf-decode-row summary:focus-visible {
+  background: rgba(74, 163, 255, 0.12);
+  outline: none;
+}
+
+.metar-decode-row[open] summary,
+.taf-decode-row[open] summary {
+  background: rgba(74, 163, 255, 0.12);
+}
+
+mark,
+.taf-decode-row.taf-applicable summary {
   background: rgba(74, 163, 255, 0.2);
   border: 1px solid var(--blue);
   border-radius: 6px;
@@ -844,11 +884,44 @@ mark {
   padding: 2px 4px;
 }
 
+.taf-decode-row.taf-applicable summary,
 mark.taf-applicable {
   align-items: center;
   display: flex;
   gap: 10px;
   justify-content: space-between;
+}
+
+.taf-decode {
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 2px solid var(--blue);
+  margin: 6px 0 10px 8px;
+  padding: 8px 10px;
+}
+
+.taf-decode dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.taf-decode div {
+  display: grid;
+  gap: 2px;
+}
+
+.taf-decode dt {
+  color: #b8dcff;
+  font-family: var(--font);
+  font-size: 0.72rem;
+  font-weight: 1000;
+  text-transform: uppercase;
+}
+
+.taf-decode dd {
+  color: var(--muted);
+  font-family: var(--font);
+  margin: 0;
 }
 
 .taf-marker {

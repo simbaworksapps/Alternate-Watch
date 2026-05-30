@@ -325,24 +325,53 @@ function parseTafPeriods(tafRaw) {
   const baseEnd = tafWindowBoundaryToDate(validWindow.slice(5, 9), baseStart);
   const bodyTokens = tokens.slice(validTokenIndex + 1);
   const groups = splitTafGroups(bodyTokens);
+  let prevailing = null;
 
   return groups.map((group, index) => {
-    const validFrom = group.changeType === "FM" ? tafFmToDate(group.changeToken, issuedAt) : index === 0 ? baseStart : groups[index - 1].validTo;
-    const nextFm = groups.slice(index + 1).find((candidate) => candidate.changeType === "FM");
-    const validTo = nextFm ? tafFmToDate(nextFm.changeToken, issuedAt) : baseEnd;
+    const window = getTafGroupWindow(group, index, groups, issuedAt, baseStart, baseEnd);
+    const validFrom = window.validFrom;
+    const validTo = window.validTo;
     const raw = group.raw;
-    const ceiling = extractCeiling(raw);
+    const elements = mergeWeatherElements(group, extractWeatherElements(raw), prevailing);
+    if (!group.conditional) {
+      prevailing = elements;
+    }
     return {
       validFrom: validFrom.toISOString(),
       validTo: validTo.toISOString(),
-      ceilingFt: ceiling.ceilingFt,
-      ceilingSource: ceiling.ceilingSource,
-      visibilitySm: extractVisibility(raw).visibilitySm,
-      visibilitySource: extractVisibility(raw).visibilitySource,
-      wind: extractWind(raw),
+      changeType: group.changeType,
+      conditional: group.conditional,
+      ceilingFt: elements.ceilingFt,
+      ceilingSource: elements.ceilingSource,
+      visibilitySm: elements.visibilitySm,
+      visibilitySource: elements.visibilitySource,
+      wind: elements.wind,
       raw
     };
   });
+}
+
+function extractWeatherElements(raw) {
+  const ceiling = extractCeiling(raw);
+  const visibility = extractVisibility(raw);
+  return {
+    ceilingFt: ceiling.ceilingFt,
+    ceilingSource: ceiling.ceilingSource,
+    visibilitySm: visibility.visibilitySm,
+    visibilitySource: visibility.visibilitySource,
+    wind: extractWind(raw)
+  };
+}
+
+function mergeWeatherElements(group, elements, prevailing) {
+  const base = group.conditional || group.changeType === "BECMG" ? prevailing : null;
+  return {
+    ceilingFt: elements.ceilingFt ?? base?.ceilingFt ?? null,
+    ceilingSource: elements.ceilingSource ?? base?.ceilingSource ?? null,
+    visibilitySm: elements.visibilitySm ?? base?.visibilitySm ?? 99,
+    visibilitySource: elements.visibilitySource ?? base?.visibilitySource ?? "P6SM",
+    wind: elements.wind ?? base?.wind ?? "00000KT"
+  };
 }
 
 function splitTafGroups(tokens) {
@@ -350,7 +379,7 @@ function splitTafGroups(tokens) {
   let current = [];
 
   tokens.forEach((token) => {
-    if (/^FM\d{6}$/.test(token) && current.length) {
+    if (isTafChangeToken(token) && current.length) {
       groups.push(buildTafGroup(current));
       current = [token];
     } else {
@@ -364,21 +393,80 @@ function splitTafGroups(tokens) {
 
 function buildTafGroup(tokens) {
   const changeToken = tokens[0];
+  const changeType = getTafChangeType(changeToken);
   return {
-    changeType: /^FM\d{6}$/.test(changeToken) ? "FM" : "BASE",
+    changeType,
     changeToken,
+    conditional: changeType === "TEMPO" || changeType === "PROB",
     raw: tokens.join(" ")
   };
 }
 
+function isTafChangeToken(token) {
+  return /^FM\d{6}$/.test(token) || token === "BECMG" || token === "TEMPO" || /^PROB\d{2}$/.test(token);
+}
+
+function getTafChangeType(token) {
+  if (/^FM\d{6}$/.test(token)) return "FM";
+  if (token === "BECMG") return "BECMG";
+  if (token === "TEMPO") return "TEMPO";
+  if (/^PROB\d{2}$/.test(token)) return "PROB";
+  return "BASE";
+}
+
+function getTafGroupWindow(group, index, groups, issuedAt, baseStart, baseEnd) {
+  if (group.changeType === "FM") {
+    const validFrom = tafFmToDate(group.changeToken, issuedAt);
+    return { validFrom, validTo: getNextPrevailingStart(groups, index + 1, issuedAt, baseEnd) };
+  }
+
+  if (group.changeType === "BECMG" || group.changeType === "TEMPO" || group.changeType === "PROB") {
+    const window = tafWindowFromGroup(group, issuedAt);
+    if (group.changeType === "BECMG") {
+      return { validFrom: window.validFrom, validTo: getNextPrevailingStart(groups, index + 1, issuedAt, baseEnd) };
+    }
+    return window;
+  }
+
+  return { validFrom: baseStart, validTo: getNextPrevailingStart(groups, index + 1, issuedAt, baseEnd) };
+}
+
+function getNextPrevailingStart(groups, startIndex, issuedAt, fallback) {
+  const next = groups.slice(startIndex).find((group) => group.changeType === "FM" || group.changeType === "BECMG");
+  if (!next) return fallback;
+  if (next.changeType === "FM") return tafFmToDate(next.changeToken, issuedAt);
+  return tafWindowFromGroup(next, issuedAt).validFrom;
+}
+
+function tafWindowFromGroup(group, issuedAt) {
+  const windowToken = group.changeType === "BECMG" || group.changeType === "TEMPO" || group.changeType === "PROB"
+    ? group.raw.match(/\b(\d{4})\/(\d{4})\b/)?.[0]
+    : null;
+  if (!windowToken) return { validFrom: issuedAt, validTo: issuedAt };
+  const validFrom = tafWindowBoundaryToDate(windowToken.slice(0, 4), issuedAt);
+  const validTo = tafWindowBoundaryToDate(windowToken.slice(5, 9), validFrom);
+  return { validFrom, validTo };
+}
+
 function extractWind(raw) {
-  return raw.match(/\b(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?KT\b/)?.[0] || "00000KT";
+  return raw.match(/\b(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?KT\b/)?.[0] || null;
 }
 
 function extractVisibility(raw) {
-  const match = raw.match(/\b(P6SM|\d{1,2}(?:\/\d)?SM|\d\s+\d\/\dSM|\d{4})\b/);
-  if (!match) return { visibilitySm: 99, visibilitySource: "P6SM" };
-  const visibilitySource = match[1];
+  const tokens = raw.split(/\s+/);
+  let visibilitySource = null;
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === "P6SM" || /^\d{1,2}(?:\/\d)?SM$/.test(token) || /^\d{4}$/.test(token)) {
+      visibilitySource = token;
+      break;
+    }
+    if (/^\d+$/.test(token) && /^\d\/\dSM$/.test(tokens[index + 1] || "")) {
+      visibilitySource = `${token} ${tokens[index + 1]}`;
+      break;
+    }
+  }
+  if (!visibilitySource) return { visibilitySm: null, visibilitySource: null };
   if (visibilitySource === "P6SM") return { visibilitySm: 6.1, visibilitySource };
   if (/^\d{4}$/.test(visibilitySource)) {
     return { visibilitySm: metersToSm(Number(visibilitySource)), visibilitySource: `${visibilitySource}M` };
@@ -406,11 +494,12 @@ function parseFraction(value) {
 }
 
 function extractCeiling(raw) {
-  const match = raw.match(/\b(BKN|OVC|VV)(\d{3})(CB)?\b/);
-  if (!match) return { ceilingFt: null, ceilingSource: null };
+  const matches = [...raw.matchAll(/\b(BKN|OVC|VV)(\d{3})(CB)?\b/g)];
+  if (!matches.length) return { ceilingFt: null, ceilingSource: null };
+  const lowest = matches.reduce((current, match) => (Number(match[2]) < Number(current[2]) ? match : current));
   return {
-    ceilingFt: Number(match[2]) * 100,
-    ceilingSource: match[0]
+    ceilingFt: Number(lowest[2]) * 100,
+    ceilingSource: lowest[0]
   };
 }
 
