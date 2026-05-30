@@ -824,6 +824,7 @@ function jumpToWeatherSource(tile) {
   const kind = tile.dataset.sourceKind;
   const status = tile.dataset.sourceStatus || "green";
   const line = card.querySelector(`.taf-decode-row[data-taf-key="${sourceKey}"]`)
+    || findTafSourceLine(card, sourceKey)
     || card.querySelector(".taf-decode-row.taf-applicable, .taf-decode-row.taf-window");
   if (!line) return;
 
@@ -836,6 +837,23 @@ function jumpToWeatherSource(tile) {
     line.classList.remove("source-focus", sourceFocusClass);
     line.querySelectorAll(".taf-source-focus").forEach((token) => token.classList.remove("taf-source-focus", focusClass));
   }, 1800);
+}
+
+function findTafSourceLine(card, sourceKey) {
+  const source = decodeTafKey(sourceKey);
+  if (!source) return null;
+  return [...card.querySelectorAll(".taf-decode-row")].find((line) => {
+    const renderedLine = decodeTafKey(line.dataset.tafKey);
+    return renderedLine.includes(source) || source.includes(renderedLine);
+  }) || null;
+}
+
+function decodeTafKey(value) {
+  try {
+    return decodeURIComponent(String(value || "")).replace(/\s+/g, " ").trim();
+  } catch (error) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
 }
 
 function handleTafEvalClick(event) {
