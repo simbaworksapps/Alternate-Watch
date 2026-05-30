@@ -1005,14 +1005,16 @@ dd {
   margin-top: 12px;
 }
 
-.metar-title {
+.metar-title,
+.taf-title {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.metar-age {
+.metar-age,
+.taf-age {
   font-size: 0.66rem;
 }
 

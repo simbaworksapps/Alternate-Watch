@@ -686,6 +686,7 @@ function getRedPracticeMissionData() {
   return {
     pulledAt: now.toISOString(),
     sourceIssuedAt: now.toISOString(),
+    practice: true,
     airports
   };
 }

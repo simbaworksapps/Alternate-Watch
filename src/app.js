@@ -19,6 +19,7 @@ const practiceWeatherFields = [
 let currentFilter = "all";
 let latestEvaluation = null;
 let missionNotice = "";
+let missionDataOverride = null;
 
 init();
 
@@ -127,35 +128,46 @@ async function generatePracticeWeatherMission() {
       alternates: practiceWeatherFields
     };
     const missionData = await getLiveMissionData(practiceWeatherFields);
-    const evaluated = evaluateMission(candidateInputs, missionData);
-    let redFields = evaluated.results
-      .filter((result) => result.status === "red")
-      .map((result) => result.icao);
+    let selected = findRedPracticeSelection(missionData, takeoff, landing, practiceWeatherFields);
 
-    if (redFields.length < 3) {
+    if (!selected) {
       const practiceData = getRedPracticeMissionData();
-      const practiceEvaluation = evaluateMission({
-        departure: "KDOV",
-        destination: "KRIC",
-        takeoffTime: takeoff.toISOString(),
-        landingTime: landing.toISOString(),
-        alternates: Object.keys(practiceData.airports)
-      }, practiceData);
-      redFields = practiceEvaluation.results
-        .filter((result) => result.status === "red")
-        .map((result) => result.icao);
+      selected = findRedPracticeSelection(practiceData, takeoff, landing, Object.keys(practiceData.airports));
+      missionDataOverride = practiceData;
       missionNotice = "Unable to find enough live red-weather airfields; sample red practice fields loaded.";
     } else {
+      missionDataOverride = null;
       missionNotice = "";
     }
 
-    const selected = pickUnique(redFields, 3);
     applyMissionFields(selected[0], selected[1], [selected[2]], takeoff, landing);
     await render();
   } finally {
     button.disabled = false;
     button.textContent = "!";
   }
+}
+
+function findRedPracticeSelection(missionData, takeoff, landing, fields) {
+  const candidates = pickUnique(fields, fields.length);
+  for (const departure of candidates) {
+    for (const destination of candidates) {
+      for (const alternate of candidates) {
+        if (new Set([departure, destination, alternate]).size !== 3) continue;
+        const evaluated = evaluateMission({
+          departure,
+          destination,
+          takeoffTime: takeoff.toISOString(),
+          landingTime: landing.toISOString(),
+          alternates: [alternate]
+        }, missionData);
+        if (evaluated.results.every((result) => result.status === "red")) {
+          return [departure, destination, alternate];
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function applyMissionFields(departure, destination, alternates, takeoff = new Date(), landing = null) {
@@ -180,15 +192,21 @@ function pickUnique(values, count) {
 async function render() {
   const inputs = getInputs();
   setLoadingState(true);
-  const missionData = await getLiveMissionData(getRequestedIcaos(inputs));
+  const missionData = missionDataOverride || await getLiveMissionData(getRequestedIcaos(inputs));
+  if (missionDataOverride) {
+    rulesMetadata.weatherSource = "Practice";
+    missionDataOverride = null;
+  }
   latestEvaluation = evaluateMission(inputs, missionData);
 
   caoDate.textContent = `CAO ${formatCaoDate(rulesMetadata.caoDate)}`;
   pulledAt.innerHTML = `Data pulled: ${formatDateTime(latestEvaluation.pulledAt)} ${renderDataAgeBadge(latestEvaluation.pulledAt)}`;
   missionSummary.textContent = formatMissionSummary(inputs);
   missionSummary.dataset.source = rulesMetadata.weatherSource;
-  if (rulesMetadata.weatherSource !== "AWC") {
+  if (rulesMetadata.weatherSource === "Unavailable") {
     missionSummary.textContent += " | WX !";
+  } else if (rulesMetadata.weatherSource === "Practice") {
+    missionSummary.textContent += " | WX PRACTICE";
   }
   if (missionNotice) {
     missionSummary.textContent += ` | ${missionNotice}`;
@@ -389,7 +407,7 @@ function formatZuluFromIso(value) {
 
 function renderCard(result) {
   const cardStatus = result.cardStatus || result.status;
-  const wxSource = rulesMetadata.weatherSource === "AWC" ? "AWC" : "!";
+  const wxSource = rulesMetadata.weatherSource === "AWC" ? "AWC" : rulesMetadata.weatherSource === "Practice" ? "Practice" : "!";
   const taf = result.tafRaw
     ? `<div class="taf-line">${renderHighlightedTaf(result)}</div>`
     : `<p class="raw-line">No full TAF available.</p>`;
@@ -408,7 +426,7 @@ function renderCard(result) {
         <div class="${impactClass(result.weatherImpacts.wind)}"><dt>Wind</dt><dd>${result.period.wind}</dd></div>
       </dl>
     `
-    : `<p class="raw-line">${result.tafRaw ? "No matching TAF period for selected time." : "No TAF available from AWC for this airfield."}</p>`;
+    : `<p class="raw-line">${result.tafRaw ? "Selected time is outside this TAF valid window." : "No TAF available from AWC for this airfield."}</p>`;
 
   return `
     <article class="result-card status-${cardStatus}" data-icao="${result.icao}" data-rule-status="${result.status}">
@@ -442,7 +460,7 @@ function renderCard(result) {
               ${renderMetar(result.metar)}
             </section>
             <section class="taf-block">
-              <h4>Full TAF</h4>
+              <h4 class="taf-title">Full TAF ${renderTafValidityBadge(result.tafRaw, latestEvaluation.pulledAt)}</h4>
               ${taf}
             </section>
             <section class="notam-block">
@@ -481,6 +499,18 @@ function renderMetarAgeBadge(metar, referenceValue) {
   const ageClass = ageMinutes >= 60 ? "age-red" : ageMinutes >= 30 ? "age-yellow" : "age-green";
   const label = ageMinutes >= 60 ? "60+ min old" : ageMinutes >= 30 ? "30+ min old" : `${ageMinutes} min old`;
   return `<span class="data-age metar-age ${ageClass}">${label}</span>`;
+}
+
+function renderTafValidityBadge(tafRaw, referenceValue) {
+  const window = getTafValidityWindow(tafRaw, referenceValue);
+  if (!window) return "";
+  const reference = new Date(referenceValue).getTime();
+  const status = reference > window.end.getTime()
+    ? { label: "Expired", className: "age-red" }
+    : reference < window.start.getTime()
+      ? { label: "Future", className: "age-yellow" }
+      : { label: "Current", className: "age-green" };
+  return `<span class="data-age taf-age ${status.className}">${status.label}</span>`;
 }
 
 function renderNotam(notam) {
@@ -885,6 +915,12 @@ function getMetarObservedAt(metar, referenceValue) {
   if (diff > 15 * 24 * 60 * 60 * 1000) observed.setUTCMonth(observed.getUTCMonth() - 1);
   if (diff < -15 * 24 * 60 * 60 * 1000) observed.setUTCMonth(observed.getUTCMonth() + 1);
   return observed;
+}
+
+function getTafValidityWindow(tafRaw, referenceValue) {
+  const valid = String(tafRaw || "").match(/\b(\d{4})\/(\d{4})\b/);
+  if (!valid) return null;
+  return tafWindowToDates(valid[1], valid[2], new Date(referenceValue));
 }
 
 function escapeHtml(value) {

@@ -98,7 +98,7 @@ function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulle
 function buildIssueChips(weatherStatus, notamStatus, locationStatus, notams) {
   const chips = [];
   const impacts = weatherStatus.impacts || {};
-  if (impacts.taf) chips.push({ label: "NO TAF", status: impacts.taf });
+  if (impacts.taf) chips.push({ label: weatherStatus.tafLabel || "TAF TIME", status: impacts.taf });
   if (impacts.ceiling) chips.push({ label: "LOW CEILING", status: impacts.ceiling });
   if (impacts.visibility) chips.push({ label: "LOW VIS", status: impacts.visibility });
   if (impacts.wind) chips.push({ label: "HIGH WIND", status: impacts.wind });
@@ -150,6 +150,7 @@ function evaluateWeather(period, ruleType, hasTaf = true) {
     return {
       status: "yellow",
       reason: hasTaf ? "No TAF period covers the selected mission time." : "No TAF is available from AWC for this airfield.",
+      tafLabel: hasTaf ? "TAF TIME" : "NO TAF",
       impacts: { taf: "yellow" }
     };
   }
