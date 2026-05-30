@@ -1556,15 +1556,22 @@ dd {
   -webkit-tap-highlight-color: transparent;
 }
 
-.taf-eval-time:hover,
 .taf-eval-time:focus-visible,
-.taf-age[role="button"]:hover,
 .taf-age[role="button"]:focus-visible,
-.metar-age[role="button"]:hover,
 .metar-age[role="button"]:focus-visible {
   background: rgba(74, 163, 255, 0.2);
   box-shadow: 0 0 0 2px rgba(74, 163, 255, 0.2), 0 0 14px rgba(74, 163, 255, 0.26);
   outline: none;
+}
+
+@media (hover: hover) {
+  .taf-eval-time:hover,
+  .taf-age[role="button"]:hover,
+  .metar-age[role="button"]:hover {
+    background: rgba(74, 163, 255, 0.2);
+    box-shadow: 0 0 0 2px rgba(74, 163, 255, 0.2), 0 0 14px rgba(74, 163, 255, 0.26);
+    outline: none;
+  }
 }
 
 .taf-age[role="button"],
