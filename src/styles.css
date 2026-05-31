@@ -1533,6 +1533,7 @@ body.search-open::before {
   align-self: start;
   display: flex;
   justify-content: flex-end;
+  width: 86px;
 }
 
 .card-header h3 {
@@ -2185,7 +2186,7 @@ ul {
   .card-header {
     align-items: start;
     display: grid;
-    grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr) auto;
+    grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr) 86px;
   }
 
   .airport-row {
@@ -2347,6 +2348,7 @@ ul {
     position: absolute;
     right: 0;
     top: 0;
+    width: auto;
   }
 
   .mission-summary,
