@@ -272,7 +272,12 @@ function updateNowReference() {
   const now = new Date();
   element.textContent = formatNowReference(now);
   updatePulledAtHeader();
-  updateRunFreshnessBadges();
+  updateMetarAgeBadges();
+  updateEvaluationDeltaBadges();
+  updateTafValidityBadges();
+  updateTafEvalBadges();
+  updateLiveTafTimeChips();
+  updateDecisionBanner();
 }
 
 function setupBrandAnimation() {
@@ -689,17 +694,7 @@ async function render(options = false) {
     missionSummary.textContent += ` | ${missionNotice}`;
   }
 
-  banner.className = `decision-banner status-${latestEvaluation.summary.status}`;
-  banner.dataset.status = latestEvaluation.summary.status;
-  banner.tabIndex = latestEvaluation.summary.status === "green" ? -1 : 0;
-  banner.setAttribute("role", latestEvaluation.summary.status === "green" ? "status" : "button");
-  banner.setAttribute(
-    "aria-label",
-    latestEvaluation.summary.status === "green"
-      ? "Mission summary"
-      : `Mission summary. Click to jump to first ${latestEvaluation.summary.status} item.`
-  );
-  banner.innerHTML = renderDecisionBanner();
+  updateDecisionBanner();
 
   renderCards();
   updateFilterButtons();
@@ -745,7 +740,9 @@ function updateFilterCounts() {
 }
 
 function renderDecisionBanner() {
-  if (latestEvaluation.summary.status === "green") {
+  const status = getDecisionBannerStatus();
+  const items = getDecisionBannerItems();
+  if (status === "green") {
     return `
       <p class="decision-label">${latestEvaluation.summary.label}</p>
       <h2>${latestEvaluation.summary.headline}</h2>
@@ -753,7 +750,6 @@ function renderDecisionBanner() {
     `;
   }
 
-  const items = latestEvaluation.summary.items || [];
   const itemMarkup = items.map((item) => `
     <div class="summary-issue">
       <span class="summary-icao">${escapeHtml(item.icao)}</span>
@@ -762,9 +758,63 @@ function renderDecisionBanner() {
   `).join("");
 
   return `
-    <p class="decision-label">${latestEvaluation.summary.label}</p>
+    <p class="decision-label">${latestEvaluation.summary.status === "green" ? "Watch Item" : latestEvaluation.summary.label}</p>
     <div class="summary-issues">${itemMarkup}</div>
   `;
+}
+
+function updateDecisionBanner() {
+  if (!latestEvaluation) return;
+  const status = getDecisionBannerStatus();
+  banner.className = `decision-banner status-${status}`;
+  banner.dataset.status = status;
+  banner.tabIndex = status === "green" ? -1 : 0;
+  banner.setAttribute("role", status === "green" ? "status" : "button");
+  banner.setAttribute(
+    "aria-label",
+    status === "green"
+      ? "Mission summary"
+      : `Mission summary. Click to jump to first ${status} item.`
+  );
+  banner.innerHTML = renderDecisionBanner();
+}
+
+function getDecisionBannerStatus() {
+  const liveStatus = getLiveTafSummaryItems().reduce((current, item) => {
+    const itemStatus = item.chips.reduce((chipStatus, chip) =>
+      STATUS_RANK[chip.status] > STATUS_RANK[chipStatus] ? chip.status : chipStatus
+    , "green");
+    return STATUS_RANK[itemStatus] > STATUS_RANK[current] ? itemStatus : current;
+  }, "green");
+  return STATUS_RANK[liveStatus] > STATUS_RANK[latestEvaluation.summary.status] ? liveStatus : latestEvaluation.summary.status;
+}
+
+function getDecisionBannerItems() {
+  const items = (latestEvaluation.summary.items || []).map((item) => ({
+    icao: item.icao,
+    chips: [...(item.chips || [])]
+  }));
+  getLiveTafSummaryItems().forEach((liveItem) => {
+    const existing = items.find((item) => item.icao === liveItem.icao);
+    if (existing) {
+      liveItem.chips.forEach((chip) => {
+        if (!existing.chips.some((existingChip) => existingChip.label === chip.label)) existing.chips.push(chip);
+      });
+    } else {
+      items.push(liveItem);
+    }
+  });
+  return items;
+}
+
+function getLiveTafSummaryItems() {
+  if (!latestEvaluation) return [];
+  return latestEvaluation.results
+    .map((result) => ({
+      icao: result.icao,
+      chips: getLiveTafTimeChips(result)
+    }))
+    .filter((item) => item.chips.length);
 }
 
 function setAllCardsOpen(open) {
@@ -1781,6 +1831,7 @@ function renderCard(result) {
       : '<p class="notam-unavailable">NOTAM feature currently unavailable.</p>';
   const cardChips = [
     ...(result.chips || [{ label: "NO ISSUES", status: "green" }]),
+    ...getLiveTafTimeChips(result),
     ...getWeatherProductChips(result)
   ];
   const chips = `<div class="issue-chips">${cardChips.map(renderIssueChip).join("")}</div>`;
@@ -1807,7 +1858,7 @@ function renderCard(result) {
               </div>
             </div>
             <div class="card-meta">
-              <p class="evaluated-at">Eval: ${formatCompactDateTime(result.evaluatedAt)} ${renderEvaluationDeltaBadge(result.evaluatedAt)}</p>
+              <p class="evaluated-at">${renderEvaluationLabel(result)}: ${formatCompactDateTime(result.evaluatedAt)} ${renderEvaluationDeltaBadge(result.evaluatedAt)}</p>
               <p class="source-labels">WX: <span class="${rulesMetadata.weatherSource === "AWC" ? "" : "wx-failed"}">${escapeHtml(wxSource)}</span> | NOTAM: ${escapeHtml(rulesMetadata.notamSource)}</p>
             </div>
             <div class="card-status">
@@ -1820,13 +1871,13 @@ function renderCard(result) {
         <div class="card-expanded">
           ${period}
           <details class="details-block" open>
-            <summary><span>METAR / TAF / NOTAMs</span> ${renderRunFreshnessBadge(latestEvaluation.pulledAt)}</summary>
+            <summary><span>METAR / TAF / NOTAMs</span></summary>
             <section class="metar-block">
               <h4 class="metar-title">METAR ${renderMetarAgeBadge(result.metar, latestEvaluation.pulledAt)}</h4>
               ${renderMetar(result.metar)}
             </section>
             <section class="taf-block">
-              <h4 class="taf-title">Full TAF ${renderTafValidityBadge(result.tafRaw, latestEvaluation.pulledAt)} ${renderTafEvaluationTime(result)}</h4>
+              <h4 class="taf-title">Full TAF ${renderTafValidityBadge(result.tafRaw)} ${renderTafEvaluationTime(result)}</h4>
               ${taf}
             </section>
             <section class="notam-block">
@@ -1843,9 +1894,31 @@ function renderCard(result) {
 function renderEvaluationDeltaBadge(evaluatedAt) {
   const target = new Date(evaluatedAt);
   if (Number.isNaN(target.getTime())) return "";
+  const state = getEvaluationDeltaState(target);
+  return `<span class="eval-delta-pill ${state.className}" data-eval-time="${target.toISOString()}">${state.label}</span>`;
+}
+
+function getEvaluationDeltaState(target) {
   const deltaMinutes = Math.round((target.getTime() - Date.now()) / 60000);
-  const status = deltaMinutes >= 0 ? "future" : "past";
-  return `<span class="eval-delta-pill eval-delta-${status}">${formatSignedDurationMinutes(deltaMinutes)}</span>`;
+  return {
+    className: deltaMinutes >= 0 ? "eval-delta-future" : "eval-delta-past",
+    label: formatSignedDurationMinutes(deltaMinutes)
+  };
+}
+
+function updateEvaluationDeltaBadges() {
+  document.querySelectorAll("[data-eval-time]").forEach((badge) => {
+    const target = new Date(badge.dataset.evalTime);
+    if (Number.isNaN(target.getTime())) return;
+    const state = getEvaluationDeltaState(target);
+    badge.classList.remove("eval-delta-future", "eval-delta-past");
+    badge.classList.add(state.className);
+    badge.textContent = state.label;
+  });
+}
+
+function renderEvaluationLabel(result) {
+  return result.role === "Departure" ? "T/O" : "LND";
 }
 
 function formatSignedDurationMinutes(deltaMinutes) {
@@ -1861,7 +1934,8 @@ function renderIssueChip(chip, icao = "") {
   const attrs = icao
     ? ` role="button" tabindex="0" data-issue-icao="${escapeHtml(icao)}" data-issue-label="${escapeHtml(chip.label)}" data-issue-status="${escapeHtml(chip.status)}"`
     : "";
-  return `<span class="issue-chip chip-${chip.status}"${attrs}>${escapeHtml(chip.label)}</span>`;
+  const extraClass = chip.className ? ` ${escapeHtml(chip.className)}` : "";
+  return `<span class="issue-chip chip-${chip.status}${extraClass}"${attrs}>${escapeHtml(chip.label)}</span>`;
 }
 
 function renderWeatherSourceTile(kind, label, value, result) {
@@ -1890,6 +1964,13 @@ function getWeatherProductChips(result) {
   ];
 }
 
+function getLiveTafTimeChips(result) {
+  if (!result.tafRaw || result.chips?.some((chip) => chip.label === "TAF TIME")) return [];
+  const state = getTafValidityState(result.tafRaw);
+  if (!state || state.status === "current") return [];
+  return [{ label: "TAF TIME", status: state.status === "expired" ? "red" : "yellow", className: "live-taf-time-chip" }];
+}
+
 function renderDataAgeBadge(pulledAtValue) {
   const state = getRunFreshnessState(pulledAtValue);
   return state ? `<span class="data-age ${state.className}">${state.label}</span>` : "";
@@ -1900,39 +1981,18 @@ function getRunFreshnessState(pulledAtValue) {
   if (Number.isNaN(pulledAtDate.getTime())) return null;
   const ageMinutes = Math.max(0, Math.floor((Date.now() - pulledAtDate.getTime()) / 60000));
   if (ageMinutes >= 1440) {
-    return { className: "age-red", label: "2400+", actionLabel: "Re-Run", ageMinutes };
+    return { className: "age-red", label: "> 1 day old", ageMinutes };
   }
   if (ageMinutes >= 60) {
-    return { className: "age-red", label: "60+ min", actionLabel: "Re-Run", ageMinutes };
+    return { className: "age-red", label: "60+ min", ageMinutes };
   }
   if (ageMinutes >= 30) {
-    return { className: "age-yellow", label: "30+ min", actionLabel: "Re-Run", ageMinutes };
+    return { className: "age-yellow", label: "30+ min", ageMinutes };
   }
   if (ageMinutes >= 15) {
-    return { className: "age-yellow", label: `${ageMinutes} min`, actionLabel: "Re-Run", ageMinutes };
+    return { className: "age-yellow", label: `${ageMinutes} min`, ageMinutes };
   }
-  return { className: "age-green", label: "Fresh", actionLabel: "Run", ageMinutes };
-}
-
-function renderRunFreshnessBadge(pulledAtValue) {
-  const state = getRunFreshnessState(pulledAtValue);
-  if (!state) return "";
-  return `<span class="data-age metar-run-age ${state.className}" data-run-freshness="true">${formatRunFreshnessLabel(state)}</span>`;
-}
-
-function updateRunFreshnessBadges() {
-  if (!latestEvaluation?.pulledAt) return;
-  const state = getRunFreshnessState(latestEvaluation.pulledAt);
-  if (!state) return;
-  document.querySelectorAll("[data-run-freshness]").forEach((badge) => {
-    badge.classList.remove("age-green", "age-yellow", "age-red");
-    badge.classList.add(state.className);
-    badge.textContent = formatRunFreshnessLabel(state);
-  });
-}
-
-function formatRunFreshnessLabel(state) {
-  return `${state.actionLabel} (${formatSignedDurationMinutes(-state.ageMinutes)})`;
+  return { className: "age-green", label: "Fresh", ageMinutes };
 }
 
 function updatePulledAtHeader() {
@@ -1943,34 +2003,130 @@ function updatePulledAtHeader() {
 function renderMetarAgeBadge(metar, referenceValue) {
   const observedAt = getMetarObservedAt(metar, referenceValue);
   if (!observedAt) return "";
-  const ageMinutes = Math.max(0, Math.floor((new Date(referenceValue).getTime() - observedAt.getTime()) / 60000));
-  const ageClass = ageMinutes > 60 ? "age-red" : ageMinutes >= 50 ? "age-yellow" : "age-green";
-  const label = ageMinutes >= 1440 ? "2400+ min old" : `${ageMinutes} min old`;
-  return `<span class="data-age metar-age ${ageClass}" role="button" tabindex="0" data-metar-age="true" title="Highlight METAR observation time">${label}</span>`;
+  const state = getMetarAgeState(observedAt);
+  return `<span class="data-age metar-age ${state.className}" role="button" tabindex="0" data-metar-age="true" data-metar-observed="${observedAt.toISOString()}" title="Highlight METAR observation time">${state.label}</span>`;
 }
 
-function renderTafValidityBadge(tafRaw, referenceValue) {
-  const window = getTafValidityWindow(tafRaw, referenceValue);
-  if (!window) return "";
-  const reference = new Date(referenceValue).getTime();
+function getMetarAgeState(observedAt) {
+  const ageMinutes = Math.max(0, Math.floor((Date.now() - observedAt.getTime()) / 60000));
+  const className = ageMinutes > 60 ? "age-red" : ageMinutes >= 50 ? "age-yellow" : "age-green";
+  const label = ageMinutes >= 1440 ? "> 1 day old" : `${ageMinutes} min old`;
+  return { className, label };
+}
+
+function updateMetarAgeBadges() {
+  document.querySelectorAll("[data-metar-observed]").forEach((badge) => {
+    const observedAt = new Date(badge.dataset.metarObserved);
+    if (Number.isNaN(observedAt.getTime())) return;
+    const state = getMetarAgeState(observedAt);
+    badge.classList.remove("age-green", "age-yellow", "age-red");
+    badge.classList.add(state.className);
+    badge.textContent = state.label;
+  });
+}
+
+function renderTafValidityBadge(tafRaw) {
+  const state = getTafValidityState(tafRaw);
+  if (!state) return "";
+  return `<span class="data-age taf-age ${state.className}" role="button" tabindex="0" data-taf-validity="true" data-taf-valid-from="${state.start.toISOString()}" data-taf-valid-to="${state.end.toISOString()}" title="Highlight TAF validity window">${state.label}</span>`;
+}
+
+function getTafValidityState(tafRaw) {
+  const window = getTafValidityWindow(tafRaw, new Date());
+  if (!window) return null;
+  return getTafValidityStateFromWindow(window);
+}
+
+function getTafValidityStateFromWindow(window) {
+  const reference = Date.now();
   const start = window.start.getTime();
   const end = window.end.getTime();
-  const status = reference > end
-    ? { label: `Expired (${formatSignedDurationMinutes(Math.round((end - reference) / 60000))})`, className: "age-red" }
-    : reference < start
-      ? { label: `Future (${formatSignedDurationMinutes(Math.round((start - reference) / 60000))})`, className: "age-yellow" }
-      : { label: "Current", className: "age-green" };
-  return `<span class="data-age taf-age ${status.className}" role="button" tabindex="0" data-taf-validity="true" title="Highlight TAF validity window">${status.label}</span>`;
+  if (reference > end) {
+    return {
+      status: "expired",
+      label: `Expired (${formatSignedDurationMinutes(Math.round((end - reference) / 60000))})`,
+      className: "age-red",
+      start: window.start,
+      end: window.end
+    };
+  }
+  if (reference < start) {
+    return {
+      status: "future",
+      label: `Future (${formatSignedDurationMinutes(Math.round((start - reference) / 60000))})`,
+      className: "age-yellow",
+      start: window.start,
+      end: window.end
+    };
+  }
+  return { status: "current", label: "Current", className: "age-green", start: window.start, end: window.end };
+}
+
+function updateTafValidityBadges() {
+  document.querySelectorAll("[data-taf-validity][data-taf-valid-from][data-taf-valid-to]").forEach((badge) => {
+    const start = new Date(badge.dataset.tafValidFrom);
+    const end = new Date(badge.dataset.tafValidTo);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+    const state = getTafValidityStateFromWindow({ start, end });
+    badge.classList.remove("age-green", "age-yellow", "age-red");
+    badge.classList.add(state.className);
+    badge.textContent = state.label;
+  });
+}
+
+function updateLiveTafTimeChips() {
+  document.querySelectorAll(".result-card").forEach((card) => {
+    const chips = card.querySelector(".issue-chips");
+    const tafAge = card.querySelector("[data-taf-validity]");
+    if (!chips || !tafAge) return;
+    const existing = chips.querySelector(".live-taf-time-chip");
+    const isCurrent = tafAge.classList.contains("age-green");
+    if (isCurrent) {
+      existing?.remove();
+      return;
+    }
+    const status = tafAge.classList.contains("age-red") ? "red" : "yellow";
+    if (existing) {
+      existing.classList.toggle("chip-red", status === "red");
+      existing.classList.toggle("chip-yellow", status === "yellow");
+      existing.classList.toggle("chip-green", status === "green");
+      return;
+    }
+    chips.insertAdjacentHTML("afterbegin", renderIssueChip({ label: "TAF TIME", status, className: "live-taf-time-chip" }));
+  });
 }
 
 function renderTafEvaluationTime(result) {
   const value = result.evaluatedAt;
-  const hasEvalPeriod = Boolean(result.taf?.length && getTafPeriodsAt(result.taf, new Date(value)).length);
-  const stateClass = hasEvalPeriod ? "taf-eval-found" : "taf-eval-missing";
-  const title = hasEvalPeriod
+  const state = getTafEvaluationBadgeState(result);
+  const title = state.found
     ? "Evaluation time found in this TAF"
     : "Evaluation time not found in this TAF";
-  return `<span class="taf-eval-time ${stateClass}" role="button" tabindex="0" data-taf-eval="true" title="${title}">Eval ${formatTafReferenceTime(value)}</span>`;
+  return `<span class="taf-eval-time ${state.className}" role="button" tabindex="0" data-taf-eval="true" data-eval-target="${value}" data-eval-has-period="${state.hasPeriod ? "true" : "false"}" data-eval-taf-valid-from="${state.validFrom || ""}" data-eval-taf-valid-to="${state.validTo || ""}" title="${title}">${renderEvaluationLabel(result)} ${formatTafReferenceTime(value)}</span>`;
+}
+
+function getTafEvaluationBadgeState(result) {
+  const target = new Date(result.evaluatedAt);
+  const hasPeriod = Boolean(result.taf?.length && getTafPeriodsAt(result.taf, target).length);
+  const tafState = result.tafRaw ? getTafValidityState(result.tafRaw) : null;
+  const found = hasPeriod;
+  return {
+    found,
+    hasPeriod,
+    className: found ? "taf-eval-found" : "taf-eval-missing",
+    validFrom: tafState?.start?.toISOString() || "",
+    validTo: tafState?.end?.toISOString() || ""
+  };
+}
+
+function updateTafEvalBadges() {
+  document.querySelectorAll("[data-taf-eval][data-eval-has-period]").forEach((badge) => {
+    const hasPeriod = badge.dataset.evalHasPeriod === "true";
+    const found = hasPeriod;
+    badge.classList.toggle("taf-eval-found", found);
+    badge.classList.toggle("taf-eval-missing", !found);
+    badge.title = found ? "Evaluation time found in this TAF" : "Evaluation time not found in this TAF";
+  });
 }
 
 function formatTafReferenceTime(value) {
