@@ -174,8 +174,14 @@ function init() {
   setupAirfieldSearch();
   resetPracticeWeatherButton();
   updateAlternatesCount();
-  document.querySelector("#expand-all").addEventListener("click", () => setAllCardsOpen(true));
-  document.querySelector("#collapse-all").addEventListener("click", () => setAllCardsOpen(false));
+  document.querySelector("#expand-all").addEventListener("click", (event) => {
+    setAllCardsOpen(true);
+    event.currentTarget.blur();
+  });
+  document.querySelector("#collapse-all").addEventListener("click", (event) => {
+    setAllCardsOpen(false);
+    event.currentTarget.blur();
+  });
   banner.addEventListener("click", scrollToHighestPriorityItem);
   filterButtons.forEach((button) => {
     button.addEventListener("click", (event) => {
@@ -185,6 +191,8 @@ function init() {
       updateFilterButtons();
       renderCards();
       button.blur();
+      window.setTimeout(() => button.blur(), 0);
+      window.setTimeout(() => button.blur(), 450);
       window.requestAnimationFrame(() => window.scrollTo(0, scrollY));
     });
   });
@@ -247,12 +255,14 @@ function updateNowReference() {
   if (!element) return;
   const now = new Date();
   element.textContent = formatNowReference(now);
+  updatePulledAtHeader();
 }
 
 function setupBrandAnimation() {
   const brandRow = document.querySelector(".brand-row");
   const brandLink = document.querySelector(".brand-link");
   const title = document.querySelector("#app-title");
+  const fireButton = document.querySelector("#brand-fire-button");
   if (!brandRow || !brandLink || !title) return;
 
   const playBrandAnimation = () => {
@@ -263,7 +273,10 @@ function setupBrandAnimation() {
 
   brandLink.addEventListener("mouseenter", playBrandAnimation);
   brandLink.addEventListener("focus", playBrandAnimation);
-  title.addEventListener("click", playBrandAnimation);
+  fireButton?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    playBrandAnimation();
+  });
 }
 
 function setDefaultTimes() {
@@ -646,7 +659,7 @@ async function render(options = false) {
   latestEvaluation = evaluateMission(inputs, missionData);
 
   caoDate.textContent = `CAO ${formatCaoDate(rulesMetadata.caoDate)}`;
-  pulledAt.innerHTML = `<span>Data pulled: ${formatDateTime(latestEvaluation.pulledAt)}</span>${renderDataAgeBadge(latestEvaluation.pulledAt)}`;
+  updatePulledAtHeader();
   missionSummary.textContent = formatMissionSummary(inputs);
   missionSummary.dataset.source = rulesMetadata.weatherSource;
   if (rulesMetadata.weatherSource === "Unavailable") {
@@ -765,7 +778,10 @@ function addTapFeedback(event) {
   target.classList.remove("tap-glow");
   void target.offsetWidth;
   target.classList.add("tap-glow");
-  window.setTimeout(() => target.classList.remove("tap-glow"), 420);
+  window.setTimeout(() => {
+    target.classList.remove("tap-glow");
+    if (target.matches(".filter-button, .compact-action")) target.blur();
+  }, 420);
 }
 
 function handleSummaryIssueClick(event) {
@@ -1785,14 +1801,27 @@ function getWeatherProductChips(result) {
 }
 
 function renderDataAgeBadge(pulledAtValue) {
-  const ageMinutes = Math.floor((Date.now() - new Date(pulledAtValue).getTime()) / 60000);
+  const pulledAtDate = new Date(pulledAtValue);
+  if (Number.isNaN(pulledAtDate.getTime())) return "";
+  const ageMinutes = Math.max(0, Math.floor((Date.now() - pulledAtDate.getTime()) / 60000));
+  if (ageMinutes >= 1440) {
+    return `<span class="data-age age-red">1+ day</span>`;
+  }
   if (ageMinutes >= 60) {
     return `<span class="data-age age-red">60+ min</span>`;
   }
   if (ageMinutes >= 30) {
     return `<span class="data-age age-yellow">30+ min</span>`;
   }
+  if (ageMinutes >= 15) {
+    return `<span class="data-age age-yellow">${ageMinutes} min</span>`;
+  }
   return `<span class="data-age age-green">Fresh</span>`;
+}
+
+function updatePulledAtHeader() {
+  if (!pulledAt || !latestEvaluation?.pulledAt) return;
+  pulledAt.innerHTML = `<span>Data pulled: ${formatDateTime(latestEvaluation.pulledAt)}</span>${renderDataAgeBadge(latestEvaluation.pulledAt)}`;
 }
 
 function renderMetarAgeBadge(metar, referenceValue) {
@@ -1844,6 +1873,7 @@ function formatCeilingDisplay(period) {
 
 function formatVisibilityDisplay(period) {
   const source = period.visibilitySource;
+  if (source === "CAVOK") return "CAVOK";
   if (source === "9999M") return "Unlimited";
   if (/^\d{4}M$/.test(source || "")) {
     return `${Number(source.slice(0, 4)).toLocaleString("en-US")}m <span class="vis-separator">|</span> ${period.visibilitySm.toFixed(1)}SM`;
@@ -1879,19 +1909,46 @@ function renderHighlightedTaf(result) {
 
   return lines
     .map((line, index) => {
-      const markers = checks
-        .filter((check) => tafLineAppliesAt(lines, index, check.time))
-        .map((check) => ({
-          label: check.label,
-          type: check.type,
-          status: getTafLineStatus(line, check.time, result)
-        }));
+      const markers = getTafLineMarkers(line, checks, result);
       const exact = markers.some((marker) => marker.type === "exact");
       const context = markers.some((marker) => marker.type === "window");
       const state = exact ? "exact" : context ? "window" : "none";
       return renderTafLine(line, state, markers);
     })
     .join("");
+}
+
+function getTafLineMarkers(line, checks, result) {
+  const ruleType = getRuleTypeForResult(result);
+  return checks
+    .map((check) => {
+      const matchingPeriods = getTafPeriodsAt(result.taf || [], check.time)
+        .filter((period) => isApplicableTafLine(line, period.raw));
+      if (!matchingPeriods.length) return null;
+      return {
+        label: check.label,
+        type: check.type,
+        status: matchingPeriods
+          .map((period) => evaluateWeather(period, ruleType, true).status)
+          .reduce((current, status) => STATUS_RANK[status] > STATUS_RANK[current] ? status : current, "green")
+      };
+    })
+    .filter(Boolean);
+}
+
+function getTafPeriodsAt(periods, target) {
+  const targetMs = target.getTime();
+  return periods.filter((period) => {
+    const start = new Date(period.validFrom).getTime();
+    const end = new Date(period.validTo).getTime();
+    return targetMs >= start && targetMs < end;
+  });
+}
+
+function getRuleTypeForResult(result) {
+  if (result.role === "Departure") return "departure";
+  if (result.role === "Destination") return "destination";
+  return "alternate";
 }
 
 function renderTafLine(line, state, markers) {
@@ -1934,23 +1991,9 @@ function getTafSourceTokenClasses(token) {
   const classes = [];
   if (/^FM\d{6}$/.test(token) || /^\d{4}\/\d{4}$/.test(token)) classes.push("taf-source-time");
   if (/^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)$/.test(token)) classes.push("taf-source-wind");
-  if (token === "P6SM" || /^\d{1,2}(?:\/\d)?SM$/.test(token) || /^\d{4}$/.test(token) || /^\d{4}(N|NE|E|SE|S|SW|W|NW)$/.test(token) || matchCompactVisibilityWeatherToken(token)) classes.push("taf-source-visibility");
+  if (token === "CAVOK" || token === "P6SM" || /^M?\d{1,2}(?:\/\d)?SM$/.test(token) || /^\d{4}$/.test(token) || /^\d{4}(N|NE|E|SE|S|SW|W|NW)$/.test(token) || matchCompactVisibilityWeatherToken(token)) classes.push("taf-source-visibility");
   if (/^(BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU)?$/.test(token)) classes.push("taf-source-ceiling");
   return classes;
-}
-
-function getTafLineStatus(line, target, result) {
-  const targetMs = target.getTime();
-  const ruleType = result.role === "Departure" ? "departure" : result.role === "Destination" ? "destination" : "alternate";
-  const matchingPeriods = (result.taf || []).filter((period) => {
-    const start = new Date(period.validFrom).getTime();
-    const end = new Date(period.validTo).getTime();
-    return isApplicableTafLine(line, period.raw) && targetMs >= start && targetMs < end;
-  });
-  if (!matchingPeriods.length) return "green";
-  return matchingPeriods
-    .map((period) => evaluateWeather(period, ruleType, true).status)
-    .reduce((current, status) => STATUS_RANK[status] > STATUS_RANK[current] ? status : current, "green");
 }
 
 function renderTafDecode(line) {
@@ -2013,61 +2056,6 @@ function isApplicableTafLine(line, periodRaw) {
   return periodWithoutChange.length > 0 && line.includes(periodWithoutChange);
 }
 
-function tafLineAppliesAt(lines, index, target) {
-  const line = lines[index];
-  const targetMs = target.getTime();
-  const window = tafLineWindow(line, target);
-  if (window) {
-    if (isConditionalTafLine(line)) {
-      return targetMs >= window.start.getTime() && targetMs <= window.end.getTime();
-    }
-
-    const nextStart = nextTafLineStart(lines, index + 1, target);
-    const end = nextStart || window.end;
-    return targetMs >= window.start.getTime() && targetMs < end.getTime();
-  }
-
-  return false;
-}
-
-function tafLineWindow(line, referenceDate) {
-  const validMatch = line.match(/\b(\d{4})\/(\d{4})\b/);
-  if (validMatch) {
-    return tafWindowToDates(validMatch[1], validMatch[2], referenceDate);
-  }
-
-  const fmMatch = line.match(/\bFM(\d{6})\b/);
-  if (fmMatch) {
-    const start = tafDayHourMinuteToDate(fmMatch[1].slice(0, 2), fmMatch[1].slice(2, 4), fmMatch[1].slice(4, 6), referenceDate);
-    return { start, end: new Date(start.getTime() + 30 * 60 * 60 * 1000) };
-  }
-
-  return null;
-}
-
-function nextTafLineStart(lines, startIndex, referenceDate) {
-  for (let index = startIndex; index < lines.length; index += 1) {
-    const line = lines[index];
-    const fmMatch = line.match(/\bFM(\d{6})\b/);
-    if (fmMatch) {
-      return tafDayHourMinuteToDate(fmMatch[1].slice(0, 2), fmMatch[1].slice(2, 4), fmMatch[1].slice(4, 6), referenceDate);
-    }
-
-    if (isConditionalTafLine(line)) {
-      continue;
-    }
-
-    const window = tafLineWindow(line, referenceDate);
-    if (window) return line.startsWith("BECMG") ? window.end : window.start;
-  }
-
-  return null;
-}
-
-function isConditionalTafLine(line) {
-  return /^(TEMPO|PROB\d{2})\b/.test(line);
-}
-
 function tafWindowToDates(startToken, endToken, referenceDate) {
   const start = tafDayHourMinuteToDate(startToken.slice(0, 2), startToken.slice(2, 4), "00", referenceDate);
   let end = tafDayHourMinuteToDate(endToken.slice(0, 2), endToken.slice(2, 4), "00", start);
@@ -2114,17 +2102,17 @@ function decodeTafLine(line) {
   if (tokens.includes("CAVOK")) items.push({ label: "Conditions", value: "Ceiling and visibility OK: visibility 10 km or more, no significant weather, and no significant cloud below criteria." });
 
   const weather = decodeWeatherTokens(tokens);
-  if (weather.length) items.push({ label: "Weather", value: weather.join("; ") });
+  if (weather.length) items.push({ label: "Weather", value: joinDecodedPhrases(weather) });
 
   const clouds = decodeCloudTokens(tokens);
-  if (clouds.length) items.push({ label: "Clouds", value: clouds.join("; ") });
+  if (clouds.length) items.push({ label: "Clouds", value: joinDecodedPhrases(clouds) });
   if (tokens.includes("NSC")) items.push({ label: "Clouds", value: "No significant cloud." });
 
   const remarks = decodeTafRemarks(tokens);
   if (remarks.length) items.push({ label: "Remarks", value: remarks.join("; ") });
 
-  const undecoded = decodeUndecodedTokens(tokens, "taf");
-  if (undecoded.length) items.push({ label: "Encoded / System", value: undecoded.join("; ") });
+  const undecoded = decodeUndecodedTokenList(tokens, "taf");
+  if (undecoded.length) items.push({ label: "Not Decoded", value: formatNotDecodedTokens(undecoded, "taf") });
 
   return items.length ? items : [{ label: "Decode", value: "No decoded training items found for this line." }];
 }
@@ -2154,10 +2142,10 @@ function decodeMetarLine(line) {
   if (runwayState.length) items.push({ label: "Runway State", value: runwayState.join("; ") });
 
   const weather = decodeWeatherTokens(tokens);
-  if (weather.length) items.push({ label: "Weather", value: weather.join("; ") });
+  if (weather.length) items.push({ label: "Weather", value: joinDecodedPhrases(weather) });
 
   const clouds = decodeCloudTokens(tokens);
-  if (clouds.length) items.push({ label: "Clouds", value: clouds.join("; ") });
+  if (clouds.length) items.push({ label: "Clouds", value: joinDecodedPhrases(clouds) });
   if (tokens.includes("CLR")) items.push({ label: "Clouds", value: "Clear below reporting limits." });
   if (tokens.includes("SKC")) items.push({ label: "Clouds", value: "Sky clear." });
   if (tokens.includes("NSC")) items.push({ label: "Clouds", value: "No significant cloud." });
@@ -2179,17 +2167,45 @@ function decodeMetarLine(line) {
   const remarks = decodeMetarRemarks(tokens);
   if (remarks.length) items.push({ label: "Remarks", value: remarks.join("; ") });
 
-  const undecoded = decodeUndecodedTokens(tokens, "metar");
-  if (undecoded.length) items.push({ label: "Encoded / System", value: undecoded.join("; ") });
+  const undecoded = decodeUndecodedTokenList(tokens, "metar");
+  if (undecoded.length) items.push({ label: "Not Decoded", value: formatNotDecodedTokens(undecoded, "metar") });
 
   return items.length ? items : [{ label: "Decode", value: "No decoded training items found for this METAR." }];
 }
 
 function decodeUndecodedTokens(tokens, reportType) {
+  return decodeUndecodedTokenList(tokens, reportType)
+    .map((token) => describeUndecodedToken(token, reportType));
+}
+
+function decodeUndecodedTokenList(tokens, reportType) {
   const isKnown = reportType === "metar" ? isKnownMetarToken : isKnownTafToken;
   return tokens
     .filter((token, index) => !hasRepeatedSlash(token) && !isKnown(token, index, tokens))
-    .map((token) => describeUndecodedToken(token, reportType));
+    .filter((token, index, list) => list.indexOf(token) === index);
+}
+
+function formatNotDecodedTokens(tokens, reportType) {
+  return tokens
+    .map((token) => {
+      const likely = getLikelyUndecodedDefinition(token, reportType);
+      return likely ? `${token} - likely ${likely}` : `${token} - retained for reference`;
+    })
+    .join("; ");
+}
+
+function getLikelyUndecodedDefinition(token, reportType) {
+  if (isWeatherToken(token)) return stripPeriod(decodeWeatherToken(token)).toLowerCase();
+  if (/^R\d{2}[LCR]?\//.test(token)) return "runway visual range or runway surface condition group";
+  if (/^QFE\d{3,4}(\/\d{3,4})?$/.test(token)) return "QFE pressure group";
+  if (/^QNH\d{4}/.test(token)) return "QNH altimeter setting group";
+  if (/^FS\d{5}$/.test(token)) return "regional/system forecast status group";
+  if (/^(AUTOMATED|SENSOR|METWATCH)$/.test(token)) return "automated sensor meteorological watch text";
+  if (/^RWY\d{2}[LCR]?$/.test(token)) return "runway-specific remark";
+  if (/^ISB\d+E\d+/.test(token)) return "regional/system sensor group";
+  if (/^[A-Z]{2,}\d{2,}/.test(token)) return `${reportType.toUpperCase()} regional or automated-system group`;
+  if (/^\d+$/.test(token)) return "numeric/system group";
+  return "";
 }
 
 function isKnownTafToken(token, index, tokens) {
@@ -2200,11 +2216,16 @@ function isKnownTafToken(token, index, tokens) {
   if (/^(TAF|AMD|COR|TEMPO|BECMG|NSW|NSC|CAVOK|NIL|CNL|LAST|NO|AFT|NEXT|RMK)$/.test(token)) return true;
   if (/^PROB\d{2}$/.test(token)) return true;
   if (/^(TX|TN)(M?\d{2})\/(\d{4})Z$/.test(token)) return true;
+  if (/^(TX|TN)M?\d{1,2}\/\d{4}Z$/.test(token)) return true;
   if (/^QNH\d{4}INS$/.test(token)) return true;
+  if (/^QNH\d{4}$/.test(token)) return true;
+  if (/^FS\d{5}$/.test(token)) return true;
   if (/^\d{4}Z$/.test(token) && ["AFT", "NEXT"].includes(tokens[index - 1])) return true;
+  if (/^\d{4}$/.test(token) && tokens[index - 1] === "COR") return true;
   if (/^\d{4}(N|NE|E|SE|S|SW|W|NW)$/.test(token)) return true;
   if (token === "AMD" && tokens[index - 1] === "NO") return true;
   if (token === "FZRANO") return true;
+  if (/^(AUTOMATED|SENSOR|METWATCH)$/.test(token)) return true;
   if (token === "LTG" || token === "DSNT") return true;
   if (isDirectionToken(token) && tokens[index - 1] === "DSNT") return true;
   return false;
@@ -2215,7 +2236,7 @@ function isKnownMetarToken(token, index, tokens) {
   if (isWeatherToken(token)) return true;
   if (/^(METAR|SPECI|AUTO|COR|RMK|CAVOK|NIL|NSC|NCD)$/.test(token)) return true;
   if (/^(AO1|AO2|A01|A02|TSNO|FZRANO|\$)$/.test(token)) return true;
-  if (/^(NOSIG|OBST|OBSC|BIRD|HAZARD|RWY|MT|PT)$/.test(token)) return true;
+  if (/^(NOSIG|OBST|OBSC|BIRD|HAZARD|RWY|WET|DRY|DAMP|CONTAM|CONTAMINATED|SLUSH|SNOW|ICE|BRAKING|ACTION|GOOD|MEDIUM|POOR|NIL|MT|PT)$/.test(token)) return true;
   if (/^(BLU|WHT|GRN|YLO|AMB|RED|BLACK)$/.test(token) && tokens.includes("RMK")) return true;
   if (/^(TEMPO|BECMG|INTER|WIND)$/.test(token)) return true;
   if (/^R\d{2}[LCR]?\/\d{6}$/.test(token)) return true;
@@ -2224,6 +2245,7 @@ function isKnownMetarToken(token, index, tokens) {
   if (/^PP\d{3}$/.test(token)) return true;
   if (/^QFE\d{3,4}$/.test(token)) return true;
   if (/^QFE\d{3,4}\/\d{3,4}$/.test(token)) return true;
+  if (/^(CI|CS|CC|AC|AS|NS|SC|ST|CU|CB)\d$/.test(token) && tokens.includes("RMK")) return true;
   if (/^\/{2,}$/.test(token)) return true;
   if (/^\/+\d+\/+$/.test(token)) return true;
   if (/^\d{4}(N|NE|E|SE|S|SW|W|NW)$/.test(token)) return true;
@@ -2261,8 +2283,9 @@ function isCommonAviationToken(token) {
   return /^[A-Z0-9]{4}$/.test(token)
     || /^\d{6}Z$/.test(token)
     || /^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)$/.test(token)
+    || token === "CAVOK"
     || token === "P6SM"
-    || /^\d{1,2}(?:\/\d)?SM$/.test(token)
+    || /^M?\d{1,2}(?:\/\d)?SM$/.test(token)
     || /^\d{4}$/.test(token)
     || /^R\d{2}[LCR]?\/[PM]?\d{4}V?[PM]?\d{4}FT$/.test(token)
     || /^(FEW|SCT|BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU)?$/.test(token)
@@ -2347,7 +2370,7 @@ function decodeWindToken(match) {
 }
 
 function decodeVisibilityToken(tokens) {
-  const token = tokens.find((item) => item === "P6SM" || /^\d{1,2}(?:\/\d)?SM$/.test(item) || /^\d{4}$/.test(item));
+  const token = tokens.find((item) => item === "CAVOK" || item === "P6SM" || /^M?\d{1,2}(?:\/\d)?SM$/.test(item) || /^\d{4}$/.test(item));
   const compact = tokens.find(matchCompactVisibilityWeatherToken);
   const directional = tokens.find((item) => /^\d{4}(N|NE|E|SE|S|SW|W|NW)$/.test(item));
   if (!token && !compact && !directional) return null;
@@ -2358,7 +2381,9 @@ function decodeVisibilityToken(tokens) {
   if (token && directional) return `${decodeMetersVisibility(token)} Directional visibility ${decodeDirectionalVisibility(directional)}`;
   if (directional) return `Directional visibility ${decodeDirectionalVisibility(directional)}`;
   if (token === "P6SM") return "Greater than 6 statute miles.";
+  if (token === "CAVOK") return "CAVOK: visibility 10 km or more, no significant weather, and no significant cloud below criteria.";
   if (/^\d{4}$/.test(token)) return decodeMetersVisibility(token);
+  if (token.startsWith("M")) return `Less than ${token.replace("M", "").replace("SM", "")} statute miles.`;
   return `${token.replace("SM", "")} statute miles.`;
 }
 
@@ -2415,7 +2440,6 @@ function decodeWeatherTokens(tokens) {
 function isWeatherToken(token) {
   if (!/^[-+]?[A-Z]{2,}$/.test(token)) return false;
   if (/^(METAR|SPECI|AUTO|COR|RMK|QNH|LAST|NEXT|AFT|NIL|SKC|CLR|NSC)$/.test(token)) return false;
-  if (/^[A-Z0-9]{4}$/.test(token)) return false;
   if (/^(FEW|SCT|BKN|OVC|VV)\d{3}/.test(token)) return false;
   const clean = token.replace(/^[-+]/, "");
   if (clean === "NSW") return true;
@@ -2517,8 +2541,8 @@ function decodeMetarTrends(tokens) {
 
     if (windToken) parts.push(`Wind ${stripPeriod(decodeWindToken(matchWindToken(windToken)))}.`);
     if (visibility) parts.push(`Visibility ${stripPeriod(visibility)}.`);
-    if (weather.length) parts.push(`Weather ${weather.map(stripPeriod).join("; ")}.`);
-    if (clouds.length) parts.push(`Clouds ${clouds.map(stripPeriod).join("; ")}.`);
+    if (weather.length) parts.push(`Weather ${joinDecodedPhrases(weather.map(lowercaseFirst))}`);
+    if (clouds.length) parts.push(`Clouds ${joinDecodedPhrases(clouds.map(lowercaseFirst))}`);
     trends.push(parts.join(" "));
   }
 
@@ -2540,13 +2564,31 @@ function stripPeriod(value) {
   return String(value || "").replace(/\.$/, "");
 }
 
+function joinDecodedPhrases(values) {
+  return `${values.map(stripPeriod).join("; ")}.`;
+}
+
+function lowercaseFirst(value) {
+  const text = String(value || "");
+  return text ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+}
+
 function decodeTafRemarks(tokens) {
   const remarks = [];
   tokens.forEach((token, index) => {
     const qnh = token.match(/^QNH(\d{4})INS$/);
     if (qnh) remarks.push(`QNH ${qnh[1].slice(0, 2)}.${qnh[1].slice(2)} inches.`);
+    const qnhHpa = token.match(/^QNH(\d{4})$/);
+    if (qnhHpa) remarks.push(`QNH ${qnhHpa[1]} hPa.`);
     const temp = token.match(/^(TX|TN)(M?\d{2})\/(\d{4})Z$/);
     if (temp) remarks.push(`${temp[1] === "TX" ? "Maximum" : "Minimum"} temperature ${decodeSignedTemp(temp[2])}C at ${decodeTafBoundary(temp[3])}.`);
+    const compactTemp = token.match(/^(TX|TN)(M?\d{1,2})\/(\d{4})Z$/);
+    if (compactTemp && !temp) remarks.push(`${compactTemp[1] === "TX" ? "Maximum" : "Minimum"} temperature ${decodeSignedTemp(compactTemp[2])}C at ${decodeTafBoundary(compactTemp[3])}.`);
+    if (token === "AUTOMATED" && tokens[index + 1] === "SENSOR" && tokens[index + 2] === "METWATCH") remarks.push("Automated sensor meteorological watch.");
+    if (token === "AUTOMATED" && !(tokens[index + 1] === "SENSOR" && tokens[index + 2] === "METWATCH")) remarks.push("Automated forecast text.");
+    if (token === "COR" && /^\d{4}$/.test(tokens[index + 1] || "")) remarks.push(`Corrected forecast issued at ${decodeTafBoundary(tokens[index + 1])}.`);
+    const fs = token.match(/^FS(\d{5})$/);
+    if (fs) remarks.push(`FS ${fs[1]} regional/system forecast status group retained for reference.`);
     if (token === "LAST" && tokens[index + 1] === "NO" && tokens[index + 2] === "AMD") remarks.push("Last forecast, no amendments.");
     if (token === "AFT" && /^\d{4}Z$/.test(tokens[index + 1] || "")) remarks.push(`After ${decodeTafBoundary(tokens[index + 1].slice(0, 4))}.`);
     if (token === "NEXT" && /^\d{4}Z$/.test(tokens[index + 1] || "")) remarks.push(`Next forecast by ${decodeTafBoundary(tokens[index + 1].slice(0, 4))}.`);
@@ -2584,6 +2626,7 @@ function getMetarRemarkDecoders() {
   (token) => matchDecode(token, /^PP(\d{3})$/, () => `Pressure tendency or precipitation group ${token} retained for reference.`),
   (token) => matchDecode(token, /^QFE(\d{3,4})$/, (match) => `QFE ${match[1]} mmHg.`),
   (token) => matchDecode(token, /^QFE(\d{3,4})\/(\d{3,4})$/, (match) => `QFE ${match[1]} mmHg / ${match[2]} hPa.`),
+  (token) => matchDecode(token, /^(CI|CS|CC|AC|AS|NS|SC|ST|CU|CB)(\d)$/, (match) => `${decodeCloudTypeRemark(match[1])} cloud amount/opacity remark ${match[2]}/10.`),
   (token) => decodeMilitaryColourState(token) || null,
   (token) => token === "HZY" ? "Hazy." : null,
   (token) => matchDecode(token, /^8\/(\d{3})$/, (match) => `Sky condition remark 8/${match[1]} retained for reference; cloud-layer type codes are ${match[1].split("").join(", ")}.`),
@@ -2610,6 +2653,8 @@ function getMetarRemarkDecoders() {
   (token, index, rmk) => token === "MT" && rmk[index + 1] === "OBSC" ? "Mountains obscured." : null,
   (token, index, rmk) => token === "MT" && rmk[index + 1] === "PT" && rmk[index + 2] === "OBSC" ? "Mountains partially obscured." : null,
   (token, index, rmk) => /^RWY\d{2}[LCR]?$/.test(token) && matchWindToken(rmk[index + 1]) ? `Runway ${token.slice(3)} wind ${stripPeriod(decodeWindToken(matchWindToken(rmk[index + 1])))}.` : null,
+  (token, index, rmk) => token === "RWY" && /^\d{2}[LCR]?(\/\d{2}[LCR]?)?$/.test(rmk[index + 1] || "") && /^(WET|DRY|DAMP|CONTAM|CONTAMINATED|SLUSH|SNOW|ICE)$/.test(rmk[index + 2] || "") ? `Runway ${rmk[index + 1]} ${decodeRunwaySurfaceRemark(rmk[index + 2])}.` : null,
+  (token, index, rmk) => token === "RWY" && /^\d{2}[LCR]?(\/\d{2}[LCR]?)?$/.test(rmk[index + 1] || "") && rmk[index + 2] === "BRAKING" && rmk[index + 3] === "ACTION" ? `Runway ${rmk[index + 1]} braking action ${decodeBrakingAction(rmk[index + 4])}.` : null,
   (token) => token === "NOSIG" ? "No significant change expected." : null,
   (token, index, rmk) => {
     if (token !== "BIRD" || rmk[index + 1] !== "HAZARD") return null;
@@ -2643,8 +2688,48 @@ function decodeMilitaryColourState(token) {
   return states[token] || "";
 }
 
+function decodeCloudTypeRemark(code) {
+  const types = {
+    CI: "Cirrus",
+    CS: "Cirrostratus",
+    CC: "Cirrocumulus",
+    AC: "Altocumulus",
+    AS: "Altostratus",
+    NS: "Nimbostratus",
+    SC: "Stratocumulus",
+    ST: "Stratus",
+    CU: "Cumulus",
+    CB: "Cumulonimbus"
+  };
+  return types[code] || code;
+}
+
 function decodeRunwayState(match) {
   return `Runway ${match[1]} state group: deposit code ${match[2]}, contamination code ${match[3]}, depth code ${match[4]}, braking/friction code ${match[5]}.`;
+}
+
+function decodeRunwaySurfaceRemark(token) {
+  const surfaces = {
+    WET: "wet",
+    DRY: "dry",
+    DAMP: "damp",
+    CONTAM: "contaminated",
+    CONTAMINATED: "contaminated",
+    SLUSH: "slush reported",
+    SNOW: "snow reported",
+    ICE: "ice reported"
+  };
+  return surfaces[token] || String(token || "").toLowerCase();
+}
+
+function decodeBrakingAction(token) {
+  const action = {
+    GOOD: "good",
+    MEDIUM: "medium",
+    POOR: "poor",
+    NIL: "nil"
+  }[token];
+  return action || String(token || "not reported").toLowerCase();
 }
 
 function decodePeakWind(wind, time) {
@@ -2747,7 +2832,7 @@ function formatDateOnly(value) {
 
 function formatCaoDate(value) {
   const date = new Date(`${value}T00:00:00Z`);
-  return formatDisplayDate(date);
+  return formatCompactZuluDate(date);
 }
 
 function formatDisplayDate(date) {
@@ -2762,8 +2847,8 @@ function formatZuluTime(date) {
 }
 
 function formatNowReference(date) {
-  const localDate = formatLocalNowDate(date);
-  const zuluDate = formatZuluNowDate(date);
+  const localDate = formatCompactLocalDate(date);
+  const zuluDate = formatCompactZuluDate(date);
   const localTime = formatLocalTime(date);
   const zuluTime = formatZuluTime(date);
   const offset = formatUtcOffsetLabel(date);
@@ -2773,18 +2858,18 @@ function formatNowReference(date) {
   return `${localDate} ${localTime} | ${zuluDate} ${zuluTime} (${offset})`;
 }
 
-function formatLocalNowDate(date) {
+function formatCompactLocalDate(date) {
   const day = String(date.getDate()).padStart(2, "0");
-  const month = date.toLocaleString("en-US", { month: "short" });
-  const year = date.getFullYear();
-  return `${day} ${month} ${year}`;
+  const month = date.toLocaleString("en-US", { month: "short" }).toUpperCase();
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day}${month}${year}`;
 }
 
-function formatZuluNowDate(date) {
+function formatCompactZuluDate(date) {
   const day = String(date.getUTCDate()).padStart(2, "0");
-  const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
-  const year = date.getUTCFullYear();
-  return `${day} ${month} ${year}`;
+  const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" }).toUpperCase();
+  const year = String(date.getUTCFullYear()).slice(-2);
+  return `${day}${month}${year}`;
 }
 
 function formatLocalTime(date) {

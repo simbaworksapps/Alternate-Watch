@@ -1,5 +1,5 @@
 const rulesMetadata = {
-  caoDate: "2026-05-30",
+  caoDate: "2026-05-31",
   rulesProfile: "Prototype thresholds pending current AFMAN 11-202V3 / AMC supplement mapping",
   weatherSource: "Sample",
   notamSource: "Unavailable",
@@ -553,7 +553,7 @@ function extractVisibility(raw) {
   let visibilitySource = null;
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
-    if (token === "P6SM" || /^\d{1,2}(?:\/\d)?SM$/.test(token) || /^\d{4}$/.test(token)) {
+    if (token === "CAVOK" || token === "P6SM" || /^M?\d{1,2}(?:\/\d)?SM$/.test(token) || /^\d{4}$/.test(token)) {
       visibilitySource = token;
       break;
     }
@@ -563,6 +563,7 @@ function extractVisibility(raw) {
     }
   }
   if (!visibilitySource) return { visibilitySm: null, visibilitySource: null };
+  if (visibilitySource === "CAVOK") return { visibilitySm: 6.2, visibilitySource };
   if (visibilitySource === "P6SM") return { visibilitySm: 6.1, visibilitySource };
   if (/^\d{4}$/.test(visibilitySource)) {
     return { visibilitySm: metersToSm(Number(visibilitySource)), visibilitySource: `${visibilitySource}M` };
@@ -575,7 +576,7 @@ function metersToSm(meters) {
 }
 
 function parseVisibilitySm(value) {
-  const clean = value.replace("SM", "");
+  const clean = value.replace("SM", "").replace(/^M/, "");
   if (clean.includes(" ")) {
     const [whole, fraction] = clean.split(" ");
     return Number(whole) + parseFraction(fraction);
