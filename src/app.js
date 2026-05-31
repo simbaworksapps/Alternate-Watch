@@ -272,6 +272,7 @@ function updateNowReference() {
   const now = new Date();
   element.textContent = formatNowReference(now);
   updatePulledAtHeader();
+  updateRunFreshnessBadges();
 }
 
 function setupBrandAnimation() {
@@ -292,6 +293,7 @@ function setupBrandAnimation() {
   fireButton?.addEventListener("click", (event) => {
     event.stopPropagation();
     playBrandAnimation();
+    event.currentTarget.blur();
   });
 }
 
@@ -796,7 +798,7 @@ function addTapFeedback(event) {
   target.classList.add("tap-glow");
   window.setTimeout(() => {
     target.classList.remove("tap-glow");
-    if (target.matches(".filter-button, .compact-action")) target.blur();
+    if (typeof target.blur === "function") target.blur();
   }, 420);
 }
 
@@ -1818,7 +1820,7 @@ function renderCard(result) {
         <div class="card-expanded">
           ${period}
           <details class="details-block" open>
-            <summary>METAR / TAF / NOTAMs</summary>
+            <summary><span>METAR / TAF / NOTAMs</span> ${renderRunFreshnessBadge(latestEvaluation.pulledAt)}</summary>
             <section class="metar-block">
               <h4 class="metar-title">METAR ${renderMetarAgeBadge(result.metar, latestEvaluation.pulledAt)}</h4>
               ${renderMetar(result.metar)}
@@ -1849,6 +1851,7 @@ function renderEvaluationDeltaBadge(evaluatedAt) {
 function formatSignedDurationMinutes(deltaMinutes) {
   const sign = deltaMinutes >= 0 ? "+" : "-";
   const absoluteMinutes = Math.abs(deltaMinutes);
+  if (absoluteMinutes >= 1440) return `${sign}2400+`;
   const hours = Math.floor(absoluteMinutes / 60);
   const minutes = absoluteMinutes % 60;
   return `${sign}${String(hours).padStart(2, "0")}${String(minutes).padStart(2, "0")}`;
@@ -1888,22 +1891,48 @@ function getWeatherProductChips(result) {
 }
 
 function renderDataAgeBadge(pulledAtValue) {
+  const state = getRunFreshnessState(pulledAtValue);
+  return state ? `<span class="data-age ${state.className}">${state.label}</span>` : "";
+}
+
+function getRunFreshnessState(pulledAtValue) {
   const pulledAtDate = new Date(pulledAtValue);
-  if (Number.isNaN(pulledAtDate.getTime())) return "";
+  if (Number.isNaN(pulledAtDate.getTime())) return null;
   const ageMinutes = Math.max(0, Math.floor((Date.now() - pulledAtDate.getTime()) / 60000));
   if (ageMinutes >= 1440) {
-    return `<span class="data-age age-red">1+ day</span>`;
+    return { className: "age-red", label: "2400+", actionLabel: "Re-Run", ageMinutes };
   }
   if (ageMinutes >= 60) {
-    return `<span class="data-age age-red">60+ min</span>`;
+    return { className: "age-red", label: "60+ min", actionLabel: "Re-Run", ageMinutes };
   }
   if (ageMinutes >= 30) {
-    return `<span class="data-age age-yellow">30+ min</span>`;
+    return { className: "age-yellow", label: "30+ min", actionLabel: "Re-Run", ageMinutes };
   }
   if (ageMinutes >= 15) {
-    return `<span class="data-age age-yellow">${ageMinutes} min</span>`;
+    return { className: "age-yellow", label: `${ageMinutes} min`, actionLabel: "Re-Run", ageMinutes };
   }
-  return `<span class="data-age age-green">Fresh</span>`;
+  return { className: "age-green", label: "Fresh", actionLabel: "Run", ageMinutes };
+}
+
+function renderRunFreshnessBadge(pulledAtValue) {
+  const state = getRunFreshnessState(pulledAtValue);
+  if (!state) return "";
+  return `<span class="data-age metar-run-age ${state.className}" data-run-freshness="true">${formatRunFreshnessLabel(state)}</span>`;
+}
+
+function updateRunFreshnessBadges() {
+  if (!latestEvaluation?.pulledAt) return;
+  const state = getRunFreshnessState(latestEvaluation.pulledAt);
+  if (!state) return;
+  document.querySelectorAll("[data-run-freshness]").forEach((badge) => {
+    badge.classList.remove("age-green", "age-yellow", "age-red");
+    badge.classList.add(state.className);
+    badge.textContent = formatRunFreshnessLabel(state);
+  });
+}
+
+function formatRunFreshnessLabel(state) {
+  return `${state.actionLabel} (${formatSignedDurationMinutes(-state.ageMinutes)})`;
 }
 
 function updatePulledAtHeader() {
@@ -1916,7 +1945,7 @@ function renderMetarAgeBadge(metar, referenceValue) {
   if (!observedAt) return "";
   const ageMinutes = Math.max(0, Math.floor((new Date(referenceValue).getTime() - observedAt.getTime()) / 60000));
   const ageClass = ageMinutes > 60 ? "age-red" : ageMinutes >= 50 ? "age-yellow" : "age-green";
-  const label = `${ageMinutes} min old`;
+  const label = ageMinutes >= 1440 ? "2400+ min old" : `${ageMinutes} min old`;
   return `<span class="data-age metar-age ${ageClass}" role="button" tabindex="0" data-metar-age="true" title="Highlight METAR observation time">${label}</span>`;
 }
 
@@ -2964,7 +2993,7 @@ function formatCompactDateTime(value) {
 
 function formatPulledAtDateTime(value) {
   const date = new Date(value);
-  return `${formatCompactZuluDate(date)} ${formatZuluTime(date)} ${formatUtcOffsetLabel(date)} (${formatLocalTime(date)})`;
+  return formatNowReference(date);
 }
 
 function formatDateOnly(value) {

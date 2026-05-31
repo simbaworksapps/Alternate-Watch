@@ -1236,6 +1236,14 @@ body.search-open::before {
 }
 
 @media (hover: none) {
+  button:not(.tap-glow):hover,
+  button:not(.tap-glow):focus,
+  button:not(.tap-glow):focus-visible {
+    box-shadow: none;
+    filter: none;
+    outline: none;
+  }
+
   .filter-button:not(.tap-glow):hover,
   .filter-button:not(.tap-glow):focus,
   .filter-button:not(.tap-glow):focus-visible,
@@ -1243,6 +1251,12 @@ body.search-open::before {
   .compact-action:not(.tap-glow):focus,
   .compact-action:not(.tap-glow):focus-visible {
     box-shadow: none;
+  }
+
+  .brand-fire-button:not(.tap-glow):hover,
+  .brand-fire-button:not(.tap-glow):focus,
+  .brand-fire-button:not(.tap-glow):focus-visible {
+    filter: none;
   }
 }
 
@@ -1852,16 +1866,25 @@ dd {
   gap: 8px;
 }
 
+.metar-title .data-age,
+.taf-title .data-age,
+.taf-eval-time {
+  align-items: center;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 1000;
+  line-height: 1;
+  margin-left: 0;
+  min-height: 22px;
+  padding: 4px 8px;
+}
+
 .taf-eval-time {
   background: rgba(74, 163, 255, 0.12);
   border: 1px solid rgba(74, 163, 255, 0.42);
   border-radius: 999px;
   color: #b8dcff;
   cursor: pointer;
-  font-size: 0.72rem;
-  font-weight: 1000;
-  line-height: 1;
-  padding: 4px 8px;
   transform: translateY(0);
   transition: box-shadow 160ms ease, transform 120ms ease, filter 160ms ease, background 160ms ease;
   -webkit-tap-highlight-color: transparent;
@@ -1926,8 +1949,12 @@ dd {
 }
 
 .details-block summary {
+  align-items: center;
   color: #b8dcff;
   cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   font-weight: 900;
   list-style-position: inside;
 }
