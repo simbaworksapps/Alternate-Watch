@@ -1916,7 +1916,7 @@ function renderMetarAgeBadge(metar, referenceValue) {
   if (!observedAt) return "";
   const ageMinutes = Math.max(0, Math.floor((new Date(referenceValue).getTime() - observedAt.getTime()) / 60000));
   const ageClass = ageMinutes > 60 ? "age-red" : ageMinutes >= 50 ? "age-yellow" : "age-green";
-  const label = ageMinutes > 60 ? "60+ min old" : ageMinutes >= 50 ? "50+ min old" : `${ageMinutes} min old`;
+  const label = `${ageMinutes} min old`;
   return `<span class="data-age metar-age ${ageClass}" role="button" tabindex="0" data-metar-age="true" title="Highlight METAR observation time">${label}</span>`;
 }
 
@@ -1924,10 +1924,12 @@ function renderTafValidityBadge(tafRaw, referenceValue) {
   const window = getTafValidityWindow(tafRaw, referenceValue);
   if (!window) return "";
   const reference = new Date(referenceValue).getTime();
-  const status = reference > window.end.getTime()
-    ? { label: "Expired", className: "age-red" }
-    : reference < window.start.getTime()
-      ? { label: "Future", className: "age-yellow" }
+  const start = window.start.getTime();
+  const end = window.end.getTime();
+  const status = reference > end
+    ? { label: `Expired (${formatSignedDurationMinutes(Math.round((end - reference) / 60000))})`, className: "age-red" }
+    : reference < start
+      ? { label: `Future (${formatSignedDurationMinutes(Math.round((start - reference) / 60000))})`, className: "age-yellow" }
       : { label: "Current", className: "age-green" };
   return `<span class="data-age taf-age ${status.className}" role="button" tabindex="0" data-taf-validity="true" title="Highlight TAF validity window">${status.label}</span>`;
 }
