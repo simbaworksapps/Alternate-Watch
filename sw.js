@@ -1,4 +1,4 @@
-const CACHE_NAME = "simba-alternate-watch-v243";
+const CACHE_NAME = "simba-alternate-watch-v246";
 const APP_SHELL = [
   "./",
   "./index.html",

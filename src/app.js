@@ -926,22 +926,41 @@ function handleTafEvalKeydown(event) {
   const pill = event.target.closest("[data-taf-eval]");
   if (!pill || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
+  triggerPillFeedback(pill);
   pulseEvaluatedTafLines(pill);
 }
 
 function pulseEvaluatedTafLines(pill) {
   const card = pill.closest(".result-card");
   if (!card) return;
+  if (pill.classList.contains("taf-eval-missing")) {
+    pulseMissingEvalTafWindow(card);
+    return;
+  }
   const lines = [...card.querySelectorAll(".taf-decode-row.taf-applicable")];
   if (!lines.length) return;
   lines[0].scrollIntoView({ behavior: "smooth", block: "center" });
   const timeTokens = lines.flatMap((line) => [...line.querySelectorAll(".taf-source-time")]);
-  timeTokens.forEach((token) => token.classList.remove("eval-time-token-focus"));
+  const focusClass = "eval-time-token-green";
+  timeTokens.forEach((token) => token.classList.remove("eval-time-token-focus", "eval-time-token-red", "eval-time-token-yellow", "eval-time-token-green"));
   void lines[0].offsetWidth;
-  timeTokens.forEach((token) => token.classList.add("eval-time-token-focus"));
+  timeTokens.forEach((token) => token.classList.add("eval-time-token-focus", focusClass));
   window.setTimeout(() => {
-    timeTokens.forEach((token) => token.classList.remove("eval-time-token-focus"));
+    timeTokens.forEach((token) => token.classList.remove("eval-time-token-focus", focusClass));
   }, 1500);
+}
+
+function pulseMissingEvalTafWindow(card) {
+  const firstLine = card.querySelector(".taf-decode-row");
+  if (!firstLine) return;
+  const timeTokens = [...firstLine.querySelectorAll(".taf-source-time")];
+  const token = timeTokens.find((item) => item.textContent.includes("/")) || timeTokens[0];
+  if (!token) return;
+  token.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  token.classList.remove("eval-time-token-focus", "eval-time-token-red", "eval-time-token-yellow", "eval-time-token-green");
+  void token.offsetWidth;
+  token.classList.add("eval-time-token-focus", "eval-time-token-red");
+  window.setTimeout(() => token.classList.remove("eval-time-token-focus", "eval-time-token-red"), 1500);
 }
 
 function handleTafValidityClick(event) {
@@ -1805,7 +1824,7 @@ function renderCard(result) {
               ${renderMetar(result.metar)}
             </section>
             <section class="taf-block">
-              <h4 class="taf-title">Full TAF ${renderTafValidityBadge(result.tafRaw, latestEvaluation.pulledAt)} ${renderTafEvaluationTime(result.evaluatedAt)}</h4>
+              <h4 class="taf-title">Full TAF ${renderTafValidityBadge(result.tafRaw, latestEvaluation.pulledAt)} ${renderTafEvaluationTime(result)}</h4>
               ${taf}
             </section>
             <section class="notam-block">
@@ -1913,8 +1932,14 @@ function renderTafValidityBadge(tafRaw, referenceValue) {
   return `<span class="data-age taf-age ${status.className}" role="button" tabindex="0" data-taf-validity="true" title="Highlight TAF validity window">${status.label}</span>`;
 }
 
-function renderTafEvaluationTime(value) {
-  return `<span class="taf-eval-time" role="button" tabindex="0" data-taf-eval="true" title="Highlight TAF lines applicable to this evaluated time">Eval ${formatTafReferenceTime(value)}</span>`;
+function renderTafEvaluationTime(result) {
+  const value = result.evaluatedAt;
+  const hasEvalPeriod = Boolean(result.taf?.length && getTafPeriodsAt(result.taf, new Date(value)).length);
+  const stateClass = hasEvalPeriod ? "taf-eval-found" : "taf-eval-missing";
+  const title = hasEvalPeriod
+    ? "Evaluation time found in this TAF"
+    : "Evaluation time not found in this TAF";
+  return `<span class="taf-eval-time ${stateClass}" role="button" tabindex="0" data-taf-eval="true" title="${title}">Eval ${formatTafReferenceTime(value)}</span>`;
 }
 
 function formatTafReferenceTime(value) {
