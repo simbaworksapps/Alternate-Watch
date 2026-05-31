@@ -261,9 +261,14 @@ function init() {
 }
 
 function setupNowReference() {
-  updateNowReference();
-  window.clearInterval(nowReferenceTimer);
-  nowReferenceTimer = window.setInterval(updateNowReference, 30000);
+  window.clearTimeout(nowReferenceTimer);
+  const tick = () => {
+    updateNowReference();
+    const now = new Date();
+    const msUntilNextMinute = 60000 - (now.getSeconds() * 1000 + now.getMilliseconds()) + 50;
+    nowReferenceTimer = window.setTimeout(tick, msUntilNextMinute);
+  };
+  tick();
 }
 
 function updateNowReference() {
@@ -271,13 +276,14 @@ function updateNowReference() {
   if (!element) return;
   const now = new Date();
   element.textContent = formatNowReference(now);
-  updatePulledAtHeader();
-  updateMetarAgeBadges();
-  updateEvaluationDeltaBadges();
-  updateTafValidityBadges();
+  updatePulledAtHeader(now);
+  updateMetarAgeBadges(now);
+  updateEvaluationDeltaBadges(now);
+  updateTafValidityBadges(now);
   updateTafEvalBadges();
   updateLiveTafTimeChips();
-  updateDecisionBanner();
+  updateDecisionBanner(now);
+  updateZuluDateTimeReadouts(now);
 }
 
 function setupBrandAnimation() {
@@ -739,9 +745,9 @@ function updateFilterCounts() {
   document.querySelector("#count-green").textContent = counts.green;
 }
 
-function renderDecisionBanner() {
-  const status = getDecisionBannerStatus();
-  const items = getDecisionBannerItems();
+function renderDecisionBanner(referenceDate = new Date()) {
+  const status = getDecisionBannerStatus(referenceDate);
+  const items = getDecisionBannerItems(referenceDate);
   if (status === "green") {
     return `
       <p class="decision-label">${latestEvaluation.summary.label}</p>
@@ -763,9 +769,9 @@ function renderDecisionBanner() {
   `;
 }
 
-function updateDecisionBanner() {
+function updateDecisionBanner(referenceDate = new Date()) {
   if (!latestEvaluation) return;
-  const status = getDecisionBannerStatus();
+  const status = getDecisionBannerStatus(referenceDate);
   banner.className = `decision-banner status-${status}`;
   banner.dataset.status = status;
   banner.tabIndex = status === "green" ? -1 : 0;
@@ -776,11 +782,11 @@ function updateDecisionBanner() {
       ? "Mission summary"
       : `Mission summary. Click to jump to first ${status} item.`
   );
-  banner.innerHTML = renderDecisionBanner();
+  banner.innerHTML = renderDecisionBanner(referenceDate);
 }
 
-function getDecisionBannerStatus() {
-  const liveStatus = getLiveTafSummaryItems().reduce((current, item) => {
+function getDecisionBannerStatus(referenceDate = new Date()) {
+  const liveStatus = getLiveTafSummaryItems(referenceDate).reduce((current, item) => {
     const itemStatus = item.chips.reduce((chipStatus, chip) =>
       STATUS_RANK[chip.status] > STATUS_RANK[chipStatus] ? chip.status : chipStatus
     , "green");
@@ -789,12 +795,12 @@ function getDecisionBannerStatus() {
   return STATUS_RANK[liveStatus] > STATUS_RANK[latestEvaluation.summary.status] ? liveStatus : latestEvaluation.summary.status;
 }
 
-function getDecisionBannerItems() {
+function getDecisionBannerItems(referenceDate = new Date()) {
   const items = (latestEvaluation.summary.items || []).map((item) => ({
     icao: item.icao,
     chips: [...(item.chips || [])]
   }));
-  getLiveTafSummaryItems().forEach((liveItem) => {
+  getLiveTafSummaryItems(referenceDate).forEach((liveItem) => {
     const existing = items.find((item) => item.icao === liveItem.icao);
     if (existing) {
       liveItem.chips.forEach((chip) => {
@@ -807,12 +813,12 @@ function getDecisionBannerItems() {
   return items;
 }
 
-function getLiveTafSummaryItems() {
+function getLiveTafSummaryItems(referenceDate = new Date()) {
   if (!latestEvaluation) return [];
   return latestEvaluation.results
     .map((result) => ({
       icao: result.icao,
-      chips: getLiveTafTimeChips(result)
+      chips: getLiveTafTimeChips(result, referenceDate)
     }))
     .filter((item) => item.chips.length);
 }
@@ -1133,12 +1139,13 @@ function addHoursToZuluDateTimeField(fieldId, hours) {
   updateZuluDateTimeReadouts();
 }
 
-function updateZuluDateTimeReadouts() {
+function updateZuluDateTimeReadouts(referenceDate = new Date()) {
   const pill = document.querySelector("#flight-time-pill");
   if (!pill) return;
   const duration = getFlightDurationState(
     document.querySelector("#takeoffDateTime").value,
-    document.querySelector("#landingDateTime").value
+    document.querySelector("#landingDateTime").value,
+    referenceDate
   );
   pill.textContent = duration.label;
   pill.classList.toggle("flight-time-good", duration.status === "good");
@@ -1255,7 +1262,8 @@ function closeWindTable() {
 function populateSortieDurationPanel() {
   const duration = getFlightDurationState(
     document.querySelector("#takeoffDateTime").value,
-    document.querySelector("#landingDateTime").value
+    document.querySelector("#landingDateTime").value,
+    new Date()
   );
   document.querySelector("#sortie-duration-input").value = duration.label.startsWith("-") ? duration.label.slice(1) : duration.label;
 }
@@ -1898,21 +1906,19 @@ function renderEvaluationDeltaBadge(evaluatedAt) {
   return `<span class="eval-delta-pill ${state.className}" data-eval-time="${target.toISOString()}">${state.label}</span>`;
 }
 
-function getEvaluationDeltaState(target) {
-  const targetMinute = Math.floor(target.getTime() / 60000);
-  const currentMinute = Math.floor(Date.now() / 60000);
-  const deltaMinutes = targetMinute - currentMinute;
+function getEvaluationDeltaState(target, referenceDate = new Date()) {
+  const deltaMinutes = getWholeMinuteDelta(target, referenceDate);
   return {
     className: deltaMinutes >= 0 ? "eval-delta-future" : "eval-delta-past",
     label: formatSignedDurationMinutes(deltaMinutes)
   };
 }
 
-function updateEvaluationDeltaBadges() {
+function updateEvaluationDeltaBadges(referenceDate = new Date()) {
   document.querySelectorAll("[data-eval-time]").forEach((badge) => {
     const target = new Date(badge.dataset.evalTime);
     if (Number.isNaN(target.getTime())) return;
-    const state = getEvaluationDeltaState(target);
+    const state = getEvaluationDeltaState(target, referenceDate);
     badge.classList.remove("eval-delta-future", "eval-delta-past");
     badge.classList.add(state.className);
     badge.textContent = state.label;
@@ -1921,6 +1927,12 @@ function updateEvaluationDeltaBadges() {
 
 function renderEvaluationLabel(result) {
   return result.role === "Departure" ? "T/O" : "LND";
+}
+
+function getWholeMinuteDelta(targetDate, referenceDate) {
+  const targetMinute = Math.floor(targetDate.getTime() / 60000);
+  const referenceMinute = Math.floor(referenceDate.getTime() / 60000);
+  return targetMinute - referenceMinute;
 }
 
 function formatSignedDurationMinutes(deltaMinutes) {
@@ -1967,9 +1979,9 @@ function getWeatherProductChips(result) {
   ];
 }
 
-function getLiveTafTimeChips(result) {
+function getLiveTafTimeChips(result, referenceDate = new Date()) {
   if (!result.tafRaw || result.chips?.some((chip) => chip.label === "TAF TIME")) return [];
-  const state = getTafValidityState(result.tafRaw);
+  const state = getTafValidityState(result.tafRaw, referenceDate);
   if (!state || state.status === "current") return [];
   return [{ label: "TAF TIME", status: state.status === "expired" ? "red" : "yellow", className: "live-taf-time-chip" }];
 }
@@ -1979,10 +1991,10 @@ function renderDataAgeBadge(pulledAtValue) {
   return state ? `<span class="data-age ${state.className}">${state.label}</span>` : "";
 }
 
-function getRunFreshnessState(pulledAtValue) {
+function getRunFreshnessState(pulledAtValue, referenceDate = new Date()) {
   const pulledAtDate = new Date(pulledAtValue);
   if (Number.isNaN(pulledAtDate.getTime())) return null;
-  const ageMinutes = Math.max(0, Math.floor((Date.now() - pulledAtDate.getTime()) / 60000));
+  const ageMinutes = Math.max(0, getWholeMinuteDelta(referenceDate, pulledAtDate));
   if (ageMinutes >= 1440) {
     return { className: "age-red", label: "> 1 day old", ageMinutes };
   }
@@ -1998,9 +2010,11 @@ function getRunFreshnessState(pulledAtValue) {
   return { className: "age-green", label: "Fresh", ageMinutes };
 }
 
-function updatePulledAtHeader() {
+function updatePulledAtHeader(referenceDate = new Date()) {
   if (!pulledAt || !latestEvaluation?.pulledAt) return;
-  pulledAt.innerHTML = `<span>Run: ${formatPulledAtDateTime(latestEvaluation.pulledAt)}</span>${renderDataAgeBadge(latestEvaluation.pulledAt)}`;
+  const state = getRunFreshnessState(latestEvaluation.pulledAt, referenceDate);
+  const badge = state ? `<span class="data-age ${state.className}">${state.label}</span>` : "";
+  pulledAt.innerHTML = `<span>Run: ${formatPulledAtDateTime(latestEvaluation.pulledAt)}</span>${badge}`;
 }
 
 function renderMetarAgeBadge(metar, referenceValue) {
@@ -2010,18 +2024,18 @@ function renderMetarAgeBadge(metar, referenceValue) {
   return `<span class="data-age metar-age ${state.className}" role="button" tabindex="0" data-metar-age="true" data-metar-observed="${observedAt.toISOString()}" title="Highlight METAR observation time">${state.label}</span>`;
 }
 
-function getMetarAgeState(observedAt) {
-  const ageMinutes = Math.max(0, Math.floor((Date.now() - observedAt.getTime()) / 60000));
+function getMetarAgeState(observedAt, referenceDate = new Date()) {
+  const ageMinutes = Math.max(0, getWholeMinuteDelta(referenceDate, observedAt));
   const className = ageMinutes > 60 ? "age-red" : ageMinutes >= 50 ? "age-yellow" : "age-green";
   const label = ageMinutes >= 1440 ? "> 1 day old" : `${ageMinutes} min old`;
   return { className, label };
 }
 
-function updateMetarAgeBadges() {
+function updateMetarAgeBadges(referenceDate = new Date()) {
   document.querySelectorAll("[data-metar-observed]").forEach((badge) => {
     const observedAt = new Date(badge.dataset.metarObserved);
     if (Number.isNaN(observedAt.getTime())) return;
-    const state = getMetarAgeState(observedAt);
+    const state = getMetarAgeState(observedAt, referenceDate);
     badge.classList.remove("age-green", "age-yellow", "age-red");
     badge.classList.add(state.className);
     badge.textContent = state.label;
@@ -2034,20 +2048,20 @@ function renderTafValidityBadge(tafRaw) {
   return `<span class="data-age taf-age ${state.className}" role="button" tabindex="0" data-taf-validity="true" data-taf-valid-from="${state.start.toISOString()}" data-taf-valid-to="${state.end.toISOString()}" title="Highlight TAF validity window">${state.label}</span>`;
 }
 
-function getTafValidityState(tafRaw) {
-  const window = getTafValidityWindow(tafRaw, new Date());
+function getTafValidityState(tafRaw, referenceDate = new Date()) {
+  const window = getTafValidityWindow(tafRaw, referenceDate);
   if (!window) return null;
-  return getTafValidityStateFromWindow(window);
+  return getTafValidityStateFromWindow(window, referenceDate);
 }
 
-function getTafValidityStateFromWindow(window) {
-  const reference = Date.now();
+function getTafValidityStateFromWindow(window, referenceDate = new Date()) {
+  const reference = referenceDate.getTime();
   const start = window.start.getTime();
   const end = window.end.getTime();
   if (reference > end) {
     return {
       status: "expired",
-      label: `Expired (${formatSignedDurationMinutes(Math.round((end - reference) / 60000))})`,
+      label: `Expired (${formatSignedDurationMinutes(getWholeMinuteDelta(window.end, referenceDate))})`,
       className: "age-red",
       start: window.start,
       end: window.end
@@ -2056,7 +2070,7 @@ function getTafValidityStateFromWindow(window) {
   if (reference < start) {
     return {
       status: "future",
-      label: `Future (${formatSignedDurationMinutes(Math.round((start - reference) / 60000))})`,
+      label: `Future (${formatSignedDurationMinutes(getWholeMinuteDelta(window.start, referenceDate))})`,
       className: "age-yellow",
       start: window.start,
       end: window.end
@@ -2065,12 +2079,12 @@ function getTafValidityStateFromWindow(window) {
   return { status: "current", label: "Current", className: "age-green", start: window.start, end: window.end };
 }
 
-function updateTafValidityBadges() {
+function updateTafValidityBadges(referenceDate = new Date()) {
   document.querySelectorAll("[data-taf-validity][data-taf-valid-from][data-taf-valid-to]").forEach((badge) => {
     const start = new Date(badge.dataset.tafValidFrom);
     const end = new Date(badge.dataset.tafValidTo);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
-    const state = getTafValidityStateFromWindow({ start, end });
+    const state = getTafValidityStateFromWindow({ start, end }, referenceDate);
     badge.classList.remove("age-green", "age-yellow", "age-red");
     badge.classList.add(state.className);
     badge.textContent = state.label;
@@ -3231,14 +3245,14 @@ function buildZuluDateTimeIso(value) {
   return `${datePart}T${hours.padStart(2, "0").slice(0, 2)}:${minutes.padStart(2, "0").slice(0, 2)}:00.000Z`;
 }
 
-function getFlightDurationState(takeoffValue, landingValue) {
+function getFlightDurationState(takeoffValue, landingValue, referenceDate = new Date()) {
   if (!takeoffValue || !landingValue) return { label: "--", status: "" };
   const takeoff = new Date(buildZuluDateTimeIso(takeoffValue));
   const landing = new Date(buildZuluDateTimeIso(landingValue));
   const rawDurationMinutes = Math.round((landing.getTime() - takeoff.getTime()) / 60000);
   const durationMinutes = Math.abs(rawDurationMinutes);
   const label = `${rawDurationMinutes < 0 ? "-" : ""}${formatDurationMinutes(durationMinutes)}`;
-  const status = rawDurationMinutes < 0 || landing.getTime() < Date.now() ? "bad" : "good";
+  const status = rawDurationMinutes < 0 || landing.getTime() < referenceDate.getTime() ? "bad" : "good";
   return { label, status };
 }
 
