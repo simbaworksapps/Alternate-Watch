@@ -1899,7 +1899,9 @@ function renderEvaluationDeltaBadge(evaluatedAt) {
 }
 
 function getEvaluationDeltaState(target) {
-  const deltaMinutes = Math.round((target.getTime() - Date.now()) / 60000);
+  const targetMinute = Math.floor(target.getTime() / 60000);
+  const currentMinute = Math.floor(Date.now() / 60000);
+  const deltaMinutes = targetMinute - currentMinute;
   return {
     className: deltaMinutes >= 0 ? "eval-delta-future" : "eval-delta-past",
     label: formatSignedDurationMinutes(deltaMinutes)
@@ -1922,6 +1924,7 @@ function renderEvaluationLabel(result) {
 }
 
 function formatSignedDurationMinutes(deltaMinutes) {
+  if (Object.is(deltaMinutes, -0)) deltaMinutes = 0;
   const sign = deltaMinutes >= 0 ? "+" : "-";
   const absoluteMinutes = Math.abs(deltaMinutes);
   if (absoluteMinutes >= 1440) return `${sign}2400+`;
