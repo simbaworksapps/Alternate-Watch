@@ -1805,7 +1805,7 @@ function renderCard(result) {
               </div>
             </div>
             <div class="card-meta">
-              <p class="evaluated-at">Evaluated at ${formatDateTime(result.evaluatedAt)} ${renderEvaluationDeltaBadge(result.evaluatedAt)}</p>
+              <p class="evaluated-at">Eval: ${formatCompactDateTime(result.evaluatedAt)} ${renderEvaluationDeltaBadge(result.evaluatedAt)}</p>
               <p class="source-labels">WX: <span class="${rulesMetadata.weatherSource === "AWC" ? "" : "wx-failed"}">${escapeHtml(wxSource)}</span> | NOTAM: ${escapeHtml(rulesMetadata.notamSource)}</p>
             </div>
             <div class="card-status">
@@ -1908,7 +1908,7 @@ function renderDataAgeBadge(pulledAtValue) {
 
 function updatePulledAtHeader() {
   if (!pulledAt || !latestEvaluation?.pulledAt) return;
-  pulledAt.innerHTML = `<span>Data pulled: ${formatDateTime(latestEvaluation.pulledAt)}</span>${renderDataAgeBadge(latestEvaluation.pulledAt)}`;
+  pulledAt.innerHTML = `<span>Run: ${formatPulledAtDateTime(latestEvaluation.pulledAt)}</span>${renderDataAgeBadge(latestEvaluation.pulledAt)}`;
 }
 
 function renderMetarAgeBadge(metar, referenceValue) {
@@ -2958,6 +2958,16 @@ function normalizeIcao(value) {
 function formatDateTime(value) {
   const date = new Date(value);
   return `${formatDisplayDate(date)} ${formatZuluTime(date)} ${formatUtcOffsetLabel(date)}`;
+}
+
+function formatCompactDateTime(value) {
+  const date = new Date(value);
+  return `${formatCompactZuluDate(date)} ${formatZuluTime(date)}`;
+}
+
+function formatPulledAtDateTime(value) {
+  const date = new Date(value);
+  return `${formatCompactZuluDate(date)} ${formatZuluTime(date)} ${formatUtcOffsetLabel(date)} (${formatLocalTime(date)})`;
 }
 
 function formatDateOnly(value) {

@@ -1974,22 +1974,20 @@ dd {
 mark,
 .taf-decode-row.taf-applicable summary,
 .taf-decode-row.taf-window summary {
-  align-items: flex-end;
   background: rgba(74, 163, 255, 0.2);
   border: 1px solid var(--blue);
   border-radius: 6px;
   color: var(--ink);
-  display: flex;
-  flex-wrap: wrap;
+  display: block;
   font-weight: 900;
   margin: 4px 0;
   padding: 2px 4px;
+  position: relative;
 }
 
 .taf-decode-row.taf-applicable summary > span:first-child,
 .taf-decode-row.taf-window summary > span:first-child {
-  flex: 1 1 12rem;
-  min-width: 0;
+  display: inline;
 }
 
 .taf-decode-row.taf-window summary {
@@ -2095,9 +2093,11 @@ mark.taf-applicable {
 .taf-markers {
   align-items: center;
   display: inline-flex;
-  flex: 0 0 auto;
   gap: 4px;
   margin: -1px -5px -3px auto;
+  position: absolute;
+  right: -1px;
+  top: calc(100% - 20px);
 }
 
 .taf-window .taf-marker {
@@ -2347,8 +2347,14 @@ ul {
 
   .card-meta {
     grid-column: 1 / -1;
+    justify-self: stretch;
     min-width: 0;
-    padding-right: 74px;
+    padding-right: 0;
+  }
+
+  .evaluated-at {
+    max-width: 100%;
+    overflow-wrap: normal;
   }
 
   .card-status {
@@ -2378,11 +2384,13 @@ ul {
 
   .taf-decode-row.taf-applicable summary,
   .taf-decode-row.taf-window summary {
-    padding-bottom: 3px;
+    padding-bottom: 24px;
   }
 
   .taf-markers {
-    margin: -1px -2px -3px auto;
+    margin: 0;
+    right: -1px;
+    top: calc(100% - 20px);
   }
 
   .wx-grid {
