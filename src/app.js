@@ -1915,8 +1915,8 @@ function renderMetarAgeBadge(metar, referenceValue) {
   const observedAt = getMetarObservedAt(metar, referenceValue);
   if (!observedAt) return "";
   const ageMinutes = Math.max(0, Math.floor((new Date(referenceValue).getTime() - observedAt.getTime()) / 60000));
-  const ageClass = ageMinutes >= 60 ? "age-red" : ageMinutes >= 30 ? "age-yellow" : "age-green";
-  const label = ageMinutes >= 60 ? "60+ min old" : ageMinutes >= 30 ? "30+ min old" : `${ageMinutes} min old`;
+  const ageClass = ageMinutes > 60 ? "age-red" : ageMinutes >= 50 ? "age-yellow" : "age-green";
+  const label = ageMinutes > 60 ? "60+ min old" : ageMinutes >= 50 ? "50+ min old" : `${ageMinutes} min old`;
   return `<span class="data-age metar-age ${ageClass}" role="button" tabindex="0" data-metar-age="true" title="Highlight METAR observation time">${label}</span>`;
 }
 
