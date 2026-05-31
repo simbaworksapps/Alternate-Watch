@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
-  --ink: #f6efe0;
   --muted: #b9c2cf;
+  --ink: #b9c2cf;
   --panel: #101722;
   --panel-soft: #151f2d;
   --line: #2a3647;
@@ -17,6 +17,7 @@
   --red-bg: #321615;
   --status-pill-font-size: 0.68rem;
   --status-pill-font-weight: 1000;
+  --status-pill-height: 22px;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -96,6 +97,7 @@ input[type="datetime-local"] {
 .brand-mark {
   border: 1px solid rgba(245, 197, 66, 0.42);
   border-radius: 8px;
+  filter: brightness(0.88) contrast(0.95);
   height: 72px;
   object-fit: cover;
   width: 72px;
@@ -275,10 +277,10 @@ h1::after {
 }
 
 .brand-fire-button span {
-  background: linear-gradient(160deg, #fff9c9 0%, #f5c542 43%, #c9841b 100%);
+  background: linear-gradient(160deg, #e2d8bd 0%, #c99f35 48%, #8f6519 100%);
   clip-path: polygon(58% 0, 18% 50%, 45% 50%, 30% 100%, 86% 36%, 57% 36%);
   display: block;
-  filter: drop-shadow(0 0 4px rgba(245, 197, 66, 0.42));
+  filter: drop-shadow(0 0 3px rgba(201, 159, 53, 0.28));
   height: 0.98em;
   transform: skewX(-4deg);
   width: 0.56em;
@@ -286,7 +288,7 @@ h1::after {
 
 .brand-fire-button:hover,
 .brand-fire-button:focus-visible {
-  filter: drop-shadow(0 0 7px rgba(245, 197, 66, 0.72));
+  filter: drop-shadow(0 0 6px rgba(201, 159, 53, 0.46));
   outline: none;
 }
 
@@ -357,6 +359,7 @@ h1::after {
 
 .dice-button {
   overflow: hidden;
+  position: relative;
 }
 
 .dice-icon {
@@ -391,6 +394,60 @@ h1::after {
 .risk-dice-button:hover,
 .risk-dice-button:focus-visible {
   box-shadow: 0 0 0 2px rgba(255, 95, 86, 0.24), 0 0 18px rgba(255, 95, 86, 0.38);
+}
+
+.risk-dice-button.dice-on-fire {
+  overflow: visible;
+}
+
+.risk-dice-button.dice-on-fire::before,
+.risk-dice-button.dice-on-fire::after {
+  border-radius: 999px;
+  content: "";
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+}
+
+.risk-dice-button.dice-on-fire::before {
+  animation: riskDiceFire 680ms ease-in-out infinite alternate;
+  background:
+    radial-gradient(circle at 50% 62%, rgba(255, 255, 230, 0.95) 0 8px, transparent 9px),
+    radial-gradient(circle at 48% 48%, rgba(245, 197, 66, 0.95) 0 15px, transparent 16px),
+    radial-gradient(circle at 52% 36%, rgba(255, 95, 86, 0.72) 0 24px, transparent 25px);
+  filter: blur(2px);
+  height: 56px;
+  width: 56px;
+}
+
+.risk-dice-button.dice-on-fire::after {
+  animation: riskDiceEmbers 520ms linear infinite;
+  box-shadow:
+    -17px -15px 0 -2px rgba(255, 236, 160, 0.85),
+    -5px -23px 0 -2px rgba(255, 95, 86, 0.78),
+    11px -19px 0 -2px rgba(245, 197, 66, 0.78),
+    19px -9px 0 -3px rgba(255, 255, 230, 0.72),
+    -20px 8px 0 -3px rgba(255, 95, 86, 0.52);
+  height: 6px;
+  width: 6px;
+}
+
+.risk-dice-button.dice-on-fire .dice-icon {
+  animation: riskDiceHeat 300ms ease-in-out infinite alternate;
+  position: relative;
+  z-index: 1;
+}
+
+.risk-dice-button.dice-on-fire.dice-fire-fade::before,
+.risk-dice-button.dice-on-fire.dice-fire-fade::after {
+  animation: riskDiceFadeOut 760ms ease forwards;
+}
+
+.risk-dice-button.dice-on-fire.dice-fire-fade .dice-icon {
+  animation: riskDiceIconFadeOut 760ms ease forwards;
 }
 
 .search-icon {
@@ -925,11 +982,12 @@ body.search-open::before {
   color: var(--muted);
   display: flex;
   flex-wrap: wrap;
-  font-size: 0.84rem;
-  font-weight: 700;
+  font-size: 0.76rem;
+  font-weight: 800;
   gap: 8px 14px;
   justify-content: space-between;
   margin-bottom: 12px;
+  text-transform: uppercase;
 }
 
 .data-age {
@@ -1313,6 +1371,66 @@ body.search-open::before {
   }
 }
 
+@keyframes riskDiceFire {
+  from {
+    opacity: 0.68;
+    transform: translate(-50%, -50%) scale(0.9) rotate(-3deg);
+  }
+
+  to {
+    opacity: 0.95;
+    transform: translate(-50%, -56%) scale(1.08) rotate(3deg);
+  }
+}
+
+@keyframes riskDiceEmbers {
+  from {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) translateY(4px) scale(0.9);
+  }
+
+  to {
+    opacity: 0.25;
+    transform: translate(-50%, -50%) translateY(-10px) scale(1.16);
+  }
+}
+
+@keyframes riskDiceHeat {
+  from {
+    filter: drop-shadow(0 0 7px rgba(255, 95, 86, 0.48));
+    transform: rotate(-3deg) scale(1);
+  }
+
+  to {
+    filter: drop-shadow(0 0 14px rgba(245, 197, 66, 0.72));
+    transform: rotate(3deg) scale(1.05);
+  }
+}
+
+@keyframes riskDiceFadeOut {
+  from {
+    opacity: 0.85;
+    transform: translate(-50%, -54%) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(-50%, -62%) scale(0.62);
+  }
+}
+
+@keyframes riskDiceIconFadeOut {
+  from {
+    filter: drop-shadow(0 0 14px rgba(245, 197, 66, 0.66));
+    transform: rotate(2deg) scale(1.04);
+  }
+
+  to {
+    filter: drop-shadow(0 0 0 rgba(255, 95, 86, 0));
+    transform: rotate(0deg) scale(1);
+  }
+}
+
 @keyframes logoCharge {
   0% {
     box-shadow: 0 0 0 rgba(245, 197, 66, 0);
@@ -1482,10 +1600,39 @@ body.search-open::before {
   row-gap: 6px;
 }
 
-.summary-icao {
-  color: var(--ink);
-  font-size: 1.5rem;
+.summary-issue .issue-chip {
+  font-size: 0.78rem;
   font-weight: 900;
+  padding: 6px 10px;
+}
+
+.summary-icao {
+  color: var(--muted);
+  display: inline-block;
+  font-size: 1.32rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.summary-icao[role="button"] {
+  cursor: pointer;
+  transform: translateY(0);
+  transition: color 160ms ease, text-shadow 160ms ease, transform 120ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) {
+  .summary-icao[role="button"]:hover,
+  .summary-icao[role="button"]:focus-visible {
+    color: var(--muted);
+    outline: none;
+    text-shadow: 0 0 14px rgba(245, 197, 66, 0.3);
+  }
+}
+
+.summary-icao[role="button"]:active {
+  transform: scale(0.98);
 }
 
 .decision-reason,
@@ -1553,18 +1700,24 @@ body.search-open::before {
 }
 
 .card-header h3 {
-  font-size: 1.5rem;
+  color: var(--muted);
+  display: inline-block;
+  font-size: 1.32rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0;
   margin-bottom: 0;
 }
 
 .evaluated-at {
   align-items: center;
-  color: #b8dcff;
+  color: var(--muted);
   display: flex;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 800;
   gap: 5px;
   margin-bottom: 0;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -1575,6 +1728,8 @@ body.search-open::before {
   flex: 0 0 auto;
   font-size: 0.68rem;
   font-weight: 1000;
+  height: var(--status-pill-height);
+  align-items: center;
   line-height: 1;
   padding: 3px 7px;
 }
@@ -1596,6 +1751,7 @@ body.search-open::before {
   font-size: 0.76rem;
   font-weight: 800;
   margin-bottom: 0;
+  text-transform: uppercase;
 }
 
 .wx-failed {
@@ -1878,10 +2034,16 @@ dd {
   display: inline-flex;
   font-size: var(--status-pill-font-size);
   font-weight: var(--status-pill-font-weight);
+  height: var(--status-pill-height);
   line-height: 1;
   margin-left: 0;
-  min-height: 20px;
   padding: 3px 7px;
+}
+
+.metar-title .data-age,
+.taf-title .data-age {
+  justify-content: center;
+  min-width: 52px;
 }
 
 .taf-eval-time {
@@ -1955,13 +2117,15 @@ dd {
 
 .details-block summary {
   align-items: center;
-  color: #b8dcff;
+  color: var(--muted);
   cursor: pointer;
   display: flex;
   flex-wrap: wrap;
+  font-size: 0.76rem;
   gap: 8px;
-  font-weight: 900;
+  font-weight: 800;
   list-style-position: inside;
+  text-transform: uppercase;
 }
 
 .metar-decode-row,

@@ -156,6 +156,7 @@ function init() {
   resetRandomMissionButton();
   document.querySelector("#random-mission").addEventListener("click", rollRandomMission);
   document.querySelector("#practice-weather").addEventListener("click", generatePracticeWeatherMission);
+  setupRiskDiceAttention();
   document.querySelector("#rulebook-toggle").addEventListener("click", toggleRulebook);
   document.querySelector("#rulebook-close").addEventListener("click", closeRulebook);
   document.querySelector("#defaults-toggle").addEventListener("click", toggleDefaultsPanel);
@@ -528,6 +529,14 @@ function resetPracticeWeatherButton() {
   button.innerHTML = '<span class="dice-icon risk-dice-icon" aria-hidden="true"></span>';
 }
 
+function setupRiskDiceAttention() {
+  const button = document.querySelector("#practice-weather");
+  if (!button || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  button.classList.add("dice-on-fire");
+  window.setTimeout(() => button.classList.add("dice-fire-fade"), 2400);
+  window.setTimeout(() => button.classList.remove("dice-on-fire", "dice-fire-fade"), 3200);
+}
+
 function getRawInputValues() {
   return {
     departure: document.querySelector("#departure").value,
@@ -758,7 +767,7 @@ function renderDecisionBanner(referenceDate = new Date()) {
 
   const itemMarkup = items.map((item) => `
     <div class="summary-issue">
-      <span class="summary-icao">${escapeHtml(item.icao)}</span>
+      <span class="summary-icao" role="button" tabindex="0" data-summary-icao="${escapeHtml(item.icao)}">${escapeHtml(item.icao)}</span>
       ${item.chips.map((chip) => renderIssueChip(chip, item.icao)).join("")}
     </div>
   `).join("");
@@ -859,6 +868,12 @@ function addTapFeedback(event) {
 }
 
 function handleSummaryIssueClick(event) {
+  const icao = event.target.closest("[data-summary-icao]");
+  if (icao) {
+    event.stopPropagation();
+    scrollToAirfieldCard(icao.dataset.summaryIcao);
+    return;
+  }
   const chip = event.target.closest("[data-issue-icao]");
   if (!chip) return;
   event.stopPropagation();
@@ -866,10 +881,37 @@ function handleSummaryIssueClick(event) {
 }
 
 function handleSummaryIssueKeydown(event) {
+  const icao = event.target.closest("[data-summary-icao]");
+  if (icao && ["Enter", " "].includes(event.key)) {
+    event.preventDefault();
+    scrollToAirfieldCard(icao.dataset.summaryIcao);
+    return;
+  }
   const chip = event.target.closest("[data-issue-icao]");
   if (!chip || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
   scrollToIssue(chip.dataset.issueIcao, chip.dataset.issueLabel, chip.dataset.issueStatus);
+}
+
+function scrollToAirfieldCard(icao) {
+  if (currentFilter !== "all") {
+    currentFilter = "all";
+    updateFilterButtons();
+    renderCards();
+  }
+
+  const card = document.querySelector(`.result-card[data-icao="${icao}"]`);
+  if (!card) return;
+  const details = card.querySelector(".card-disclosure");
+  if (details) details.open = true;
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  const focusClass = card.classList.contains("status-red")
+    ? "scroll-focus-red"
+    : card.classList.contains("status-yellow")
+      ? "scroll-focus-yellow"
+      : "scroll-focus-green";
+  card.classList.add("scroll-focus", focusClass);
+  window.setTimeout(() => card.classList.remove("scroll-focus", focusClass), 1400);
 }
 
 function scrollToIssue(icao, label, status = "") {
