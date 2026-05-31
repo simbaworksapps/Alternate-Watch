@@ -169,6 +169,8 @@ function init() {
   document.querySelector("#sortie-duration-plus-two").addEventListener("click", () => setSortieDurationPreset(120));
   document.querySelector("#sortie-duration-plus-four").addEventListener("click", () => setSortieDurationPreset(240));
   document.querySelector("#sortie-duration-input").addEventListener("keydown", handleSortieDurationKeydown);
+  document.querySelector("#visibility-table-close").addEventListener("click", closeVisibilityTable);
+  document.querySelector("#wind-table-close").addEventListener("click", closeWindTable);
   setupDiceRegionToggles();
   setupDefaultsKeyboardFlow();
   setupAirfieldSearch();
@@ -209,11 +211,15 @@ function init() {
   cards.addEventListener("keydown", handleTafValidityKeydown);
   cards.addEventListener("click", handleMetarAgeClick);
   cards.addEventListener("keydown", handleMetarAgeKeydown);
+  cards.addEventListener("click", handleConversionTableClick);
+  cards.addEventListener("keydown", handleConversionTableKeydown);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeRulebook();
       closeDefaultsPanel();
       closeSortieDurationPanel();
+      closeVisibilityTable();
+      closeWindTable();
       closeAirfieldSearch();
     }
   });
@@ -234,6 +240,16 @@ function init() {
       const panel = document.querySelector("#sortie-duration-panel");
       const toggle = document.querySelector("#flight-time-pill");
       if (!panel.contains(event.target) && !toggle.contains(event.target)) closeSortieDurationPanel();
+    }
+    if (document.body.classList.contains("visibility-table-open")) {
+      const panel = document.querySelector("#visibility-table-panel");
+      const clickedTrigger = event.target.closest(".conversion-table-button");
+      if (!panel.contains(event.target) && !clickedTrigger) closeVisibilityTable();
+    }
+    if (document.body.classList.contains("wind-table-open")) {
+      const panel = document.querySelector("#wind-table-panel");
+      const clickedTrigger = event.target.closest(".conversion-table-button");
+      if (!panel.contains(event.target) && !clickedTrigger) closeWindTable();
     }
     if (document.body.classList.contains("search-open")) {
       const panel = document.querySelector("#airfield-search-panel");
@@ -1129,6 +1145,42 @@ function closeSortieDurationPanel() {
   document.body.classList.remove("sortie-duration-open");
 }
 
+function openVisibilityTable() {
+  closeRulebook();
+  closeDefaultsPanel();
+  closeSortieDurationPanel();
+  closeWindTable();
+  closeAirfieldSearch();
+  const panel = document.querySelector("#visibility-table-panel");
+  panel.hidden = false;
+  document.body.classList.add("visibility-table-open");
+}
+
+function closeVisibilityTable() {
+  const panel = document.querySelector("#visibility-table-panel");
+  if (!panel) return;
+  panel.hidden = true;
+  document.body.classList.remove("visibility-table-open");
+}
+
+function openWindTable() {
+  closeRulebook();
+  closeDefaultsPanel();
+  closeSortieDurationPanel();
+  closeVisibilityTable();
+  closeAirfieldSearch();
+  const panel = document.querySelector("#wind-table-panel");
+  panel.hidden = false;
+  document.body.classList.add("wind-table-open");
+}
+
+function closeWindTable() {
+  const panel = document.querySelector("#wind-table-panel");
+  if (!panel) return;
+  panel.hidden = true;
+  document.body.classList.remove("wind-table-open");
+}
+
 function populateSortieDurationPanel() {
   const duration = getFlightDurationState(
     document.querySelector("#takeoffDateTime").value,
@@ -2000,9 +2052,31 @@ function renderTafDecode(line) {
   const decoded = decodeTafLine(line);
   return `
     <dl>
-      ${decoded.map((item) => `<div><dt>${escapeHtml(item.label)}</dt><dd>${escapeHtml(item.value)}</dd></div>`).join("")}
+      ${decoded.map(renderDecodedItem).join("")}
     </dl>
   `;
+}
+
+function renderDecodedItem(item) {
+  return `<div><dt>${escapeHtml(item.label)}</dt><dd>${escapeHtml(item.value)}${renderConversionTableButton(item)}</dd></div>`;
+}
+
+function shouldShowVisibilityTable(item) {
+  return item.label === "Visibility" && /\b\d{3,5} meters \(\d+(?:\.\d)? SM\)/.test(item.value);
+}
+
+function shouldShowWindTable(item) {
+  return item.label === "Wind" && /\bmeters per second \(\d+ kt\)/.test(item.value);
+}
+
+function renderConversionTableButton(item) {
+  if (shouldShowVisibilityTable(item)) return renderTableButton("visibility", "Show meter to statute mile table", "Meter to SM table");
+  if (shouldShowWindTable(item)) return renderTableButton("wind", "Show meters per second to knots table", "MPS to kt table");
+  return "";
+}
+
+function renderTableButton(type, label, title) {
+  return ` <button type="button" class="conversion-table-button" data-conversion-table="${type}" aria-label="${escapeHtml(label)}" title="${escapeHtml(title)}">Table</button>`;
 }
 
 function renderMetar(metar) {
@@ -2034,9 +2108,32 @@ function renderMetarDecode(metar) {
   const decoded = decodeMetarLine(metar);
   return `
     <dl>
-      ${decoded.map((item) => `<div><dt>${escapeHtml(item.label)}</dt><dd>${escapeHtml(item.value)}</dd></div>`).join("")}
+      ${decoded.map(renderDecodedItem).join("")}
     </dl>
   `;
+}
+
+function handleConversionTableClick(event) {
+  const button = event.target.closest(".conversion-table-button");
+  if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  openConversionTable(button.dataset.conversionTable);
+}
+
+function handleConversionTableKeydown(event) {
+  const button = event.target.closest(".conversion-table-button");
+  if (!button || !["Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+  openConversionTable(button.dataset.conversionTable);
+}
+
+function openConversionTable(type) {
+  if (type === "wind") {
+    openWindTable();
+    return;
+  }
+  openVisibilityTable();
 }
 
 function splitTafLines(value) {
@@ -2380,11 +2477,11 @@ function decodeVisibilityToken(tokens) {
   }
   if (token && directional) return `${decodeMetersVisibility(token)} Directional visibility ${decodeDirectionalVisibility(directional)}`;
   if (directional) return `Directional visibility ${decodeDirectionalVisibility(directional)}`;
-  if (token === "P6SM") return "Greater than 6 statute miles.";
-  if (token === "CAVOK") return "CAVOK: visibility 10 km or more, no significant weather, and no significant cloud below criteria.";
+  if (token === "P6SM") return "Greater than 6 SM.";
+  if (token === "CAVOK") return "CAVOK: visibility 10 km or more; no significant weather; no significant cloud below criteria.";
   if (/^\d{4}$/.test(token)) return decodeMetersVisibility(token);
-  if (token.startsWith("M")) return `Less than ${token.replace("M", "").replace("SM", "")} statute miles.`;
-  return `${token.replace("SM", "")} statute miles.`;
+  if (token.startsWith("M")) return `Less than ${token.replace("M", "").replace("SM", "")} SM.`;
+  return `${token.replace("SM", "")} SM.`;
 }
 
 function decodeRvrTokens(tokens) {
@@ -2415,7 +2512,7 @@ function decodeRunwayStateTokens(tokens) {
 }
 
 function decodeMetersVisibility(value) {
-  return value === "9999" ? "Unlimited." : `${Number(value).toLocaleString("en-US")} meters, equivalent to ${metersToStatuteMiles(Number(value)).toFixed(1)} statute miles.`;
+  return value === "9999" ? "Unlimited." : `${Number(value).toLocaleString("en-US")} meters (${metersToStatuteMiles(Number(value)).toFixed(1)} SM).`;
 }
 
 function decodeDirectionalVisibility(token) {
