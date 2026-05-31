@@ -138,11 +138,11 @@ function init() {
   setupZuluDateTimeControls();
   setupAlternateListInput("#alternates", updateAlternatesCount);
   setupAlternateListInput("#default-alternates", updateDefaultAlternatesCount);
-  document.querySelector("#takeoff-plus-three").addEventListener("click", () => {
-    setZuluDateTimeOffset("takeoffDateTime", 3);
+  document.querySelector("#takeoff-plus-one").addEventListener("click", () => {
+    addHoursToZuluDateTimeField("takeoffDateTime", 1);
   });
-  document.querySelector("#landing-plus-three").addEventListener("click", () => {
-    addHoursToZuluDateTimeField("landingDateTime", 3);
+  document.querySelector("#landing-plus-one").addEventListener("click", () => {
+    addHoursToZuluDateTimeField("landingDateTime", 1);
   });
   document.querySelector("#clear-alternates").addEventListener("click", async () => {
     clearMissionInputs();

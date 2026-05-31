@@ -973,15 +973,20 @@ body.search-open::before {
 .result-card {
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 14px 8px;
+  padding: 10px 8px;
 }
 
 .card-disclosure > summary {
+  align-items: center;
+  column-gap: 8px;
   cursor: pointer;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   list-style: none;
-  min-height: 124px;
-  padding-bottom: 26px;
+  min-height: 0;
+  padding-bottom: 0;
   position: relative;
+  row-gap: 6px;
 }
 
 .card-disclosure > summary::-webkit-details-marker {
@@ -1052,16 +1057,18 @@ body.search-open::before {
 
 .expand-toggle {
   align-items: center;
+  align-self: center;
   background: transparent;
   border-radius: 0;
-  bottom: 0;
   color: var(--gold);
   display: inline-flex;
   font-size: 1.35rem;
   font-weight: 900;
   height: 24px;
   justify-content: center;
-  position: absolute;
+  justify-self: end;
+  margin-top: 0;
+  position: static;
   right: 0;
   width: 24px;
 }
@@ -1076,8 +1083,8 @@ body.search-open::before {
 
 .card-expanded {
   border-top: 1px solid var(--line);
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
 }
 
 .decision-banner {
@@ -1229,8 +1236,10 @@ body.search-open::before {
 }
 
 @media (hover: none) {
+  .filter-button:not(.tap-glow):hover,
   .filter-button:not(.tap-glow):focus,
   .filter-button:not(.tap-glow):focus-visible,
+  .compact-action:not(.tap-glow):hover,
   .compact-action:not(.tap-glow):focus,
   .compact-action:not(.tap-glow):focus-visible {
     box-shadow: none;
@@ -1490,7 +1499,8 @@ body.search-open::before {
 .card-header {
   align-items: start;
   display: flex;
-  gap: 12px;
+  gap: 10px;
+  grid-column: 1 / -1;
   justify-content: space-between;
 }
 
@@ -1524,7 +1534,7 @@ body.search-open::before {
 
 .card-header h3 {
   font-size: 1.5rem;
-  margin-bottom: 2px;
+  margin-bottom: 0;
 }
 
 .evaluated-at {
@@ -1549,8 +1559,9 @@ body.search-open::before {
 .issue-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin: 12px 0;
+  gap: 6px;
+  margin: 2px 0 0;
+  min-width: 0;
 }
 
 .issue-chip {
@@ -2152,7 +2163,7 @@ ul {
   }
 
   .issue-chips {
-    margin-right: 54px;
+    margin-right: 0;
   }
 }
 
