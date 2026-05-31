@@ -615,7 +615,7 @@ function recoverDataRepeatedSlashToken(token) {
     || /^(CB|TCU)$/.test(recovered)
     || /^(NSC|NCD|SKC|CLR|CAVOK)$/.test(recovered)
     || /^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)$/.test(recovered)
-    || /^[-+]?(VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+$/.test(recovered)
+    || /^[-+]?(VC)?(MI|PR|BC|BD|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+$/.test(recovered)
     ? recovered
     : "";
 }

@@ -2111,6 +2111,7 @@ function decodeTafLine(line) {
 
   const visibility = decodeVisibilityToken(tokens);
   if (visibility) items.push({ label: "Visibility", value: visibility });
+  if (tokens.includes("CAVOK")) items.push({ label: "Conditions", value: "Ceiling and visibility OK: visibility 10 km or more, no significant weather, and no significant cloud below criteria." });
 
   const weather = decodeWeatherTokens(tokens);
   if (weather.length) items.push({ label: "Weather", value: weather.join("; ") });
@@ -2218,8 +2219,10 @@ function isKnownMetarToken(token, index, tokens) {
   if (/^(BLU|WHT|GRN|YLO|AMB|RED|BLACK)$/.test(token) && tokens.includes("RMK")) return true;
   if (/^(TEMPO|BECMG|INTER|WIND)$/.test(token)) return true;
   if (/^R\d{2}[LCR]?\/\d{6}$/.test(token)) return true;
+  if (/^R\d{2}[LCR]?\/CLRD\d{2}$/.test(token)) return true;
   if (/^R\d{2}[LCR]?\/[PM]?\d{4}[UDN]?$/.test(token)) return true;
   if (/^PP\d{3}$/.test(token)) return true;
+  if (/^QFE\d{3,4}$/.test(token)) return true;
   if (/^QFE\d{3,4}\/\d{3,4}$/.test(token)) return true;
   if (/^\/{2,}$/.test(token)) return true;
   if (/^\/+\d+\/+$/.test(token)) return true;
@@ -2246,10 +2249,11 @@ function isKnownMetarToken(token, index, tokens) {
   if (/^\d{3,5}$/.test(token) && tokens[index - 2] === "DENSITY" && tokens[index - 1] === "ALT") return true;
   if (token === "PK" || token === "WND") return true;
   if (/^\d{3}\d{2,3}\/?(\d{4})?$/.test(token) && (tokens[index - 1] === "WND" || tokens[index - 2] === "PK")) return true;
-  if (token === "LTG" || token === "DSNT") return true;
+  if (token === "LTG" || token === "DSNT" || token === "ALQDS") return true;
   if (token === "AND" && (isDirectionToken(tokens[index - 1]) || isDirectionToken(tokens[index + 1]))) return true;
   if (isDirectionToken(token) && tokens[index - 1] === "DSNT") return true;
   if (isDirectionToken(token) && tokens[index - 1] === "AND") return true;
+  if (/^RWY\d{2}[LCR]?$/.test(token) && tokens.includes("RMK")) return true;
   return false;
 }
 
@@ -2376,9 +2380,13 @@ function decodeMissingSlashGroups(tokens) {
 }
 
 function decodeRunwayStateTokens(tokens) {
-  return tokens
-    .filter((token) => /^R\d{2}[LCR]?\/\d{6}$/.test(token))
-    .map((token) => decodeRunwayState(token.match(/^R(\d{2}[LCR]?)\/([0-9/])([0-9/])([0-9/]{2})([0-9/]{2})$/)));
+  return tokens.flatMap((token) => {
+    const state = token.match(/^R(\d{2}[LCR]?)\/([0-9/])([0-9/])([0-9/]{2})([0-9/]{2})$/);
+    if (state) return [decodeRunwayState(state)];
+    const cleared = token.match(/^R(\d{2}[LCR]?)\/CLRD(\d{2})$/);
+    if (cleared) return [`Runway ${cleared[1]} cleared; braking/friction code ${cleared[2]}.`];
+    return [];
+  });
 }
 
 function decodeMetersVisibility(value) {
@@ -2412,19 +2420,21 @@ function isWeatherToken(token) {
   const clean = token.replace(/^[-+]/, "");
   if (clean === "NSW") return true;
   if (/^RE(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|TS|SH|FZ)+$/.test(clean)) return true;
-  return /^(VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+$/.test(clean);
+  return /^(VC)?(MI|PR|BC|BD|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+$/.test(clean);
 }
 
 function decodeWeatherToken(token) {
   if (token === "NSW") return "No significant weather.";
   const intensity = token.startsWith("-") ? "Light " : token.startsWith("+") ? "Heavy " : "";
   const clean = token.replace(/^[-+]/, "");
+  if (clean === "BDFU") return `${intensity}Blowing dust or smoke.`.trim();
   const parts = [];
   const codes = [
     ["VC", "in the vicinity"],
     ["MI", "shallow"],
     ["PR", "partial"],
     ["BC", "patches"],
+    ["BD", "blowing dust"],
     ["DR", "low drifting"],
     ["BL", "blowing"],
     ["SH", "showers"],
@@ -2572,6 +2582,7 @@ function getMetarRemarkDecoders() {
   (token) => matchDecode(token, /^5(\d)(\d{3})$/, (match) => `Three-hour pressure tendency code ${match[1]}, change ${Number(match[2]) / 10} hPa.`),
   (token) => matchDecode(token, /^R(\d{2}[LCR]?)\/([0-9/])([0-9/])([0-9/]{2})([0-9/]{2})$/, decodeRunwayState),
   (token) => matchDecode(token, /^PP(\d{3})$/, () => `Pressure tendency or precipitation group ${token} retained for reference.`),
+  (token) => matchDecode(token, /^QFE(\d{3,4})$/, (match) => `QFE ${match[1]} mmHg.`),
   (token) => matchDecode(token, /^QFE(\d{3,4})\/(\d{3,4})$/, (match) => `QFE ${match[1]} mmHg / ${match[2]} hPa.`),
   (token) => decodeMilitaryColourState(token) || null,
   (token) => token === "HZY" ? "Hazy." : null,
@@ -2591,12 +2602,14 @@ function getMetarRemarkDecoders() {
     const height = Number(rmk[index + 1].replace("FT", "")).toLocaleString("en-US");
     return `Wind at ${height} ft: ${decodeWindToken(matchWindToken(rmk[index + 2]))}`;
   },
-  (token, index, rmk) => token === "LTG" && rmk[index + 1] === "DSNT" ? `Lightning distant ${decodeDirectionSequence(rmk.slice(index + 2))}.` : null,
+  (token, index, rmk) => token === "LTG" && rmk[index + 1] === "DSNT" && rmk[index + 2] === "ALQDS" ? "Lightning distant all quadrants." : null,
+  (token, index, rmk) => token === "LTG" && rmk[index + 1] === "DSNT" && rmk[index + 2] !== "ALQDS" ? `Lightning distant ${decodeDirectionSequence(rmk.slice(index + 2))}.` : null,
   (token) => token === "$" ? "Automated station maintenance check indicator." : null,
   (token, index, rmk) => token === "PK" && rmk[index + 1] === "WND" ? decodePeakWind(rmk[index + 2], rmk[index + 3]) : null,
   (token, index, rmk) => token === "OBST" && rmk[index + 1] === "OBSC" ? "Obstruction obscuring observed." : null,
   (token, index, rmk) => token === "MT" && rmk[index + 1] === "OBSC" ? "Mountains obscured." : null,
   (token, index, rmk) => token === "MT" && rmk[index + 1] === "PT" && rmk[index + 2] === "OBSC" ? "Mountains partially obscured." : null,
+  (token, index, rmk) => /^RWY\d{2}[LCR]?$/.test(token) && matchWindToken(rmk[index + 1]) ? `Runway ${token.slice(3)} wind ${stripPeriod(decodeWindToken(matchWindToken(rmk[index + 1])))}.` : null,
   (token) => token === "NOSIG" ? "No significant change expected." : null,
   (token, index, rmk) => {
     if (token !== "BIRD" || rmk[index + 1] !== "HAZARD") return null;
