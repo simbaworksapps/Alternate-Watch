@@ -2326,12 +2326,7 @@ function decodeUndecodedTokenList(tokens, reportType) {
 }
 
 function formatNotDecodedTokens(tokens, reportType) {
-  return tokens
-    .map((token) => {
-      const likely = getLikelyUndecodedDefinition(token, reportType);
-      return likely ? `${token} - likely ${likely}` : `${token} - retained for reference`;
-    })
-    .join("; ");
+  return tokens.join(", ");
 }
 
 function getLikelyUndecodedDefinition(token, reportType) {

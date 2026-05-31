@@ -2094,9 +2094,9 @@ mark.taf-applicable {
   align-items: center;
   display: inline-flex;
   gap: 4px;
-  margin: -1px -5px -3px auto;
+  margin: 0;
   position: absolute;
-  right: -1px;
+  right: 2px;
   top: calc(100% - 20px);
 }
 
@@ -2389,7 +2389,7 @@ ul {
 
   .taf-markers {
     margin: 0;
-    right: -1px;
+    right: 2px;
     top: calc(100% - 20px);
   }
 
