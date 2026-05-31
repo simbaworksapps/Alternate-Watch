@@ -1985,6 +1985,13 @@ mark,
   position: relative;
 }
 
+.taf-decode-row.taf-applicable summary::after,
+.taf-decode-row.taf-window summary::after {
+  clear: both;
+  content: "";
+  display: block;
+}
+
 .taf-decode-row.taf-applicable summary > span:first-child,
 .taf-decode-row.taf-window summary > span:first-child {
   display: inline;
@@ -2093,11 +2100,9 @@ mark.taf-applicable {
 .taf-markers {
   align-items: center;
   display: inline-flex;
+  float: right;
   gap: 4px;
-  margin: 0;
-  position: absolute;
-  right: 2px;
-  top: calc(100% - 20px);
+  margin: 1px -5px 0 6px;
 }
 
 .taf-window .taf-marker {
@@ -2384,13 +2389,11 @@ ul {
 
   .taf-decode-row.taf-applicable summary,
   .taf-decode-row.taf-window summary {
-    padding-bottom: 24px;
+    padding-bottom: 3px;
   }
 
   .taf-markers {
-    margin: 0;
-    right: 2px;
-    top: calc(100% - 20px);
+    margin: 1px -5px 0 6px;
   }
 
   .wx-grid {
