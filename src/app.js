@@ -1786,7 +1786,7 @@ function renderCard(result) {
               </div>
             </div>
             <div class="card-meta">
-              <p class="evaluated-at">Evaluated at ${formatDateTime(result.evaluatedAt)}</p>
+              <p class="evaluated-at">Evaluated at ${formatDateTime(result.evaluatedAt)} ${renderEvaluationDeltaBadge(result.evaluatedAt)}</p>
               <p class="source-labels">WX: <span class="${rulesMetadata.weatherSource === "AWC" ? "" : "wx-failed"}">${escapeHtml(wxSource)}</span> | NOTAM: ${escapeHtml(rulesMetadata.notamSource)}</p>
             </div>
             <div class="card-status">
@@ -1817,6 +1817,22 @@ function renderCard(result) {
       </details>
     </article>
   `;
+}
+
+function renderEvaluationDeltaBadge(evaluatedAt) {
+  const target = new Date(evaluatedAt);
+  if (Number.isNaN(target.getTime())) return "";
+  const deltaMinutes = Math.round((target.getTime() - Date.now()) / 60000);
+  const status = deltaMinutes >= 0 ? "future" : "past";
+  return `<span class="eval-delta-pill eval-delta-${status}">${formatSignedDurationMinutes(deltaMinutes)}</span>`;
+}
+
+function formatSignedDurationMinutes(deltaMinutes) {
+  const sign = deltaMinutes >= 0 ? "+" : "-";
+  const absoluteMinutes = Math.abs(deltaMinutes);
+  const hours = Math.floor(absoluteMinutes / 60);
+  const minutes = absoluteMinutes % 60;
+  return `${sign}${String(hours).padStart(2, "0")}${String(minutes).padStart(2, "0")}`;
 }
 
 function renderIssueChip(chip, icao = "") {

@@ -1523,11 +1523,14 @@ body.search-open::before {
 }
 
 .card-meta {
+  align-self: start;
+  justify-self: center;
   min-width: 190px;
 }
 
 .card-status {
   align-items: flex-start;
+  align-self: start;
   display: flex;
   justify-content: flex-end;
 }
@@ -1538,10 +1541,37 @@ body.search-open::before {
 }
 
 .evaluated-at {
+  align-items: center;
   color: #b8dcff;
+  display: flex;
   font-size: 0.82rem;
   font-weight: 800;
+  gap: 5px;
   margin-bottom: 0;
+  white-space: nowrap;
+}
+
+.eval-delta-pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 1000;
+  line-height: 1;
+  padding: 3px 7px;
+}
+
+.eval-delta-future {
+  background: rgba(46, 212, 122, 0.12);
+  border-color: rgba(46, 212, 122, 0.58);
+  color: #bff5d8;
+}
+
+.eval-delta-past {
+  background: rgba(255, 95, 86, 0.18);
+  border-color: rgba(255, 95, 86, 0.72);
+  color: #ffd5d2;
 }
 
 .source-labels {
@@ -2153,9 +2183,9 @@ ul {
   }
 
   .card-header {
-    align-items: center;
+    align-items: start;
     display: grid;
-    grid-template-columns: minmax(270px, 1.1fr) minmax(280px, 1fr) auto;
+    grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr) auto;
   }
 
   .airport-row {
