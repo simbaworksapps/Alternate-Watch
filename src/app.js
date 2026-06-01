@@ -218,6 +218,8 @@ function init() {
   cards.addEventListener("click", handleWeatherSourceClick);
   cards.addEventListener("keydown", handleWeatherSourceKeydown);
   cards.addEventListener("click", handleAssistToggle);
+  cards.addEventListener("click", handleCardHomeClick);
+  cards.addEventListener("keydown", handleCardHomeKeydown);
   cards.addEventListener("click", handleTafEvalClick);
   cards.addEventListener("keydown", handleTafEvalKeydown);
   cards.addEventListener("click", handleTafValidityClick);
@@ -1051,6 +1053,29 @@ function handleAssistToggle(event) {
   button.classList.toggle("active", enabled);
   button.setAttribute("aria-pressed", String(enabled));
   button.blur();
+}
+
+function handleCardHomeClick(event) {
+  const button = event.target.closest("[data-card-home], [data-card-inputs]");
+  if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  scrollCardNavTarget(button);
+}
+
+function handleCardHomeKeydown(event) {
+  const button = event.target.closest("[data-card-home], [data-card-inputs]");
+  if (!button || !["Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+  scrollCardNavTarget(button);
+}
+
+function scrollCardNavTarget(button) {
+  const target = button.hasAttribute("data-card-inputs")
+    ? document.querySelector(".mission-panel")
+    : document.querySelector(".results-panel");
+  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  button?.blur();
 }
 
 function jumpToWeatherSource(tile) {
@@ -2172,6 +2197,10 @@ function renderCard(result) {
               ${notams}
             </section>
           </details>
+          <span class="card-nav-buttons">
+            <button type="button" class="card-nav-button" data-card-inputs="true" aria-label="Back to inputs" title="Back to inputs"><span class="pencil-icon" aria-hidden="true"></span></button>
+            <button type="button" class="card-nav-button" data-card-home="true" aria-label="Back to top of outputs" title="Back to top of outputs"><span class="home-icon" aria-hidden="true"></span></button>
+          </span>
         </div>
       </details>
     </article>

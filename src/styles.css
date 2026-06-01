@@ -1545,7 +1545,100 @@ body.search-open {
 .card-expanded {
   border-top: 1px solid var(--line);
   margin-top: 10px;
+  padding-bottom: 36px;
   padding-top: 10px;
+  position: relative;
+}
+
+.card-nav-buttons {
+  align-items: center;
+  bottom: 0;
+  display: inline-flex;
+  gap: 6px;
+  position: absolute;
+  right: 0;
+}
+
+.card-nav-button {
+  align-items: center;
+  background: rgba(15, 26, 42, 0.92);
+  border: 1px solid rgba(245, 197, 66, 0.5);
+  border-radius: 8px;
+  color: var(--gold);
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  min-height: 0;
+  padding: 0;
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 120ms ease;
+  width: 28px;
+}
+
+.card-nav-button:hover,
+.card-nav-button:focus-visible {
+  box-shadow: 0 0 0 2px rgba(245, 197, 66, 0.18), 0 0 16px rgba(245, 197, 66, 0.2);
+  outline: none;
+}
+
+.card-nav-button:active {
+  transform: translateY(1px) scale(0.96);
+}
+
+.home-icon {
+  display: inline-block;
+  height: 16px;
+  position: relative;
+  width: 17px;
+}
+
+.home-icon::before {
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid currentColor;
+  content: "";
+  left: 0;
+  position: absolute;
+  top: 0;
+}
+
+.home-icon::after {
+  background: currentColor;
+  border-radius: 2px 2px 1px 1px;
+  bottom: 0;
+  content: "";
+  height: 9px;
+  left: 3px;
+  position: absolute;
+  width: 11px;
+}
+
+.pencil-icon {
+  display: inline-block;
+  height: 17px;
+  position: relative;
+  transform: rotate(-35deg);
+  width: 17px;
+}
+
+.pencil-icon::before {
+  background: currentColor;
+  border-radius: 2px;
+  content: "";
+  height: 13px;
+  left: 7px;
+  position: absolute;
+  top: 1px;
+  width: 4px;
+}
+
+.pencil-icon::after {
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  content: "";
+  left: 5px;
+  position: absolute;
+  top: 13px;
 }
 
 .decision-banner {
@@ -2300,6 +2393,18 @@ body.search-open {
 
 .result-card.assist-off {
   border-color: var(--line);
+}
+
+.result-card.assist-off:has(.card-disclosure > summary:hover),
+.result-card.assist-off:has(.card-disclosure > summary:focus-visible) {
+  background: rgba(185, 194, 207, 0.035);
+  box-shadow: 0 0 0 1px rgba(185, 194, 207, 0.14), 0 0 18px rgba(185, 194, 207, 0.1);
+}
+
+.result-card.assist-off:has(.card-disclosure > summary:active) {
+  background: rgba(185, 194, 207, 0.06);
+  box-shadow: 0 0 0 1px rgba(185, 194, 207, 0.14), 0 0 18px rgba(185, 194, 207, 0.1);
+  transform: scale(0.997);
 }
 
 .result-card.assist-off .status-pill {
