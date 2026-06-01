@@ -96,14 +96,15 @@
             </div>
             <p>Training aid for identifying when weather or location may drive alternate planning review.</p>
             <h3>Controls</h3>
-            <ul>
-              <li>White dice: random mission.</li>
-              <li>Red dice: random bad-weather practice mission.</li>
-              <li>Magnifier: search airfields by ICAO, name, or city.</li>
-              <li>Compass: guidebook and trigger-point logic.</li>
-              <li>Gear: set the saved departure, destination, and alternates used by refresh.</li>
-              <li>Zap: clear mission fields.</li>
-              <li>Refresh: restore default mission fields.</li>
+            <ul class="guide-control-list">
+              <li><span class="guide-symbol dice-icon" aria-hidden="true"></span><span>Random mission.</span></li>
+              <li><span class="guide-symbol dice-icon risk-dice-icon" aria-hidden="true"></span><span>Random bad-weather practice mission.</span></li>
+              <li><span class="guide-symbol search-icon" aria-hidden="true"></span><span>Search airfields by ICAO, name, or city.</span></li>
+              <li><span class="guide-symbol compass-icon" aria-hidden="true"></span><span>Guidebook and trigger-point logic.</span></li>
+              <li><span class="guide-glyph" aria-hidden="true">&#9881;</span><span>Set the saved departure, destination, and alternates used by refresh.</span></li>
+              <li><span class="guide-glyph" aria-hidden="true">&#10022;</span><span>SIMBA assist. When off, weather answer colors, weather chips, and weather values are hidden so the user must evaluate the METAR and TAF.</span></li>
+              <li><span class="guide-glyph" aria-hidden="true">&#8623;</span><span>Clear mission fields.</span></li>
+              <li><span class="guide-glyph" aria-hidden="true">&#10227;</span><span>Restore default mission fields.</span></li>
             </ul>
             <h3>Logic</h3>
             <ul>
@@ -154,8 +155,11 @@
                 <button type="button" class="secondary-button region-toggle" id="dice-oconus-toggle" data-region="oconus" aria-pressed="true">OCONUS</button>
               </div>
             </div>
+            <div class="assist-default-setting" aria-label="Weather assist default setting">
+              <button type="button" class="secondary-button assist-default-toggle" id="assist-default-toggle" aria-pressed="true" aria-label="SIMBA assist default on" title="SIMBA assist default on"></button>
+            </div>
             <div class="defaults-actions">
-              <button type="button" class="secondary-button" id="defaults-use-current">Use Current</button>
+              <button type="button" class="secondary-button symbol-button copy-current-button" id="defaults-use-current" aria-label="Copy Current" title="Copy Current"><span class="copy-icon" aria-hidden="true"></span></button>
               <button type="button" class="secondary-button" id="defaults-factory">Factory</button>
               <button type="button" id="defaults-save">Save</button>
             </div>
@@ -262,8 +266,8 @@
           </div>
 
           <div class="card-actions">
-            <button type="button" class="secondary-button compact-action" id="expand-all" aria-label="Expand all cards">+</button>
-            <button type="button" class="secondary-button compact-action" id="collapse-all" aria-label="Collapse all cards">-</button>
+            <button type="button" class="secondary-button compact-action compact-plus" id="expand-all" aria-label="Expand all cards"><span aria-hidden="true"></span></button>
+            <button type="button" class="secondary-button compact-action compact-minus" id="collapse-all" aria-label="Collapse all cards"><span aria-hidden="true"></span></button>
           </div>
         </div>
 

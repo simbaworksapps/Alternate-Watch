@@ -10,14 +10,14 @@ This tool is for training and awareness only. It is not approved for operational
 
 ## What It Does
 
-- Accepts departure, destination, mission date, takeoff Zulu, landing/ETA Zulu, and alternates.
-- Evaluates the weather period that applies to the takeoff or landing time.
-- Highlights applicable TAF lines with:
-  - `T` for takeoff
-  - `L` for landing/ETA
-- Displays color-coded status cards and issue chips.
-- Lets users tap METAR and TAF lines to decode the raw weather.
-- Shows the CAO date and the time the data was pulled.
+- Accepts takeoff Zulu date/time, landing/ETA Zulu date/time, departure, destination, and alternates.
+- Shows current local time and Zulu time for reference.
+- Pulls available METAR and TAF data from AWC through the included backend proxy.
+- Evaluates takeoff at takeoff time and destination/alternates at ETA plus or minus 1 hour.
+- Displays METAR/TAF availability chips, data age, TAF currency, and whether takeoff/landing times are inside the TAF window.
+- Highlights applicable TAF timing references with `T`, `L`, `ETA-1`, and `ETA+1`.
+- Lets users tap METAR and TAF lines to expand training decodes.
+- Supports SIMBA assist, which can show or hide weather answer colors/chips for training.
 - Supports installable mobile PWA behavior.
 
 ## Default Alternates
@@ -28,33 +28,54 @@ The default alternate list is:
 KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI, KGSB
 ```
 
-Users can edit the list before checking a mission.
+Users can edit the list before checking a mission. The defaults panel can also save a preferred departure, destination, alternates list, dice region settings, and SIMBA assist default state on the device.
 
 ## How To Use
 
-1. Enter the departure ICAO.
-2. Enter the destination ICAO.
-3. Select the mission date.
-4. Enter takeoff time in Zulu, such as `0923Z`.
-5. Enter landing/ETA time in Zulu, such as `1223Z`.
-6. Enter alternates separated by commas.
-7. Select `Check Mission`.
+1. Set takeoff Zulu date/time.
+2. Set landing/ETA Zulu date/time.
+3. Enter the departure ICAO.
+4. Enter the destination ICAO.
+5. Enter alternates separated by commas or spaces.
+6. Select `Check Mission`.
 
-All mission times are handled as Zulu. The date is also treated as the Zulu mission date.
+All mission evaluation times are Zulu. The date attached to each takeoff/landing input is the Zulu date used by the TAF logic.
 
-## What “Evaluated At” Means
+## SIMBA Assist
+
+The star button toggles SIMBA assist.
+
+When assist is on, the app shows weather answer colors, issue chips, and weather values for ceiling, visibility, and wind.
+
+When assist is off, the app hides those answer cues so the user must evaluate the METAR and TAF. The app still shows airfields, METAR/TAF availability chips, raw weather, and decode tools.
+
+In assist-off mode:
+
+- Review Required changes to `Review Items`.
+- An `Assist Off` pill appears.
+- RED/YEL/GRN counts are hidden to avoid giving away the answer.
+- Card borders and status pills go neutral.
+
+## Time References
 
 Each card is evaluated against the mission time that applies to that airfield:
 
 - Departure card: takeoff Zulu time.
-- Destination card: landing/ETA Zulu time.
-- Alternate cards: landing/ETA Zulu time.
+- Destination card: landing/ETA Zulu time, plus or minus 1 hour for alternate review.
+- Alternate cards: landing/ETA Zulu time, plus or minus 1 hour for alternate review.
 
-The app uses that time to choose the applicable TAF period and highlight the raw TAF line that drove the displayed ceiling, visibility, and wind.
+The card header shows `T/O` or `LND` with the evaluated Zulu time. The small green/red time pill shows how far that evaluated time is from the current clock.
+
+TAF lines can show:
+
+- `T`: takeoff time falls in that TAF period.
+- `L`: landing/ETA time falls in that TAF period.
+- `ETA-1`: one hour before ETA falls in that TAF period.
+- `ETA+1`: one hour after ETA falls in that TAF period.
 
 ## Color Logic
 
-Cards and chips use three colors:
+Cards and chips use three colors when assist is on:
 
 - Green: no issue identified for the evaluated period.
 - Yellow: approaching a threshold.
@@ -68,16 +89,20 @@ Current prototype weather logic:
 - Visibility at or below `5 SM` is yellow.
 - Wind greater than `15 kt` is yellow.
 - Wind greater than `25 kt` is red.
+- Takeoff ceiling below `300 ft AGL` flags red.
+- Takeoff ceiling below `200 ft AGL` drives takeoff alternate review.
 
 Ceiling uses the lowest `BKN`, `OVC`, or `VV` layer. For example, `VV002` is treated as a `200 ft AGL` ceiling.
 
-`TEMPO` lines override only the weather elements they state. If a `TEMPO` line changes visibility or wind but does not state a ceiling, the app keeps the underlying prevailing ceiling.
+`TEMPO` lines override the weather elements they state. If a `TEMPO` line changes visibility or wind but does not state a ceiling, the app keeps the underlying prevailing ceiling for that ceiling value.
+
+`BECMG` lines are handled as transition periods. During the transition window, the app considers the previous/underlying condition and the becoming condition so the worst applicable value is not missed.
 
 ## OCONUS Logic
 
-If a departure or destination airfield is outside CONUS, the app shows a red `OCONUS` chip because that can drive an alternate requirement.
+If a departure or destination airfield is outside CONUS, the app shows an `OCONUS` chip because that can drive alternate planning review.
 
-The card itself can still remain green if the weather is good. This helps users understand the item is red because of location/rule logic, not because weather is below minimums.
+The card itself can still remain green if the weather is good. This helps users understand the item is location/rule-related, not necessarily weather-related.
 
 ## METAR And TAF Decode
 
@@ -87,23 +112,31 @@ METAR decode includes items such as:
 
 - Station
 - Observation time
-- Wind
-- Visibility
+- Wind, including MPS-to-knot conversion
+- Visibility, including meter-to-SM conversion
 - Weather
 - Clouds and vertical visibility
 - Temperature/dewpoint
 - Altimeter
-- Common remarks such as `AO2`, `SLP`, precise temperature groups, precipitation groups, and `$`
+- Common remarks such as `AO2`, `SLP`, precise temperature groups, precipitation groups, lightning, runway state groups, QFE groups, and maintenance indicators
 
 TAF decode includes items such as:
 
-- Change type: `FM`, `BECMG`, `TEMPO`, `PROB`
+- Change type: `FM`, `BECMG`, `TEMPO`, `PROB`, and related regional groups
 - Valid time
-- Wind
-- Visibility
+- Wind, including MPS-to-knot conversion
+- Visibility, including meter-to-SM conversion
 - Weather
 - Clouds
 - Remarks/admin items such as `QNH`, `TX`, `TN`, `LAST NO AMD`, `AFT`, and `NEXT`
+
+If a token cannot be decoded, the app lists it in a `Not Decoded` section instead of silently dropping it.
+
+## Search And Dice
+
+The airfield search uses the included offline airport search file. If an airport is not listed, users can still type a valid ICAO directly into the field and run the mission.
+
+The white dice generates a random practice mission. The red dice searches for bad-weather practice missions. Dice region settings can include CONUS, OCONUS, or both.
 
 ## NOTAMs
 

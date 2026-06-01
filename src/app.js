@@ -11,11 +11,13 @@ const appDefaultMission = {
   departure: "KMCF",
   destination: "KMCF",
   alternates: defaultAlternates,
-  diceRegions: { conus: true, oconus: true }
+  diceRegions: { conus: true, oconus: true },
+  assistDefault: true
 };
 const missionDefaultsStorageKey = "alternateWatchMissionDefaults";
 const airfieldHistoryStorageKey = "alternateWatchAirfieldHistory";
 let nowReferenceTimer = null;
+let globalAssistEnabled = true;
 const randomMissionFields = [
   "KMCF", "KTPA", "KCOF", "KHST", "KPAM", "KVPS", "KWRB", "KCHS", "KBHM", "KMEI", "KGSB",
   "KDOV", "KILM", "KRIC", "KJFK", "KBOS", "KORD", "KDEN", "KSEA", "KSFO", "PHNL",
@@ -173,6 +175,7 @@ function init() {
   document.querySelector("#visibility-table-close").addEventListener("click", closeVisibilityTable);
   document.querySelector("#wind-table-close").addEventListener("click", closeWindTable);
   setupDiceRegionToggles();
+  setupAssistDefaultToggles();
   setupDefaultsKeyboardFlow();
   setupAirfieldSearch();
   resetPracticeWeatherButton();
@@ -185,7 +188,6 @@ function init() {
     setAllCardsOpen(false);
     event.currentTarget.blur();
   });
-  banner.addEventListener("click", scrollToHighestPriorityItem);
   filterButtons.forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -199,13 +201,14 @@ function init() {
       window.requestAnimationFrame(() => window.scrollTo(0, scrollY));
     });
   });
-  document.querySelectorAll("button, .decision-banner[role='button']").forEach((element) => {
+  document.querySelectorAll("button").forEach((element) => {
     element.addEventListener("click", addTapFeedback);
   });
   banner.addEventListener("click", handleSummaryIssueClick);
   banner.addEventListener("keydown", handleSummaryIssueKeydown);
   cards.addEventListener("click", handleWeatherSourceClick);
   cards.addEventListener("keydown", handleWeatherSourceKeydown);
+  cards.addEventListener("click", handleAssistToggle);
   cards.addEventListener("click", handleTafEvalClick);
   cards.addEventListener("keydown", handleTafEvalKeydown);
   cards.addEventListener("click", handleTafValidityClick);
@@ -293,11 +296,18 @@ function setupBrandAnimation() {
   const title = document.querySelector("#app-title");
   const fireButton = document.querySelector("#brand-fire-button");
   if (!brandRow || !brandLink || !title) return;
+  let isBrandAnimating = false;
 
   const playBrandAnimation = () => {
+    if (isBrandAnimating) return;
+    isBrandAnimating = true;
     brandRow.classList.remove("brand-animate");
     void brandRow.offsetWidth;
     brandRow.classList.add("brand-animate");
+    window.setTimeout(() => {
+      isBrandAnimating = false;
+      brandRow.classList.remove("brand-animate");
+    }, 1050);
   };
 
   brandLink.addEventListener("mouseenter", playBrandAnimation);
@@ -768,28 +778,27 @@ function renderDecisionBanner(referenceDate = new Date()) {
   const itemMarkup = items.map((item) => `
     <div class="summary-issue">
       <span class="summary-icao" role="button" tabindex="0" data-summary-icao="${escapeHtml(item.icao)}">${escapeHtml(item.icao)}</span>
-      ${item.chips.map((chip) => renderIssueChip(chip, item.icao)).join("")}
+      ${item.chips.map((chip) => renderIssueChip(markAssistChip(chip), item.icao)).join("")}
     </div>
   `).join("");
 
   return `
-    <p class="decision-label">${latestEvaluation.summary.status === "green" ? "Watch Item" : latestEvaluation.summary.label}</p>
+    <p class="decision-label">${globalAssistEnabled ? (latestEvaluation.summary.status === "green" ? "Watch Item" : latestEvaluation.summary.label) : "Review Items"}${globalAssistEnabled ? "" : ` <span class="assist-off-pill">Assist Off</span>`}</p>
     <div class="summary-issues">${itemMarkup}</div>
+    <button type="button" class="assist-toggle summary-assist-toggle${globalAssistEnabled ? " active" : ""}" data-summary-assist-toggle="true" aria-pressed="${globalAssistEnabled ? "true" : "false"}" aria-label="Toggle all weather assist highlights" title="Toggle all weather assist highlights">✦</button>
   `;
 }
 
 function updateDecisionBanner(referenceDate = new Date()) {
   if (!latestEvaluation) return;
   const status = getDecisionBannerStatus(referenceDate);
-  banner.className = `decision-banner status-${status}`;
+  banner.className = `decision-banner status-${status}${globalAssistEnabled ? "" : " assist-off"}`;
   banner.dataset.status = status;
-  banner.tabIndex = status === "green" ? -1 : 0;
-  banner.setAttribute("role", status === "green" ? "status" : "button");
+  banner.tabIndex = -1;
+  banner.setAttribute("role", "status");
   banner.setAttribute(
     "aria-label",
-    status === "green"
-      ? "Mission summary"
-      : `Mission summary. Click to jump to first ${status} item.`
+    "Mission summary"
   );
   banner.innerHTML = renderDecisionBanner(referenceDate);
 }
@@ -868,6 +877,12 @@ function addTapFeedback(event) {
 }
 
 function handleSummaryIssueClick(event) {
+  const assist = event.target.closest("[data-summary-assist-toggle]");
+  if (assist) {
+    event.stopPropagation();
+    toggleGlobalAssist();
+    return;
+  }
   const icao = event.target.closest("[data-summary-icao]");
   if (icao) {
     event.stopPropagation();
@@ -881,6 +896,12 @@ function handleSummaryIssueClick(event) {
 }
 
 function handleSummaryIssueKeydown(event) {
+  const assist = event.target.closest("[data-summary-assist-toggle]");
+  if (assist && ["Enter", " "].includes(event.key)) {
+    event.preventDefault();
+    toggleGlobalAssist();
+    return;
+  }
   const icao = event.target.closest("[data-summary-icao]");
   if (icao && ["Enter", " "].includes(event.key)) {
     event.preventDefault();
@@ -891,6 +912,17 @@ function handleSummaryIssueKeydown(event) {
   if (!chip || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
   scrollToIssue(chip.dataset.issueIcao, chip.dataset.issueLabel, chip.dataset.issueStatus);
+}
+
+function toggleGlobalAssist() {
+  globalAssistEnabled = !globalAssistEnabled;
+  document.querySelectorAll(".result-card").forEach((card) => {
+    card.classList.toggle("assist-off", !globalAssistEnabled);
+    const button = card.querySelector("[data-assist-toggle]");
+    button?.classList.toggle("active", globalAssistEnabled);
+    button?.setAttribute("aria-pressed", String(globalAssistEnabled));
+  });
+  updateDecisionBanner();
 }
 
 function scrollToAirfieldCard(icao) {
@@ -969,6 +1001,19 @@ function handleWeatherSourceKeydown(event) {
   if (!tile || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
   jumpToWeatherSource(tile);
+}
+
+function handleAssistToggle(event) {
+  const button = event.target.closest("[data-assist-toggle]");
+  if (!button) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const card = button.closest(".result-card");
+  if (!card) return;
+  const enabled = card.classList.toggle("assist-off") === false;
+  button.classList.toggle("active", enabled);
+  button.setAttribute("aria-pressed", String(enabled));
+  button.blur();
 }
 
 function jumpToWeatherSource(tile) {
@@ -1347,7 +1392,8 @@ function normalizeMissionDefaults(defaults) {
     departure: normalizeIcao(defaults.departure || appDefaultMission.departure) || appDefaultMission.departure,
     destination: normalizeIcao(defaults.destination || appDefaultMission.destination) || appDefaultMission.destination,
     alternates: normalizeAlternates(defaults.alternates || appDefaultMission.alternates) || appDefaultMission.alternates,
-    diceRegions: normalizeDiceRegions(defaults.diceRegions)
+    diceRegions: normalizeDiceRegions(defaults.diceRegions),
+    assistDefault: defaults.assistDefault !== false
   };
 }
 
@@ -1375,6 +1421,7 @@ function populateDefaultsPanel(defaults) {
   document.querySelector("#default-alternates").value = normalized.alternates;
   updateDefaultAlternatesCount();
   setDiceRegionButtons(normalized.diceRegions);
+  setAssistDefaultButtons(normalized.assistDefault);
 }
 
 function populateDefaultsFromCurrent() {
@@ -1382,7 +1429,8 @@ function populateDefaultsFromCurrent() {
     departure: document.querySelector("#departure").value,
     destination: document.querySelector("#destination").value,
     alternates: document.querySelector("#alternates").value,
-    diceRegions: getDiceRegionsFromButtons()
+    diceRegions: getDiceRegionsFromButtons(),
+    assistDefault: getAssistDefaultFromButtons()
   });
 }
 
@@ -1395,7 +1443,8 @@ function saveDefaultsFromPanel() {
     departure: document.querySelector("#default-departure").value,
     destination: document.querySelector("#default-destination").value,
     alternates: document.querySelector("#default-alternates").value,
-    diceRegions: getDiceRegionsFromButtons()
+    diceRegions: getDiceRegionsFromButtons(),
+    assistDefault: getAssistDefaultFromButtons()
   });
   try {
     localStorage.setItem(missionDefaultsStorageKey, JSON.stringify(defaults));
@@ -1407,6 +1456,25 @@ function saveDefaultsFromPanel() {
   document.querySelector("#alternates").value = defaults.alternates;
   updateAlternatesCount();
   closeDefaultsPanel();
+}
+
+function setupAssistDefaultToggles() {
+  document.querySelector("#assist-default-toggle")?.addEventListener("click", () => {
+    setAssistDefaultButtons(!getAssistDefaultFromButtons());
+  });
+}
+
+function getAssistDefaultFromButtons() {
+  return document.querySelector("#assist-default-toggle")?.getAttribute("aria-pressed") !== "false";
+}
+
+function setAssistDefaultButtons(enabled) {
+  const button = document.querySelector("#assist-default-toggle");
+  if (!button) return;
+  const stateText = enabled ? "on" : "off";
+  button.setAttribute("aria-pressed", String(enabled));
+  button.setAttribute("aria-label", `SIMBA assist default ${stateText}`);
+  button.title = `SIMBA assist default ${stateText}`;
 }
 
 function setupDiceRegionToggles() {
@@ -1869,6 +1937,7 @@ function formatZuluFromIso(value) {
 
 function renderCard(result) {
   const cardStatus = result.cardStatus || result.status;
+  const assistEnabled = getMissionDefaults().assistDefault !== false && globalAssistEnabled;
   const wxSource = rulesMetadata.weatherSource === "AWC" ? "AWC" : rulesMetadata.weatherSource === "Practice" ? "Practice" : "!";
   const taf = result.tafRaw
     ? `<div class="taf-line">${renderHighlightedTaf(result)}</div>`
@@ -1883,7 +1952,7 @@ function renderCard(result) {
     ...(result.chips || [{ label: "NO ISSUES", status: "green" }]),
     ...getLiveTafTimeChips(result),
     ...getWeatherProductChips(result)
-  ];
+  ].map(markAssistChip);
   const chips = `<div class="issue-chips">${cardChips.map(renderIssueChip).join("")}</div>`;
   const period = result.period
     ? `
@@ -1896,7 +1965,7 @@ function renderCard(result) {
     : `<p class="raw-line">${result.tafRaw ? "Selected time is outside this TAF valid window." : "No TAF available from AWC for this airfield."}</p>`;
 
   return `
-    <article class="result-card status-${cardStatus}" data-icao="${result.icao}" data-rule-status="${result.status}">
+    <article class="result-card status-${cardStatus}${assistEnabled ? "" : " assist-off"}" data-icao="${result.icao}" data-rule-status="${result.status}">
       <details class="card-disclosure">
         <summary>
           <div class="card-header">
@@ -1916,7 +1985,10 @@ function renderCard(result) {
             </div>
           </div>
           ${chips}
-          <span class="expand-toggle" aria-hidden="true"></span>
+          <span class="card-actions">
+            <button type="button" class="assist-toggle${assistEnabled ? " active" : ""}" data-assist-toggle="true" aria-pressed="${assistEnabled ? "true" : "false"}" aria-label="Toggle weather assist highlights" title="Weather assist highlights">✦</button>
+            <span class="expand-toggle" aria-hidden="true"></span>
+          </span>
         </summary>
         <div class="card-expanded">
           ${period}
@@ -1995,6 +2067,12 @@ function renderIssueChip(chip, icao = "") {
   return `<span class="issue-chip chip-${chip.status}${extraClass}"${attrs}>${escapeHtml(chip.label)}</span>`;
 }
 
+function markAssistChip(chip) {
+  const assistLabels = new Set(["WX !", "LOW CEILING", "LOW VIS", "HIGH WIND", "NO ISSUES"]);
+  if (!assistLabels.has(String(chip.label || "").toUpperCase())) return chip;
+  return { ...chip, className: [chip.className, "assist-chip"].filter(Boolean).join(" ") };
+}
+
 function renderWeatherSourceTile(kind, label, value, result) {
   const status = result.weatherImpacts?.[kind] || "green";
   const sourceKey = encodeTafKey(getWeatherSourceRaw(kind, result.period) || result.period?.raw || "");
@@ -2025,7 +2103,7 @@ function getLiveTafTimeChips(result, referenceDate = new Date()) {
   if (!result.tafRaw || result.chips?.some((chip) => chip.label === "TAF TIME")) return [];
   const state = getTafValidityState(result.tafRaw, referenceDate);
   if (!state || state.status === "current") return [];
-  return [{ label: "TAF TIME", status: state.status === "expired" ? "red" : "yellow", className: "live-taf-time-chip" }];
+  return [{ label: "TAF TIME", status: state.status === "expired" ? "red" : "yellow", className: "live-taf-time-chip assist-chip" }];
 }
 
 function renderDataAgeBadge(pulledAtValue) {
@@ -2483,7 +2561,7 @@ function decodeTafLine(line) {
 
   const visibility = decodeVisibilityToken(tokens);
   if (visibility) items.push({ label: "Visibility", value: visibility });
-  if (tokens.includes("CAVOK")) items.push({ label: "Conditions", value: "Ceiling and visibility OK: visibility 10 km or more, no significant weather, and no significant cloud below criteria." });
+  if (tokens.includes("CAVOK")) items.push({ label: "Conditions", value: "Ceiling And Visibility OK: visibility 10 km or more, no significant weather, and no significant cloud below criteria." });
 
   const weather = decodeWeatherTokens(tokens);
   if (weather.length) items.push({ label: "Weather", value: joinDecodedPhrases(weather) });
@@ -2518,7 +2596,7 @@ function decodeMetarLine(line) {
 
   const visibility = decodeVisibilityToken(tokens);
   if (visibility) items.push({ label: "Visibility", value: visibility });
-  if (tokens.includes("CAVOK")) items.push({ label: "Conditions", value: "Ceiling and visibility OK: visibility 10 km or more, no significant weather, and no significant cloud below criteria." });
+  if (tokens.includes("CAVOK")) items.push({ label: "Conditions", value: "Ceiling And Visibility OK: visibility 10 km or more, no significant weather, and no significant cloud below criteria." });
 
   const rvr = decodeRvrTokens(tokens);
   if (rvr.length) items.push({ label: "Runway Visibility", value: rvr.join("; ") });
@@ -2760,7 +2838,7 @@ function decodeVisibilityToken(tokens) {
   if (token && directional) return `${decodeMetersVisibility(token)} Directional visibility ${decodeDirectionalVisibility(directional)}`;
   if (directional) return `Directional visibility ${decodeDirectionalVisibility(directional)}`;
   if (token === "P6SM") return "Greater than 6 SM.";
-  if (token === "CAVOK") return "CAVOK: visibility 10 km or more; no significant weather; no significant cloud below criteria.";
+  if (token === "CAVOK") return "CAVOK: Ceiling And Visibility OK; visibility 10 km or more; no significant weather; no significant cloud below criteria.";
   if (/^\d{4}$/.test(token)) return decodeMetersVisibility(token);
   if (token.startsWith("M")) return `Less than ${token.replace("M", "").replace("SM", "")} SM.`;
   return `${token.replace("SM", "")} SM.`;
