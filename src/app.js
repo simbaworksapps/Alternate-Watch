@@ -583,17 +583,17 @@ async function generatePracticeWeatherMission() {
     if (selected.count > 0) {
       missionDataOverride = null;
       lastLiveRedPractice = selected;
-      missionNotice = selected.count === 3 ? "" : `Only found ${selected.count}/3 red-weather fields.`;
+      missionNotice = selected.count === 3 ? "" : `RED WX FOUND: ${selected.count}/3`;
     } else if (lastLiveRedPractice) {
       selected = lastLiveRedPractice;
       missionDataOverride = null;
-      missionNotice = "Last red-weather practice reused.";
+      missionNotice = "RED WX: LAST LIVE SET";
     } else {
       const practiceData = getRedPracticeMissionData();
       selected = findRedPracticeSelection(practiceData, takeoff, landing, Object.keys(practiceData.airports));
       selected.sample = true;
       missionDataOverride = practiceData;
-      missionNotice = "Sample red-weather practice loaded.";
+      missionNotice = "RED WX: SAMPLE SET";
     }
 
     pushScenarioHistory(previousInputs);
@@ -815,7 +815,7 @@ async function runCodeHunt(target) {
     if (!selectedMatches.length) {
       setSubmitButtonStatus("unable");
       settleCodeHuntButton();
-      missionNotice = `No live ${target.label} examples found.`;
+      missionNotice = `${target.label} NOT FOUND`;
       return;
     }
 
@@ -826,9 +826,9 @@ async function runCodeHunt(target) {
     activeCodeHunt = buildActiveCodeHunt(target, selectedMatches, outsideWindowFallback);
     if (outsideWindowFallback) {
       lockAssistForOutsideWindowCodeHunt(target.label);
-      missionNotice = `Code hunt: ${target.label} found outside selected window; assist disabled.`;
+      missionNotice = `${target.label} FOUND: OUTSIDE WINDOW; ASSIST OFF`;
     } else {
-      missionNotice = `Code hunt: ${target.label} found in ${selected.foundInLabel} (${foundCount}/3).`;
+      missionNotice = `${target.label} FOUND: ${selected.foundInLabel} (${foundCount}/3)`;
     }
     applyMissionFields(selected.departure, selected.destination, [selected.alternate], takeoff, landing);
     await render({ showSubmitFeedback: false, preserveButtonMessage: true });
@@ -930,10 +930,24 @@ function selectCodeHuntMission(matches) {
 
 function formatCodeHuntFoundIn(matches) {
   const labels = [...new Set(matches.flatMap((match) => match.foundIn || []))];
-  if (!labels.length) return "METAR/TAF";
-  if (labels.length === 1) return labels[0];
-  if (labels.includes("METAR") && labels.some((label) => label.includes("TAF"))) return "METAR and TAF window";
-  return labels.join(" and ");
+  const groups = [
+    {
+      prefix: "T/O",
+      values: [
+        labels.includes("T/O METAR window") ? "METAR" : "",
+        labels.includes("T/O TAF window") ? "TAF" : ""
+      ].filter(Boolean)
+    },
+    {
+      prefix: "LND",
+      values: [
+        labels.includes("LND METAR window") ? "METAR" : "",
+        labels.includes("LND TAF window") ? "TAF" : ""
+      ].filter(Boolean)
+    }
+  ].filter((group) => group.values.length);
+  if (!groups.length) return "METAR/TAF";
+  return groups.map((group) => `${group.prefix} ${group.values.join(" & ")}`).join(", ");
 }
 
 function getRawInputValues() {
@@ -1346,6 +1360,7 @@ function toggleGlobalAssist() {
 
 function clearAssistLock() {
   assistLockedOff = false;
+  globalAssistEnabled = getMissionDefaults().assistDefault !== false;
   closeAssistLockPanel();
 }
 
@@ -1356,7 +1371,7 @@ function clearCodeHunt() {
 function lockAssistForOutsideWindowCodeHunt(label = "selected code") {
   assistLockedOff = true;
   globalAssistEnabled = false;
-  const message = `Could not find ${label} inside the specified takeoff/landing window. An outside-window METAR/TAF example was loaded, so SIMBA Assist was disabled.`;
+  const message = `${label} not found in selected window. Outside-window example loaded; SIMBA Assist disabled.`;
   const messageElement = document.querySelector("#assist-lock-message");
   if (messageElement) messageElement.textContent = message;
 }
@@ -3060,7 +3075,7 @@ function renderTafSourceTokens(line, allowHuntHighlight = true) {
     .map((part) => {
       if (/^\s+$/.test(part)) return part;
       const classes = getTafSourceTokenClasses(part);
-      if (allowHuntHighlight && isCodeHuntToken(part) && !getCodeHuntLiteral()) classes.push("hunt-search-token");
+      if (allowHuntHighlight && isCodeHuntToken(part) && !getCodeHuntLiteralForToken(part)) classes.push("hunt-search-token");
       const token = renderCodeHuntTokenText(part, allowHuntHighlight);
       return classes.length
         ? `<span class="${classes.join(" ")}">${token}</span>`
@@ -3071,7 +3086,7 @@ function renderTafSourceTokens(line, allowHuntHighlight = true) {
 
 function renderCodeHuntTokenText(part, allowHuntHighlight = true) {
   if (!allowHuntHighlight || !isCodeHuntToken(part)) return escapeHtml(part);
-  const literal = getCodeHuntLiteral();
+  const literal = getCodeHuntLiteralForToken(part);
   if (!literal) return escapeHtml(part);
   const text = String(part);
   const index = text.toUpperCase().indexOf(literal);
@@ -3083,15 +3098,38 @@ function renderCodeHuntTokenText(part, allowHuntHighlight = true) {
   ].join("");
 }
 
-function getCodeHuntLiteral() {
-  if (!activeCodeHunt) return "";
-  if (activeCodeHunt.id === "tsra") return "TSRA";
-  return "";
+function getCodeHuntLiteralForToken(part) {
+  if (!activeCodeHunt || !part) return "";
+  const token = String(part).toUpperCase();
+  return getCodeHuntLiterals()
+    .filter((literal) => token.includes(literal))
+    .sort((left, right) => right.length - left.length)[0] || "";
+}
+
+function getCodeHuntLiterals() {
+  if (!activeCodeHunt) return [];
+  const explicitLiterals = {
+    blowing: ["BLDU", "BLSN", "BLSA"],
+    dustsand: ["DS", "SS"],
+    dz: ["FZDZ", "DZ"],
+    fog: ["MIFG", "PRFG", "BCFG", "FZFG", "FG", "BR"],
+    fz: ["FZRA", "FZDZ", "FZFG"],
+    hail: ["GR", "GS"],
+    hazesmoke: ["HZ", "FU", "DU", "SA"],
+    recent: ["RESHRA", "RESHSN", "RERA", "RESN", "RETS", "REDZ", "REFG", "REGR", "REGS"],
+    sq: ["SQ"],
+    tsra: ["TSRA", "TS"],
+    up: ["UP"],
+    vc: ["VCSH", "VCTS", "VCFG", "VCRA", "VCSN"]
+  };
+  return explicitLiterals[activeCodeHunt.id] || [];
 }
 
 function isCodeHuntToken(part) {
   if (!activeCodeHunt || !part || /^\s+$/.test(part)) return false;
   const token = String(part).toUpperCase();
+  const literal = getCodeHuntLiteralForToken(part);
+  if (literal && token.includes(literal)) return true;
   if (codeHuntTextMatches(activeCodeHunt, token)) return true;
   const phraseTokens = {
     "becmgtempo": ["BECMG", "TEMPO"],
@@ -3163,7 +3201,7 @@ function renderMetarSourceTokens(metar) {
     .map((part) => {
       if (/^\s+$/.test(part)) return part;
       const token = renderCodeHuntTokenText(part);
-      const huntClass = isCodeHuntToken(part) && !getCodeHuntLiteral() ? " hunt-search-token" : "";
+      const huntClass = isCodeHuntToken(part) && !getCodeHuntLiteralForToken(part) ? " hunt-search-token" : "";
       return /^\d{6}Z$/.test(part)
         ? `<span class="metar-source-time${huntClass}">${token}</span>`
         : token;
@@ -4071,10 +4109,12 @@ function getFlightDurationState(takeoffValue, landingValue, referenceDate = new 
   if (!takeoffValue || !landingValue) return { label: "--", status: "" };
   const takeoff = new Date(buildZuluDateTimeIso(takeoffValue));
   const landing = new Date(buildZuluDateTimeIso(landingValue));
+  if (Number.isNaN(takeoff.getTime()) || Number.isNaN(landing.getTime())) return { label: "--", status: "bad" };
   const rawDurationMinutes = Math.round((landing.getTime() - takeoff.getTime()) / 60000);
+  if (rawDurationMinutes < 0) return { label: "PAST", status: "bad" };
   const durationMinutes = Math.abs(rawDurationMinutes);
-  const label = `${rawDurationMinutes < 0 ? "-" : ""}${formatDurationMinutes(durationMinutes)}`;
-  const status = rawDurationMinutes < 0 || landing.getTime() < referenceDate.getTime() ? "bad" : "good";
+  const label = formatDurationMinutes(durationMinutes);
+  const status = landing.getTime() < referenceDate.getTime() ? "bad" : "good";
   return { label, status };
 }
 
