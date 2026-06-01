@@ -103,6 +103,7 @@
               <li><span class="guide-symbol compass-icon" aria-hidden="true"></span><span>Guidebook and trigger-point logic.</span></li>
               <li><span class="guide-glyph" aria-hidden="true">&#9881;</span><span>Set the saved departure, destination, and alternates used by refresh.</span></li>
               <li><span class="guide-glyph" aria-hidden="true">&#10022;</span><span>SIMBA assist. When off, weather answer colors, weather chips, and weather values are hidden so the user must evaluate the METAR and TAF.</span></li>
+              <li><span class="guide-glyph" aria-hidden="true">&#128207;</span><span>Open conversion tables for SM/KT equivalents when editing custom limits.</span></li>
               <li><span class="guide-glyph" aria-hidden="true">&#8623;</span><span>Clear mission fields.</span></li>
               <li><span class="guide-glyph" aria-hidden="true">&#10227;</span><span>Restore default mission fields.</span></li>
             </ul>
@@ -113,6 +114,8 @@
               <li>Yellow weather: ceiling at or below 2,500 ft AGL, visibility at or below 5 SM, or wind above 15 kt.</li>
               <li>Red wind chip: wind above 25 kt.</li>
               <li>Takeoff review: ceiling below 300 ft flags red; below 200 ft drives takeoff alternate review.</li>
+              <li>Limits can be customized in Defaults; red dice searches against the saved limits.</li>
+              <li>FACTORY LIMITS or CUSTOM LIMITS opens the active limits page.</li>
               <li>OCONUS departure or destination shows an OCONUS chip, but filters focus on weather-driven status.</li>
               <li>NOTAM feature currently unavailable.</li>
             </ul>
@@ -158,10 +161,80 @@
             <div class="assist-default-setting" aria-label="Weather assist default setting">
               <button type="button" class="secondary-button assist-default-toggle" id="assist-default-toggle" aria-pressed="true" aria-label="SIMBA assist default on" title="SIMBA assist default on"></button>
             </div>
+            <div class="limits-setting" aria-label="Custom weather limits">
+              <div class="limits-setting-header">
+                <h3>Limits</h3>
+                <p>Tap a tile to edit triggers.</p>
+              </div>
+              <div class="limits-tiles">
+                <button type="button" class="secondary-button limit-tile" data-limit-editor="ceiling" aria-label="Edit ceiling limits">
+                  <span class="limit-icon limit-cloud" aria-hidden="true"></span>
+                  <span>Ceiling</span>
+                  <strong id="limit-ceiling-summary">Y2500 R2000</strong>
+              </button>
+              <button type="button" class="secondary-button limit-tile" data-limit-editor="visibility" aria-label="Edit visibility limits">
+                <span class="limit-icon limit-eye" aria-hidden="true"></span>
+                <span>Visibility</span>
+                  <strong id="limit-visibility-summary">Y5 R3</strong>
+                </button>
+                <button type="button" class="secondary-button limit-tile" data-limit-editor="wind" aria-label="Edit wind limits">
+                  <span class="limit-icon limit-wind" aria-hidden="true"></span>
+                  <span>Wind</span>
+                  <strong id="limit-wind-summary">Y15 R25</strong>
+                </button>
+              </div>
+            </div>
             <div class="defaults-actions">
               <button type="button" class="secondary-button symbol-button copy-current-button" id="defaults-use-current" aria-label="Copy Current" title="Copy Current"><span class="copy-icon" aria-hidden="true"></span></button>
               <button type="button" class="secondary-button" id="defaults-factory">Factory</button>
               <button type="button" id="defaults-save">Save</button>
+            </div>
+          </section>
+
+          <section id="limits-panel" class="rulebook-panel limits-panel" hidden>
+            <div class="rulebook-header">
+              <h2>Limits</h2>
+              <button type="button" class="secondary-button rulebook-close" id="limits-close" aria-label="Close limits">X</button>
+            </div>
+            <p>Custom trigger values saved on this device.</p>
+            <div class="limits-editor-grid">
+              <label class="limit-field limit-yellow" aria-label="Ceiling yellow limit">
+                <span><span>Ceiling</span><span class="limit-unit">ft AGL</span></span>
+                <input id="limit-ceiling-yellow" type="number" inputmode="numeric" min="100" max="10000" step="100" />
+              </label>
+              <label class="limit-field limit-red" aria-label="Ceiling red limit">
+                <span><span>Ceiling</span><span class="limit-unit">ft AGL</span></span>
+                <input id="limit-ceiling-red" type="number" inputmode="numeric" min="100" max="10000" step="100" />
+              </label>
+              <label class="limit-field limit-red" aria-label="Takeoff red ceiling limit">
+                <span><span>Ceiling T/O</span><span class="limit-unit">ft AGL</span></span>
+                <input id="limit-takeoff-red" type="number" inputmode="numeric" min="100" max="1000" step="50" />
+              </label>
+              <label class="limit-field limit-red" aria-label="Takeoff alternate ceiling limit">
+                <span><span>T/O Alternate</span><span class="limit-unit">ft AGL</span></span>
+                <input id="limit-takeoff-alt" type="number" inputmode="numeric" min="50" max="1000" step="50" />
+              </label>
+              <label class="limit-field limit-yellow" aria-label="Visibility yellow limit">
+                <span><span>Vis</span><span class="limit-unit">SM</span><button type="button" class="conversion-table-button limit-ruler-button" data-limit-equivalent="visibility" aria-label="SM or meter equivalent table" title="SM or meter equivalent table"><span class="limit-ruler" aria-hidden="true"></span></button></span>
+                <input id="limit-visibility-yellow" type="number" inputmode="decimal" min="0.1" max="20" step="0.1" />
+              </label>
+              <label class="limit-field limit-red" aria-label="Visibility red limit">
+                <span><span>Vis</span><span class="limit-unit">SM</span><button type="button" class="conversion-table-button limit-ruler-button" data-limit-equivalent="visibility" aria-label="SM or meter equivalent table" title="SM or meter equivalent table"><span class="limit-ruler" aria-hidden="true"></span></button></span>
+                <input id="limit-visibility-red" type="number" inputmode="decimal" min="0.1" max="20" step="0.1" />
+              </label>
+              <label class="limit-field limit-yellow" aria-label="Wind yellow limit">
+                <span><span>Wind</span><span class="limit-unit">KT</span><button type="button" class="conversion-table-button limit-ruler-button" data-limit-equivalent="wind" aria-label="KT or meters-per-second equivalent table" title="KT or meters-per-second equivalent table"><span class="limit-ruler" aria-hidden="true"></span></button></span>
+                <input id="limit-wind-yellow" type="number" inputmode="numeric" min="1" max="150" step="1" />
+              </label>
+              <label class="limit-field limit-red" aria-label="Wind red limit">
+                <span><span>Wind</span><span class="limit-unit">KT</span><button type="button" class="conversion-table-button limit-ruler-button" data-limit-equivalent="wind" aria-label="KT or meters-per-second equivalent table" title="KT or meters-per-second equivalent table"><span class="limit-ruler" aria-hidden="true"></span></button></span>
+                <input id="limit-wind-red" type="number" inputmode="numeric" min="1" max="150" step="1" />
+              </label>
+            </div>
+            <p class="limits-note" id="limits-note">Red ceiling/visibility should be lower than yellow. Red wind should be higher than yellow.</p>
+            <div class="defaults-actions">
+              <button type="button" class="secondary-button" id="limits-factory">Factory Limits</button>
+              <button type="button" id="limits-apply">Apply</button>
             </div>
           </section>
 
@@ -187,7 +260,7 @@
               <h2>Visibility Table</h2>
               <button type="button" class="secondary-button rulebook-close" id="visibility-table-close" aria-label="Close visibility table">X</button>
             </div>
-            <p>Common meter-to-statute-mile references for decoding visibility.</p>
+            <p>SM limits also apply to the equivalent meter value when the METAR or TAF reports metric visibility.</p>
             <table class="conversion-table">
               <thead>
                 <tr><th>Meters</th><th>SM</th></tr>
@@ -212,7 +285,7 @@
               <h2>Wind Table</h2>
               <button type="button" class="secondary-button rulebook-close" id="wind-table-close" aria-label="Close wind table">X</button>
             </div>
-            <p>Common meters-per-second to knots references for decoding wind.</p>
+            <p>KT limits also apply to the equivalent meters-per-second value when the METAR or TAF reports metric wind.</p>
             <table class="conversion-table">
               <thead>
                 <tr><th>MPS</th><th>Knots</th></tr>

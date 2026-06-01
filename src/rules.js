@@ -1,4 +1,22 @@
 const STATUS_RANK = { green: 0, yellow: 1, red: 2 };
+const DEFAULT_RULE_LIMITS = {
+  ceiling: {
+    yellow: 2500,
+    red: 2000,
+    takeoffRed: 300,
+    takeoffAlternate: 200
+  },
+  visibility: {
+    yellow: 5,
+    red: 3
+  },
+  wind: {
+    yellow: 15,
+    red: 25
+  }
+};
+let activeRuleLimits = normalizeRuleLimits(DEFAULT_RULE_LIMITS);
+
 function evaluateMission(inputs, missionData) {
   const sourceIssuedAt = missionData.sourceIssuedAt || missionData.pulledAt;
   const departure = buildAirportResult(inputs.departure, "Departure", inputs.takeoffTime, missionData, "departure", sourceIssuedAt);
@@ -22,6 +40,53 @@ function evaluateMission(inputs, missionData) {
 }
 
 window.evaluateMission = evaluateMission;
+window.DEFAULT_RULE_LIMITS = DEFAULT_RULE_LIMITS;
+window.normalizeRuleLimits = normalizeRuleLimits;
+window.setActiveRuleLimits = (limits) => {
+  activeRuleLimits = normalizeRuleLimits(limits);
+};
+
+function normalizeRuleLimits(limits = {}) {
+  const merged = {
+    ceiling: { ...DEFAULT_RULE_LIMITS.ceiling, ...(limits.ceiling || {}) },
+    visibility: { ...DEFAULT_RULE_LIMITS.visibility, ...(limits.visibility || {}) },
+    wind: { ...DEFAULT_RULE_LIMITS.wind, ...(limits.wind || {}) }
+  };
+
+  const normalized = {
+    ceiling: {
+      yellow: clampNumber(merged.ceiling.yellow, 100, 10000, DEFAULT_RULE_LIMITS.ceiling.yellow),
+      red: clampNumber(merged.ceiling.red, 100, 10000, DEFAULT_RULE_LIMITS.ceiling.red),
+      takeoffRed: clampNumber(merged.ceiling.takeoffRed, 100, 1000, DEFAULT_RULE_LIMITS.ceiling.takeoffRed),
+      takeoffAlternate: clampNumber(merged.ceiling.takeoffAlternate, 50, 1000, DEFAULT_RULE_LIMITS.ceiling.takeoffAlternate)
+    },
+    visibility: {
+      yellow: clampNumber(merged.visibility.yellow, 0.1, 20, DEFAULT_RULE_LIMITS.visibility.yellow),
+      red: clampNumber(merged.visibility.red, 0.1, 20, DEFAULT_RULE_LIMITS.visibility.red)
+    },
+    wind: {
+      yellow: clampNumber(merged.wind.yellow, 1, 150, DEFAULT_RULE_LIMITS.wind.yellow),
+      red: clampNumber(merged.wind.red, 1, 150, DEFAULT_RULE_LIMITS.wind.red)
+    }
+  };
+
+  if (normalized.ceiling.red >= normalized.ceiling.yellow) normalized.ceiling.red = Math.max(100, normalized.ceiling.yellow - 100);
+  if (normalized.ceiling.takeoffAlternate >= normalized.ceiling.takeoffRed) normalized.ceiling.takeoffAlternate = Math.max(50, normalized.ceiling.takeoffRed - 50);
+  if (normalized.visibility.red >= normalized.visibility.yellow) normalized.visibility.red = Math.max(0.1, roundLimit(normalized.visibility.yellow - 0.1));
+  if (normalized.wind.red <= normalized.wind.yellow) normalized.wind.red = normalized.wind.yellow + 1;
+
+  return normalized;
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, roundLimit(number)));
+}
+
+function roundLimit(value) {
+  return Math.round(Number(value) * 10) / 10;
+}
 
 function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulledAt) {
   const airport = missionData.airports[icao];
@@ -223,10 +288,11 @@ function evaluateWeather(period, ruleType, hasTaf = true) {
   }
 
   const windStatus = evaluateWind(period.wind);
+  const limits = activeRuleLimits;
   const thresholds = {
-    departure: { redCeiling: 200, redVisibility: 3, yellowCeiling: 300, yellowVisibility: 5, redChipCeiling: 300 },
-    destination: { redCeiling: 2000, redVisibility: 3, yellowCeiling: 2500, yellowVisibility: 5 },
-    alternate: { redCeiling: 2000, redVisibility: 3, yellowCeiling: 2500, yellowVisibility: 5 }
+    departure: { redCeiling: limits.ceiling.takeoffAlternate, redVisibility: limits.visibility.red, yellowCeiling: limits.ceiling.takeoffRed, yellowVisibility: limits.visibility.yellow, redChipCeiling: limits.ceiling.takeoffRed },
+    destination: { redCeiling: limits.ceiling.red, redVisibility: limits.visibility.red, yellowCeiling: limits.ceiling.yellow, yellowVisibility: limits.visibility.yellow },
+    alternate: { redCeiling: limits.ceiling.red, redVisibility: limits.visibility.red, yellowCeiling: limits.ceiling.yellow, yellowVisibility: limits.visibility.yellow }
   }[ruleType];
 
   const ceilingFt = getCeilingFeet(period);
@@ -273,18 +339,19 @@ function formatVisibility(period) {
 
 function evaluateWind(wind) {
   const speed = getMaxWindSpeed(wind);
-  if (speed > 25) {
+  const limits = activeRuleLimits.wind;
+  if (speed > limits.red) {
     return {
       status: "red",
-      reason: `Forecast wind ${wind} exceeds 25 knots.`,
+      reason: `Forecast wind ${wind} exceeds ${limits.red} knots.`,
       impacts: { wind: "red" }
     };
   }
 
-  if (speed > 15) {
+  if (speed > limits.yellow) {
     return {
       status: "yellow",
-      reason: `Forecast wind ${wind} exceeds 15 knots.`,
+      reason: `Forecast wind ${wind} exceeds ${limits.yellow} knots.`,
       impacts: { wind: "yellow" }
     };
   }

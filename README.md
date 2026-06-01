@@ -18,6 +18,8 @@ This tool is for training and awareness only. It is not approved for operational
 - Highlights applicable TAF timing references with `T`, `L`, `ETA-1`, and `ETA+1`.
 - Lets users tap METAR and TAF lines to expand training decodes.
 - Supports SIMBA assist, which can show or hide weather answer colors/chips for training.
+- Supports custom weather limits saved on the device.
+- Shows whether the active run is using factory limits or custom limits.
 - Supports installable mobile PWA behavior.
 
 ## Default Alternates
@@ -28,7 +30,32 @@ The default alternate list is:
 KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI, KGSB
 ```
 
-Users can edit the list before checking a mission. The defaults panel can also save a preferred departure, destination, alternates list, dice region settings, and SIMBA assist default state on the device.
+Users can edit the list before checking a mission. The defaults panel can also save a preferred departure, destination, alternates list, dice region settings, SIMBA assist default state, and custom weather limits on the device.
+
+## Custom Limits
+
+The Defaults panel includes compact limit tiles for:
+
+- Ceiling
+- Visibility
+- Wind
+
+Users can tap a tile to edit the yellow and red trigger values saved on that device. Visibility and wind limits include a ruler button that opens a conversion table because the app treats SM/KT thresholds as applying to equivalent metric values when the METAR or TAF reports meters or meters per second.
+
+The Review Required or Review Items box shows either `FACTORY LIMITS` or `CUSTOM LIMITS`. Tapping that pill opens the active limits page so users can see exactly which thresholds are being applied.
+
+Factory limits are:
+
+```text
+Ceiling: yellow 2,500 ft AGL, red 2,000 ft AGL
+Takeoff ceiling: red 300 ft AGL, takeoff alternate 200 ft AGL
+Visibility: yellow 5 SM, red 3 SM
+Wind: yellow above 15 kt, red above 25 kt
+```
+
+Custom limits affect normal mission checks and red-dice bad-weather practice searches. If a user raises red wind to `50 kt`, the red dice searches for airfields that are red using that saved `50 kt` trigger.
+
+The app corrects invalid limit combinations before saving, such as red wind being lower than yellow wind or red visibility being higher than yellow visibility.
 
 ## How To Use
 
@@ -53,6 +80,7 @@ In assist-off mode:
 
 - Review Required changes to `Review Items`.
 - An `Assist Off` pill appears.
+- The `FACTORY LIMITS` or `CUSTOM LIMITS` pill remains available so users can review the thresholds without revealing the weather answers.
 - RED/YEL/GRN counts are hidden to avoid giving away the answer.
 - Card borders and status pills go neutral.
 
@@ -81,7 +109,7 @@ Cards and chips use three colors when assist is on:
 - Yellow: approaching a threshold.
 - Red: exceeds a critical threshold or requires attention.
 
-Current prototype weather logic:
+Factory weather logic:
 
 - Ceiling below `2,000 ft AGL` is red.
 - Ceiling at or below `2,500 ft AGL` is yellow.
@@ -97,6 +125,8 @@ Ceiling uses the lowest `BKN`, `OVC`, or `VV` layer. For example, `VV002` is tre
 `TEMPO` lines override the weather elements they state. If a `TEMPO` line changes visibility or wind but does not state a ceiling, the app keeps the underlying prevailing ceiling for that ceiling value.
 
 `BECMG` lines are handled as transition periods. During the transition window, the app considers the previous/underlying condition and the becoming condition so the worst applicable value is not missed.
+
+If custom limits are saved, the same logic is applied using those custom thresholds instead of the factory thresholds.
 
 ## OCONUS Logic
 
@@ -136,7 +166,9 @@ If a token cannot be decoded, the app lists it in a `Not Decoded` section instea
 
 The airfield search uses the included offline airport search file. If an airport is not listed, users can still type a valid ICAO directly into the field and run the mission.
 
-The white dice generates a random practice mission. The red dice searches for bad-weather practice missions. Dice region settings can include CONUS, OCONUS, or both.
+The white dice generates a random practice mission. The red dice searches for bad-weather practice missions that evaluate red using the active saved limits. Dice region settings can include CONUS, OCONUS, or both.
+
+If the red dice cannot find three live red-weather fields quickly enough, the app reports what it found and may use sample fields for practice continuity.
 
 ## NOTAMs
 

@@ -12,7 +12,8 @@ const appDefaultMission = {
   destination: "KMCF",
   alternates: defaultAlternates,
   diceRegions: { conus: true, oconus: true },
-  assistDefault: true
+  assistDefault: true,
+  limits: getFactoryRuleLimits()
 };
 const missionDefaultsStorageKey = "alternateWatchMissionDefaults";
 const airfieldHistoryStorageKey = "alternateWatchAirfieldHistory";
@@ -128,6 +129,7 @@ init();
 
 function init() {
   setDefaultTimes();
+  applyActiveRuleLimits(getMissionDefaults().limits);
   setupNowReference();
   setupBrandAnimation();
   registerServiceWorker();
@@ -166,14 +168,21 @@ function init() {
   document.querySelector("#defaults-use-current").addEventListener("click", populateDefaultsFromCurrent);
   document.querySelector("#defaults-factory").addEventListener("click", populateFactoryDefaults);
   document.querySelector("#defaults-save").addEventListener("click", saveDefaultsFromPanel);
+  setupLimitControls();
   document.querySelector("#flight-time-pill").addEventListener("click", toggleSortieDurationPanel);
   document.querySelector("#sortie-duration-close").addEventListener("click", closeSortieDurationPanel);
   document.querySelector("#sortie-duration-apply").addEventListener("click", applySortieDurationFromPanel);
   document.querySelector("#sortie-duration-plus-two").addEventListener("click", () => setSortieDurationPreset(120));
   document.querySelector("#sortie-duration-plus-four").addEventListener("click", () => setSortieDurationPreset(240));
   document.querySelector("#sortie-duration-input").addEventListener("keydown", handleSortieDurationKeydown);
-  document.querySelector("#visibility-table-close").addEventListener("click", closeVisibilityTable);
-  document.querySelector("#wind-table-close").addEventListener("click", closeWindTable);
+  document.querySelector("#visibility-table-close").addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeVisibilityTable();
+  });
+  document.querySelector("#wind-table-close").addEventListener("click", (event) => {
+    event.stopPropagation();
+    closeWindTable();
+  });
   setupDiceRegionToggles();
   setupAssistDefaultToggles();
   setupDefaultsKeyboardFlow();
@@ -225,6 +234,7 @@ function init() {
       closeVisibilityTable();
       closeWindTable();
       closeAirfieldSearch();
+      closeLimitsPanel();
     }
   });
   document.addEventListener("click", (event) => {
@@ -238,7 +248,18 @@ function init() {
       const toggle = document.querySelector("#defaults-toggle");
       const searchPanel = document.querySelector("#airfield-search-panel");
       const clickedSearchPanel = searchPanel && searchPanel.contains(event.target);
-      if (!panel.contains(event.target) && !toggle.contains(event.target) && !clickedSearchPanel) closeDefaultsPanel();
+      const limitsPanel = document.querySelector("#limits-panel");
+      const clickedLimitsPanel = limitsPanel && limitsPanel.contains(event.target);
+      const conversionPanel = getOpenConversionPanel();
+      const clickedConversionPanel = conversionPanel && conversionPanel.contains(event.target);
+      if (!panel.contains(event.target) && !toggle.contains(event.target) && !clickedSearchPanel && !clickedLimitsPanel && !clickedConversionPanel) closeDefaultsPanel();
+    }
+    if (document.body.classList.contains("limits-open")) {
+      const panel = document.querySelector("#limits-panel");
+      const clickedTrigger = event.target.closest("[data-limit-editor]");
+      const conversionPanel = getOpenConversionPanel();
+      const clickedConversionPanel = conversionPanel && conversionPanel.contains(event.target);
+      if (!panel.contains(event.target) && !clickedTrigger && !clickedConversionPanel) closeLimitsPanel();
     }
     if (document.body.classList.contains("sortie-duration-open")) {
       const panel = document.querySelector("#sortie-duration-panel");
@@ -704,6 +725,7 @@ async function render(options = false) {
     rulesMetadata.weatherSource = "Practice";
     missionDataOverride = null;
   }
+  applyActiveRuleLimits(getMissionDefaults().limits);
   latestEvaluation = evaluateMission(inputs, missionData);
 
   caoDate.textContent = `CAO ${formatCaoDate(rulesMetadata.caoDate)}`;
@@ -767,9 +789,10 @@ function updateFilterCounts() {
 function renderDecisionBanner(referenceDate = new Date()) {
   const status = getDecisionBannerStatus(referenceDate);
   const items = getDecisionBannerItems(referenceDate);
+  const limitModePill = renderLimitModePill();
   if (status === "green") {
     return `
-      <p class="decision-label">${latestEvaluation.summary.label}</p>
+      <p class="decision-label">${latestEvaluation.summary.label}${limitModePill}</p>
       <h2>${latestEvaluation.summary.headline}</h2>
       <p class="alternate-required">Alternate Required: <strong>${latestEvaluation.alternateRequired ? "Yes" : "No"}</strong></p>
     `;
@@ -783,10 +806,16 @@ function renderDecisionBanner(referenceDate = new Date()) {
   `).join("");
 
   return `
-    <p class="decision-label">${globalAssistEnabled ? (latestEvaluation.summary.status === "green" ? "Watch Item" : latestEvaluation.summary.label) : "Review Items"}${globalAssistEnabled ? "" : ` <span class="assist-off-pill">Assist Off</span>`}</p>
+    <p class="decision-label">${globalAssistEnabled ? (latestEvaluation.summary.status === "green" ? "Watch Item" : latestEvaluation.summary.label) : "Review Items"}${limitModePill}${globalAssistEnabled ? "" : ` <span class="assist-off-pill">Assist Off</span>`}</p>
     <div class="summary-issues">${itemMarkup}</div>
     <button type="button" class="assist-toggle summary-assist-toggle${globalAssistEnabled ? " active" : ""}" data-summary-assist-toggle="true" aria-pressed="${globalAssistEnabled ? "true" : "false"}" aria-label="Toggle all weather assist highlights" title="Toggle all weather assist highlights">✦</button>
   `;
+}
+
+function renderLimitModePill() {
+  const isCustom = areRuleLimitsCustom(getMissionDefaults().limits);
+  const label = isCustom ? "CUSTOM LIMITS" : "FACTORY LIMITS";
+  return ` <button type="button" class="limits-mode-pill${isCustom ? " custom" : ""}" data-summary-limits="true" aria-label="Show ${label.toLowerCase()}">${label}</button>`;
 }
 
 function updateDecisionBanner(referenceDate = new Date()) {
@@ -877,6 +906,12 @@ function addTapFeedback(event) {
 }
 
 function handleSummaryIssueClick(event) {
+  const limits = event.target.closest("[data-summary-limits]");
+  if (limits) {
+    event.stopPropagation();
+    openSystemLimitsFromSummary();
+    return;
+  }
   const assist = event.target.closest("[data-summary-assist-toggle]");
   if (assist) {
     event.stopPropagation();
@@ -896,6 +931,12 @@ function handleSummaryIssueClick(event) {
 }
 
 function handleSummaryIssueKeydown(event) {
+  const limits = event.target.closest("[data-summary-limits]");
+  if (limits && ["Enter", " "].includes(event.key)) {
+    event.preventDefault();
+    openSystemLimitsFromSummary();
+    return;
+  }
   const assist = event.target.closest("[data-summary-assist-toggle]");
   if (assist && ["Enter", " "].includes(event.key)) {
     event.preventDefault();
@@ -912,6 +953,13 @@ function handleSummaryIssueKeydown(event) {
   if (!chip || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
   scrollToIssue(chip.dataset.issueIcao, chip.dataset.issueLabel, chip.dataset.issueStatus);
+}
+
+function openSystemLimitsFromSummary() {
+  const limits = getMissionDefaults().limits;
+  setLimitsPanelValues(limits);
+  updateLimitSummaries(limits);
+  openLimitsPanel("ceiling");
 }
 
 function toggleGlobalAssist() {
@@ -1278,6 +1326,7 @@ function closeDefaultsPanel() {
   panel.hidden = true;
   button.setAttribute("aria-expanded", "false");
   document.body.classList.remove("defaults-open");
+  closeLimitsPanel();
 }
 
 function toggleSortieDurationPanel(event) {
@@ -1311,11 +1360,7 @@ function closeSortieDurationPanel() {
 }
 
 function openVisibilityTable() {
-  closeRulebook();
-  closeDefaultsPanel();
-  closeSortieDurationPanel();
   closeWindTable();
-  closeAirfieldSearch();
   const panel = document.querySelector("#visibility-table-panel");
   panel.hidden = false;
   document.body.classList.add("visibility-table-open");
@@ -1329,11 +1374,7 @@ function closeVisibilityTable() {
 }
 
 function openWindTable() {
-  closeRulebook();
-  closeDefaultsPanel();
-  closeSortieDurationPanel();
   closeVisibilityTable();
-  closeAirfieldSearch();
   const panel = document.querySelector("#wind-table-panel");
   panel.hidden = false;
   document.body.classList.add("wind-table-open");
@@ -1344,6 +1385,12 @@ function closeWindTable() {
   if (!panel) return;
   panel.hidden = true;
   document.body.classList.remove("wind-table-open");
+}
+
+function getOpenConversionPanel() {
+  if (document.body.classList.contains("visibility-table-open")) return document.querySelector("#visibility-table-panel");
+  if (document.body.classList.contains("wind-table-open")) return document.querySelector("#wind-table-panel");
+  return null;
 }
 
 function populateSortieDurationPanel() {
@@ -1393,8 +1440,29 @@ function normalizeMissionDefaults(defaults) {
     destination: normalizeIcao(defaults.destination || appDefaultMission.destination) || appDefaultMission.destination,
     alternates: normalizeAlternates(defaults.alternates || appDefaultMission.alternates) || appDefaultMission.alternates,
     diceRegions: normalizeDiceRegions(defaults.diceRegions),
-    assistDefault: defaults.assistDefault !== false
+    assistDefault: defaults.assistDefault !== false,
+    limits: normalizeRuleLimitDefaults(defaults.limits)
   };
+}
+
+function getFactoryRuleLimits() {
+  return JSON.parse(JSON.stringify(window.DEFAULT_RULE_LIMITS || {
+    ceiling: { yellow: 2500, red: 2000, takeoffRed: 300, takeoffAlternate: 200 },
+    visibility: { yellow: 5, red: 3 },
+    wind: { yellow: 15, red: 25 }
+  }));
+}
+
+function normalizeRuleLimitDefaults(limits) {
+  return window.normalizeRuleLimits ? window.normalizeRuleLimits(limits || getFactoryRuleLimits()) : getFactoryRuleLimits();
+}
+
+function areRuleLimitsCustom(limits) {
+  return JSON.stringify(normalizeRuleLimitDefaults(limits)) !== JSON.stringify(getFactoryRuleLimits());
+}
+
+function applyActiveRuleLimits(limits) {
+  window.setActiveRuleLimits?.(normalizeRuleLimitDefaults(limits));
 }
 
 function normalizeDiceRegions(regions) {
@@ -1422,6 +1490,8 @@ function populateDefaultsPanel(defaults) {
   updateDefaultAlternatesCount();
   setDiceRegionButtons(normalized.diceRegions);
   setAssistDefaultButtons(normalized.assistDefault);
+  setLimitsPanelValues(normalized.limits);
+  updateLimitSummaries(normalized.limits);
 }
 
 function populateDefaultsFromCurrent() {
@@ -1430,7 +1500,8 @@ function populateDefaultsFromCurrent() {
     destination: document.querySelector("#destination").value,
     alternates: document.querySelector("#alternates").value,
     diceRegions: getDiceRegionsFromButtons(),
-    assistDefault: getAssistDefaultFromButtons()
+    assistDefault: getAssistDefaultFromButtons(),
+    limits: getLimitsFromPanel()
   });
 }
 
@@ -1444,18 +1515,109 @@ function saveDefaultsFromPanel() {
     destination: document.querySelector("#default-destination").value,
     alternates: document.querySelector("#default-alternates").value,
     diceRegions: getDiceRegionsFromButtons(),
-    assistDefault: getAssistDefaultFromButtons()
+    assistDefault: getAssistDefaultFromButtons(),
+    limits: getLimitsFromPanel()
   });
   try {
     localStorage.setItem(missionDefaultsStorageKey, JSON.stringify(defaults));
   } catch (error) {
     // If storage is unavailable, still apply the values to the current form.
   }
+  applyActiveRuleLimits(defaults.limits);
   document.querySelector("#departure").value = defaults.departure;
   document.querySelector("#destination").value = defaults.destination;
   document.querySelector("#alternates").value = defaults.alternates;
   updateAlternatesCount();
   closeDefaultsPanel();
+}
+
+function setupLimitControls() {
+  document.querySelectorAll("[data-limit-editor]").forEach((button) => {
+    button.addEventListener("click", () => openLimitsPanel(button.dataset.limitEditor));
+  });
+  document.querySelector("#limits-close").addEventListener("click", closeLimitsPanel);
+  document.querySelector("#limits-apply").addEventListener("click", applyLimitsFromPanel);
+  document.querySelector("#limits-factory").addEventListener("click", () => {
+    const limits = getFactoryRuleLimits();
+    setLimitsPanelValues(limits);
+    updateLimitSummaries(limits);
+  });
+  document.querySelectorAll("[data-limit-equivalent]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (button.dataset.limitEquivalent === "wind") {
+        openWindTable();
+      } else {
+        openVisibilityTable();
+      }
+      button.blur();
+    });
+  });
+}
+
+function openLimitsPanel(section = "ceiling") {
+  const panel = document.querySelector("#limits-panel");
+  panel.hidden = false;
+  document.body.classList.add("limits-open");
+  const focusTarget = {
+    ceiling: "#limit-ceiling-yellow",
+    visibility: "#limit-visibility-yellow",
+    wind: "#limit-wind-yellow"
+  }[section] || "#limit-ceiling-yellow";
+  window.setTimeout(() => document.querySelector(focusTarget)?.focus(), 0);
+}
+
+function closeLimitsPanel() {
+  const panel = document.querySelector("#limits-panel");
+  if (!panel) return;
+  panel.hidden = true;
+  document.body.classList.remove("limits-open");
+}
+
+function applyLimitsFromPanel() {
+  const limits = getLimitsFromPanel();
+  setLimitsPanelValues(limits);
+  updateLimitSummaries(limits);
+  closeLimitsPanel();
+}
+
+function getLimitsFromPanel() {
+  return normalizeRuleLimitDefaults({
+    ceiling: {
+      yellow: document.querySelector("#limit-ceiling-yellow").value,
+      red: document.querySelector("#limit-ceiling-red").value,
+      takeoffRed: document.querySelector("#limit-takeoff-red").value,
+      takeoffAlternate: document.querySelector("#limit-takeoff-alt").value
+    },
+    visibility: {
+      yellow: document.querySelector("#limit-visibility-yellow").value,
+      red: document.querySelector("#limit-visibility-red").value
+    },
+    wind: {
+      yellow: document.querySelector("#limit-wind-yellow").value,
+      red: document.querySelector("#limit-wind-red").value
+    }
+  });
+}
+
+function setLimitsPanelValues(limits) {
+  const normalized = normalizeRuleLimitDefaults(limits);
+  document.querySelector("#limit-ceiling-yellow").value = normalized.ceiling.yellow;
+  document.querySelector("#limit-ceiling-red").value = normalized.ceiling.red;
+  document.querySelector("#limit-takeoff-red").value = normalized.ceiling.takeoffRed;
+  document.querySelector("#limit-takeoff-alt").value = normalized.ceiling.takeoffAlternate;
+  document.querySelector("#limit-visibility-yellow").value = normalized.visibility.yellow;
+  document.querySelector("#limit-visibility-red").value = normalized.visibility.red;
+  document.querySelector("#limit-wind-yellow").value = normalized.wind.yellow;
+  document.querySelector("#limit-wind-red").value = normalized.wind.red;
+}
+
+function updateLimitSummaries(limits) {
+  const normalized = normalizeRuleLimitDefaults(limits);
+  document.querySelector("#limit-ceiling-summary").textContent = `Y${normalized.ceiling.yellow} R${normalized.ceiling.red} ft AGL`;
+  document.querySelector("#limit-visibility-summary").textContent = `Y${normalized.visibility.yellow} R${normalized.visibility.red} SM`;
+  document.querySelector("#limit-wind-summary").textContent = `Y${normalized.wind.yellow} R${normalized.wind.red} KT`;
 }
 
 function setupAssistDefaultToggles() {
