@@ -219,6 +219,7 @@ function init() {
     await render(true);
   });
   setupZuluDateTimeControls();
+  setupMissionKeyboardFlow();
   setupAlternateListInput("#alternates", updateAlternatesCount);
   setupAlternateListInput("#default-alternates", updateDefaultAlternatesCount);
   document.querySelector("#takeoff-plus-one").addEventListener("click", () => {
@@ -1847,6 +1848,66 @@ function setupZuluDateTimeControls() {
   updateZuluDateTimeReadouts();
 }
 
+function setupMissionKeyboardFlow() {
+  const fields = getMissionInputFields();
+  fields.forEach((field, index) => {
+    field.setAttribute("enterkeyhint", index === fields.length - 1 ? "done" : "next");
+    field.addEventListener("focus", selectMissionInputText);
+    field.addEventListener("pointerdown", rememberMissionInputFocusState);
+    field.addEventListener("click", selectMissionInputTextAfterClick);
+    field.addEventListener("pointerup", handleMissionInputPointerUp);
+    field.addEventListener("keydown", handleMissionInputKeydown);
+  });
+}
+
+function getMissionInputFields() {
+  return ["#departure", "#destination", "#alternates"]
+    .map((selector) => document.querySelector(selector))
+    .filter(Boolean);
+}
+
+function selectMissionInputText(event) {
+  event.currentTarget.select?.();
+}
+
+function rememberMissionInputFocusState(event) {
+  event.currentTarget.dataset.wasFocusedBeforePointer = String(document.activeElement === event.currentTarget);
+}
+
+function selectMissionInputTextAfterClick(event) {
+  const field = event.currentTarget;
+  if (field.dataset.wasFocusedBeforePointer === "true") return;
+  window.setTimeout(() => field.select?.(), 0);
+}
+
+function handleMissionInputPointerUp(event) {
+  const field = event.currentTarget;
+  if (field.dataset.wasFocusedBeforePointer === "true") return;
+  if (document.activeElement !== field) return;
+  event.preventDefault();
+  field.select?.();
+}
+
+function handleMissionInputKeydown(event) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  event.stopPropagation();
+
+  const fields = getMissionInputFields();
+  const index = fields.indexOf(event.currentTarget);
+  if (index === -1) return;
+
+  if (index < fields.length - 1) {
+    fields[index + 1].focus();
+    fields[index + 1].select?.();
+    return;
+  }
+
+  formatAlternateListField(event.currentTarget, false);
+  updateAlternatesCount();
+  form.requestSubmit();
+}
+
 function setZuluDateTimeOffset(fieldId, hours) {
   const target = new Date(Date.now() + hours * 60 * 60 * 1000);
   document.querySelector(`#${fieldId}`).value = formatZuluDateTimeInput(target);
@@ -2124,6 +2185,10 @@ function setupLimitControls() {
   });
   document.querySelector("#limits-close").addEventListener("click", closeLimitsPanel);
   document.querySelector("#limits-apply").addEventListener("click", applyLimitsFromPanel);
+  getLimitInputFields().forEach((field, index, fields) => {
+    field.setAttribute("enterkeyhint", index === fields.length - 1 ? "done" : "next");
+    field.addEventListener("keydown", handleLimitInputKeydown);
+  });
   document.querySelector("#limits-factory").addEventListener("click", () => {
     const limits = getFactoryRuleLimits();
     setLimitsPanelValues(limits);
@@ -2141,6 +2206,40 @@ function setupLimitControls() {
       button.blur();
     });
   });
+}
+
+function getLimitInputFields() {
+  return [
+    "#limit-ceiling-yellow",
+    "#limit-ceiling-red",
+    "#limit-takeoff-red",
+    "#limit-takeoff-alt",
+    "#limit-visibility-yellow",
+    "#limit-visibility-red",
+    "#limit-wind-yellow",
+    "#limit-wind-red"
+  ]
+    .map((selector) => document.querySelector(selector))
+    .filter(Boolean);
+}
+
+function handleLimitInputKeydown(event) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  event.stopPropagation();
+
+  const fields = getLimitInputFields();
+  const index = fields.indexOf(event.currentTarget);
+  if (index === -1) return;
+
+  if (index < fields.length - 1) {
+    fields[index + 1].focus();
+    fields[index + 1].select?.();
+    return;
+  }
+
+  applyLimitsFromPanel();
+  document.querySelector("#defaults-panel")?.focus?.();
 }
 
 function openLimitsPanel(section = "ceiling") {
@@ -2576,18 +2675,32 @@ function parseAlternateList(value) {
 }
 
 function setupDefaultsKeyboardFlow() {
-  const fields = ["default-departure", "default-destination", "default-alternates"];
-  fields.forEach((fieldId, index) => {
-    document.querySelector(`#${fieldId}`).addEventListener("keydown", (event) => {
+  const fields = getDefaultMissionInputFields();
+  fields.forEach((field, index) => {
+    field.setAttribute("enterkeyhint", index === fields.length - 1 ? "done" : "next");
+    field.addEventListener("focus", selectMissionInputText);
+    field.addEventListener("pointerdown", rememberMissionInputFocusState);
+    field.addEventListener("click", selectMissionInputTextAfterClick);
+    field.addEventListener("pointerup", handleMissionInputPointerUp);
+    field.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();
       if (index < fields.length - 1) {
-        document.querySelector(`#${fields[index + 1]}`).focus();
+        fields[index + 1].focus();
+        fields[index + 1].select?.();
         return;
       }
+      formatAlternateListField(event.currentTarget, false);
+      updateDefaultAlternatesCount();
       saveDefaultsFromPanel();
     });
   });
+}
+
+function getDefaultMissionInputFields() {
+  return ["#default-departure", "#default-destination", "#default-alternates"]
+    .map((selector) => document.querySelector(selector))
+    .filter(Boolean);
 }
 
 function updateAlternatesCount() {
