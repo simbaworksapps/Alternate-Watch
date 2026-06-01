@@ -3453,11 +3453,11 @@ ul {
     align-items: start;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    position: relative;
+    position: static;
   }
 
   .airport-row {
-    padding-right: 74px;
+    padding-right: 82px;
   }
 
   .card-meta {

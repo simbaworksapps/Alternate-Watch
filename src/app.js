@@ -783,7 +783,14 @@ async function runCodeHunt(target) {
   setCodeHuntButtonSearching();
 
   try {
-    const { takeoff, landing } = getDiceMissionTimes();
+    const times = getCodeHuntMissionTimes();
+    if (!times.valid) {
+      showMissionInputError(times.message);
+      setSubmitButtonStatus("unable");
+      settleCodeHuntButton();
+      return;
+    }
+    const { takeoff, landing } = times;
     const pool = getDiceAirfieldPool();
     const scanFields = pickUnique(pool, pool.length);
     const found = [];
@@ -813,9 +820,10 @@ async function runCodeHunt(target) {
     const outsideWindowFallback = !found.length && outsideWindowFound.length > 0;
 
     if (!selectedMatches.length) {
+      missionNotice = `${target.label} NOT FOUND`;
+      updateMissionNoticeDisplay();
       setSubmitButtonStatus("unable");
       settleCodeHuntButton();
-      missionNotice = `${target.label} NOT FOUND`;
       return;
     }
 
@@ -839,6 +847,18 @@ async function runCodeHunt(target) {
     if (action.cancelled) resetCodeHuntButton();
     finishDiceAction(action);
   }
+}
+
+function getCodeHuntMissionTimes() {
+  const takeoff = parseZuluDateTimeInput(document.querySelector("#takeoffDateTime").value);
+  if (!takeoff) {
+    return { valid: false, message: "Enter a valid takeoff Zulu time before Code Hunt." };
+  }
+  const landing = parseZuluDateTimeInput(document.querySelector("#landingDateTime").value);
+  if (!landing) {
+    return { valid: false, message: "Enter a valid landing Zulu time before Code Hunt." };
+  }
+  return { valid: true, takeoff, landing };
 }
 
 function getCodeHuntMatch(target, airport, takeoff, landing, referenceValue = new Date()) {
@@ -889,13 +909,22 @@ function codeHuntTextMatches(target, text) {
 }
 
 function codeHuntPeriodsMatch(target, periods = [], targetTime, ruleType) {
-  return getCodeHuntApplicablePeriods(periods, targetTime, ruleType)
+  const applicablePeriods = getCodeHuntApplicablePeriods(periods, targetTime, ruleType);
+  if (codeHuntTextMatches(target, getCodeHuntPeriodSearchText(applicablePeriods))) return true;
+  return applicablePeriods
     .some((period) => codeHuntTextMatches(target, [
       period.raw,
       period.ceilingRaw,
       period.visibilityRaw,
       period.windRaw
     ].filter(Boolean).join(" ")));
+}
+
+function getCodeHuntPeriodSearchText(periods = []) {
+  return periods
+    .flatMap((period) => [period.raw, period.ceilingRaw, period.visibilityRaw, period.windRaw])
+    .filter(Boolean)
+    .join(" ");
 }
 
 function getCodeHuntApplicablePeriods(periods = [], targetTime, ruleType) {
@@ -1115,6 +1144,12 @@ async function render(options = false) {
   const renderOptions = typeof options === "boolean"
     ? { showSubmitFeedback: options, preserveButtonMessage: false }
     : { showSubmitFeedback: false, preserveButtonMessage: false, ...options };
+  const validation = validateMissionInputFields();
+  if (!validation.valid) {
+    showMissionInputError(validation.message);
+    setSubmitButtonStatus("unable");
+    return;
+  }
   const inputs = getInputs();
   if (!renderOptions.preserveButtonMessage) setSubmitButtonStatus("searching");
   const missionData = missionDataOverride || await getLiveMissionData(getRequestedIcaos(inputs));
@@ -1758,12 +1793,46 @@ function getInputs() {
     destination: normalizeIcao(document.querySelector("#destination").value),
     takeoffTime,
     landingTime,
-    alternates: document
-      .querySelector("#alternates")
-      .value.split(",")
-      .map(normalizeIcao)
-      .filter(Boolean)
+    alternates: parseAlternateList(document.querySelector("#alternates").value)
   };
+}
+
+function validateMissionInputFields() {
+  const takeoffValue = document.querySelector("#takeoffDateTime").value;
+  const landingValue = document.querySelector("#landingDateTime").value;
+  if (!parseZuluDateTimeInput(takeoffValue)) {
+    return { valid: false, message: "Enter a valid takeoff Zulu time." };
+  }
+  if (!parseZuluDateTimeInput(landingValue)) {
+    return { valid: false, message: "Enter a valid landing Zulu time." };
+  }
+  if (!normalizeIcao(document.querySelector("#departure").value)) {
+    return { valid: false, message: "Enter a valid 4-character departure ICAO." };
+  }
+  if (!normalizeIcao(document.querySelector("#destination").value)) {
+    return { valid: false, message: "Enter a valid 4-character destination ICAO." };
+  }
+  return { valid: true, message: "" };
+}
+
+function showMissionInputError(message) {
+  latestEvaluation = null;
+  rulesMetadata.weatherSource = "Input";
+  missionSummary.textContent = message;
+  missionSummary.dataset.source = "Input";
+  banner.className = "decision-banner status-yellow";
+  banner.dataset.status = "yellow";
+  banner.setAttribute("role", "status");
+  banner.setAttribute("aria-label", "Mission input error");
+  banner.innerHTML = `
+    <p class="decision-label">Review Inputs</p>
+    <h2>${escapeHtml(message)}</h2>
+    <p class="decision-reason">Mission weather was not evaluated.</p>
+  `;
+  cards.innerHTML = "";
+  document.querySelector("#count-red").textContent = "0";
+  document.querySelector("#count-yellow").textContent = "0";
+  document.querySelector("#count-green").textContent = "0";
 }
 
 function getRequestedIcaos(inputs) {
@@ -2636,12 +2705,22 @@ function formatMissionSummary(inputs) {
   return `DEP ${inputs.departure} ${formatZuluFromIso(inputs.takeoffTime)} | DEST ${inputs.destination} ${formatZuluFromIso(inputs.landingTime)} | ALTS ${inputs.alternates.length}`;
 }
 
+function updateMissionNoticeDisplay() {
+  if (!missionNotice) return;
+  const baseSummary = missionSummary.textContent.replace(/\s+\|\s+[^|]*NOT FOUND$/, "");
+  missionSummary.textContent = `${baseSummary} | ${missionNotice}`;
+}
+
 function formatZuluFromIso(value) {
   return formatTafReferenceTime(new Date(value));
 }
 
 function renderCard(result) {
   const cardStatus = result.cardStatus || result.status;
+  const safeIcao = escapeHtml(result.icao);
+  const safeRole = escapeHtml(result.role);
+  const safeName = escapeHtml(result.name || "Airfield");
+  const safeRuleStatus = escapeHtml(result.status);
   const assistEnabled = getMissionDefaults().assistDefault !== false && globalAssistEnabled && !assistLockedOff;
   const wxSource = rulesMetadata.weatherSource === "AWC" ? "AWC" : rulesMetadata.weatherSource === "Practice" ? "Practice" : "!";
   const taf = result.tafRaw
@@ -2670,15 +2749,15 @@ function renderCard(result) {
     : `<p class="raw-line">${result.tafRaw ? "Selected time is outside this TAF valid window." : "No TAF available from AWC for this airfield."}</p>`;
 
   return `
-    <article class="result-card status-${cardStatus}${assistEnabled ? "" : " assist-off"}" data-icao="${result.icao}" data-rule-status="${result.status}">
+    <article class="result-card status-${cardStatus}${assistEnabled ? "" : " assist-off"}" data-icao="${safeIcao}" data-rule-status="${safeRuleStatus}">
       <details class="card-disclosure">
         <summary>
           <div class="card-header">
             <div class="card-main">
-              <p class="role">${result.role}</p>
+              <p class="role">${safeRole}</p>
               <div class="airport-row">
-                <h3>${result.icao}</h3>
-                <p class="airport-name">${result.name || "Airfield"}</p>
+                <h3>${safeIcao}</h3>
+                <p class="airport-name">${safeName}</p>
               </div>
             </div>
             <div class="card-meta">
@@ -4036,7 +4115,15 @@ function escapeHtml(value) {
 }
 
 function normalizeIcao(value) {
-  return value.trim().toUpperCase();
+  const normalized = String(value || "").trim().toUpperCase();
+  return /^[A-Z0-9]{4}$/.test(normalized) ? normalized : "";
+}
+
+function parseZuluDateTimeInput(value) {
+  if (!value) return null;
+  const iso = buildZuluDateTimeIso(value);
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function formatDateTime(value) {
