@@ -399,7 +399,6 @@ function updateNowReference() {
   updateEvaluationDeltaBadges(now);
   updateTafValidityBadges(now);
   updateTafEvalBadges();
-  updateLiveTafTimeChips();
   updateDecisionBanner(now);
   updateZuluDateTimeReadouts(now);
 }
@@ -800,7 +799,7 @@ async function runCodeHunt(target) {
         if (found.some((match) => match.icao === icao)) return;
         const airport = missionData.airports?.[icao];
         if (!airport) return;
-        const match = getCodeHuntMatch(target, airport, takeoff, landing);
+        const match = getCodeHuntMatch(target, airport, takeoff, landing, missionData.pulledAt);
         if (match.matches) found.push({ icao, ...match });
         if (!match.matches && outsideWindowFound.length < 3 && codeHuntRawMatches(target, airport)) {
           outsideWindowFound.push({ icao, departureMatch: true, landingMatch: true, outsideWindow: true });
@@ -842,21 +841,31 @@ async function runCodeHunt(target) {
   }
 }
 
-function getCodeHuntMatch(target, airport, takeoff, landing) {
-  const metarMatch = codeHuntTextMatches(target, airport.metar);
+function getCodeHuntMatch(target, airport, takeoff, landing, referenceValue = new Date()) {
+  const departureMetarMatch = codeHuntMetarMatches(target, airport.metar, referenceValue, takeoff);
+  const landingMetarMatch = codeHuntMetarMatches(target, airport.metar, referenceValue, landing);
   const departureTafMatch = codeHuntPeriodsMatch(target, airport.taf, takeoff, "departure");
   const landingTafMatch = codeHuntPeriodsMatch(target, airport.taf, landing, "destination");
   const foundIn = [
-    metarMatch ? "METAR" : "",
+    departureMetarMatch ? "T/O METAR window" : "",
+    landingMetarMatch ? "LND METAR window" : "",
     departureTafMatch ? "T/O TAF window" : "",
     landingTafMatch ? "LND TAF window" : ""
   ].filter(Boolean);
   return {
-    matches: metarMatch || departureTafMatch || landingTafMatch,
-    departureMatch: metarMatch || departureTafMatch,
-    landingMatch: metarMatch || landingTafMatch,
+    matches: departureMetarMatch || landingMetarMatch || departureTafMatch || landingTafMatch,
+    departureMatch: departureMetarMatch || departureTafMatch,
+    landingMatch: landingMetarMatch || landingTafMatch,
     foundIn
   };
+}
+
+function codeHuntMetarMatches(target, metar, referenceValue, targetTime) {
+  if (!codeHuntTextMatches(target, metar)) return false;
+  const observedAt = getMetarObservedAt(metar, referenceValue);
+  const targetDate = new Date(targetTime);
+  if (!observedAt || Number.isNaN(targetDate.getTime())) return false;
+  return Math.abs(observedAt.getTime() - targetDate.getTime()) <= 2 * 60 * 60 * 1000;
 }
 
 function codeHuntRawMatches(target, airport) {
@@ -1212,19 +1221,13 @@ function getResultForIcao(icao) {
   return latestEvaluation?.results?.find((result) => result.icao === icao) || null;
 }
 
-function getLiveTafSummaryItems(referenceDate = new Date()) {
-  if (!latestEvaluation) return [];
-  return latestEvaluation.results
-    .map((result) => ({
-      icao: result.icao,
-      chips: getLiveTafTimeChips(result, referenceDate)
-    }))
-    .filter((item) => item.chips.length);
-}
-
 function setAllCardsOpen(open) {
   document.querySelectorAll(".card-disclosure").forEach((details) => {
     details.open = open;
+  });
+  if (open) return;
+  document.querySelectorAll(".metar-decode-row, .taf-decode-row").forEach((details) => {
+    details.open = false;
   });
 }
 
@@ -1429,8 +1432,6 @@ function highlightCodeHuntMatch(icao) {
     card.scrollIntoView({ behavior: "smooth", block: "center" });
     return;
   }
-  const container = target.closest(".metar-decode-row, .taf-decode-row") || target;
-  if (container.tagName === "DETAILS") container.open = true;
   target.scrollIntoView({ behavior: "smooth", block: "center" });
   target.classList.remove("hunt-token-focus");
   void target.offsetWidth;
@@ -1443,7 +1444,7 @@ function findCodeHuntTarget(card) {
   if (!hunt) return null;
   const tokens = [...card.querySelectorAll(".hunt-search-token")];
   return tokens.find((token) => codeHuntTextMatches(hunt, token.textContent))
-    || [...card.querySelectorAll(".metar-decode-row summary, .taf-decode-row summary")].find((summary) => codeHuntTextMatches(hunt, summary.textContent));
+    || [...card.querySelectorAll(".metar-decode-row summary, .taf-decode-row.taf-applicable summary, .taf-decode-row.taf-window summary")].find((summary) => codeHuntTextMatches(hunt, summary.textContent));
 }
 
 function findIssueTarget(card, label) {
@@ -2619,7 +2620,7 @@ function renderCard(result) {
     ...getDisplayIssueChips(result),
     ...getWeatherProductChips(result)
   ].map(markAssistChip);
-  const chips = `<div class="issue-chips">${cardChips.map(renderIssueChip).join("")}</div>`;
+  const chips = `<div class="issue-chips">${cardChips.map((chip) => renderIssueChip(chip, chip.hunt ? result.icao : "")).join("")}</div>`;
   const period = result.period
     ? `
       <dl class="wx-grid">
@@ -2789,13 +2790,6 @@ function getWeatherProductChips(result) {
   ];
 }
 
-function getLiveTafTimeChips(result, referenceDate = new Date()) {
-  if (!result.tafRaw || result.chips?.some((chip) => chip.label === "TAF TIME")) return [];
-  const state = getTafValidityState(result.tafRaw, referenceDate);
-  if (!state || state.status === "current") return [];
-  return [{ label: "TAF TIME", status: state.status === "expired" ? "red" : "yellow", className: "live-taf-time-chip assist-chip" }];
-}
-
 function renderDataAgeBadge(pulledAtValue) {
   const state = getRunFreshnessState(pulledAtValue);
   return state ? `<span class="data-age ${state.className}">${state.label}</span>` : "";
@@ -2898,28 +2892,6 @@ function updateTafValidityBadges(referenceDate = new Date()) {
     badge.classList.remove("age-green", "age-yellow", "age-red");
     badge.classList.add(state.className);
     badge.textContent = state.label;
-  });
-}
-
-function updateLiveTafTimeChips() {
-  document.querySelectorAll(".result-card").forEach((card) => {
-    const chips = card.querySelector(".issue-chips");
-    const tafAge = card.querySelector("[data-taf-validity]");
-    if (!chips || !tafAge) return;
-    const existing = chips.querySelector(".live-taf-time-chip");
-    const isCurrent = tafAge.classList.contains("age-green");
-    if (isCurrent) {
-      existing?.remove();
-      return;
-    }
-    const status = tafAge.classList.contains("age-red") ? "red" : "yellow";
-    if (existing) {
-      existing.classList.toggle("chip-red", status === "red");
-      existing.classList.toggle("chip-yellow", status === "yellow");
-      existing.classList.toggle("chip-green", status === "green");
-      return;
-    }
-    chips.insertAdjacentHTML("afterbegin", renderIssueChip({ label: "TAF TIME", status, className: "live-taf-time-chip" }));
   });
 }
 
@@ -3065,10 +3037,11 @@ function renderTafLine(line, state, markers) {
   , "green");
   const statusClass = markers.length ? ` taf-status-${status}` : "";
   const tafKey = encodeTafKey(line);
+  const showHuntMatch = activeCodeHunt?.outsideWindow || markers.length > 0;
   return `
     <details class="taf-decode-row${stateClass}${statusClass}" data-taf-key="${escapeHtml(tafKey)}">
       <summary title="Tap to decode this TAF line">
-        <span>${renderTafSourceTokens(line)}</span>
+        <span>${renderTafSourceTokens(line, showHuntMatch)}</span>
         ${markers.length ? `<span class="taf-markers">${markers.map((marker) => `<span class="taf-marker marker-${marker.status}">${escapeHtml(marker.label)}</span>`).join("")}</span>` : ""}
       </summary>
       <div class="taf-decode">${renderTafDecode(line)}</div>
@@ -3080,15 +3053,15 @@ function encodeTafKey(value) {
   return encodeURIComponent(String(value || "").trim());
 }
 
-function renderTafSourceTokens(line) {
+function renderTafSourceTokens(line, allowHuntHighlight = true) {
   return String(line || "")
     .trim()
     .split(/(\s+)/)
     .map((part) => {
       if (/^\s+$/.test(part)) return part;
       const classes = getTafSourceTokenClasses(part);
-      if (isCodeHuntToken(part) && !getCodeHuntLiteral()) classes.push("hunt-search-token");
-      const token = renderCodeHuntTokenText(part);
+      if (allowHuntHighlight && isCodeHuntToken(part) && !getCodeHuntLiteral()) classes.push("hunt-search-token");
+      const token = renderCodeHuntTokenText(part, allowHuntHighlight);
       return classes.length
         ? `<span class="${classes.join(" ")}">${token}</span>`
         : token;
@@ -3096,8 +3069,8 @@ function renderTafSourceTokens(line) {
     .join("");
 }
 
-function renderCodeHuntTokenText(part) {
-  if (!isCodeHuntToken(part)) return escapeHtml(part);
+function renderCodeHuntTokenText(part, allowHuntHighlight = true) {
+  if (!allowHuntHighlight || !isCodeHuntToken(part)) return escapeHtml(part);
   const literal = getCodeHuntLiteral();
   if (!literal) return escapeHtml(part);
   const text = String(part);
