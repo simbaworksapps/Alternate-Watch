@@ -31,7 +31,7 @@ The default alternate list is:
 KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI, KGSB
 ```
 
-Users can edit the list before checking a mission. The defaults panel can also save a preferred departure, destination, alternates list, dice region settings, SIMBA assist default state, and custom weather limits on the device.
+Users can edit the list before checking a mission. The defaults panel can also save a preferred departure, destination, alternates list, Code Hunt/dice region settings, SIMBA assist default state, and custom weather limits on the device.
 
 ## Custom Limits
 
@@ -167,7 +167,7 @@ If a token cannot be decoded, the app lists it in a `Not Decoded` section instea
 
 The airfield search uses the included offline airport search file. If an airport is not listed, users can still type a valid ICAO directly into the field and run the mission.
 
-The white dice generates a random practice mission. The red dice searches for bad-weather practice missions that evaluate red using the active saved limits. Dice region settings can include CONUS, OCONUS, or both.
+The white dice generates a random practice mission. The red dice searches for bad-weather practice missions that evaluate red using the active saved limits. The region settings can include CONUS, OCONUS, or both and apply to Code Hunt, the white dice, and the red dice.
 
 If the red dice cannot find three live red-weather fields quickly enough, the app reports what it found and may use sample fields for practice continuity.
 
@@ -199,7 +199,7 @@ Current hunt targets include:
 - `TX / TN`: TAF max/min temperatures.
 - Gusts, variable wind, wind shear, wind at height, runway wind, `CB`/`TCU`, fog/mist, remarks, missing sensor groups, freezing weather, drizzle, squalls, distant lightning, directional visibility, `SPECI`, recent weather, pressure change remarks, military color states, and clear/sky-clear groups.
 
-Code Hunt uses the same live-weather capable field pool as the dice tools. If it cannot find an example, it reports unable instead of silently loading unrelated fields.
+Code Hunt uses the same live-weather capable field pool and CONUS/OCONUS settings as the dice tools. If it cannot find an example, it reports unable instead of silently loading unrelated fields.
 
 ## NOTAMs
 

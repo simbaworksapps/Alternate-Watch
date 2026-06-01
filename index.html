@@ -91,7 +91,7 @@
 
           <section id="rulebook-panel" class="rulebook-panel" hidden>
             <div class="rulebook-header">
-              <h2>Guidebook</h2>
+              <h2><span class="guide-title-icon compass-icon" aria-hidden="true"></span>Guidebook</h2>
               <button type="button" class="secondary-button rulebook-close" id="rulebook-close" aria-label="Close guidebook">X</button>
             </div>
             <p>Training aid for identifying when weather or location may drive alternate planning review.</p>
@@ -101,7 +101,6 @@
               <li><span class="guide-symbol dice-icon risk-dice-icon" aria-hidden="true"></span><span>Random bad-weather practice mission.</span></li>
               <li><span class="guide-symbol code-hunt-icon" aria-hidden="true"></span><span>Code Hunt. Search live weather for METAR/TAF examples like RVR, VV, MPS, TEMPO, BECMG, QFE, and TSRA.</span></li>
               <li><span class="guide-symbol search-icon" aria-hidden="true"></span><span>Search airfields by ICAO, name, or city.</span></li>
-              <li><span class="guide-symbol compass-icon" aria-hidden="true"></span><span>Guidebook and trigger-point logic.</span></li>
               <li><span class="guide-glyph" aria-hidden="true">&#9881;</span><span>Set the saved departure, destination, and alternates used by refresh.</span></li>
               <li><span class="guide-glyph" aria-hidden="true">&#10022;</span><span>SIMBA assist. When off, weather answer colors, weather chips, and weather values are hidden so the user must evaluate the METAR and TAF.</span></li>
               <li><span class="guide-glyph" aria-hidden="true">&#128207;</span><span>Open conversion tables for SM/KT equivalents when editing custom limits.</span></li>
@@ -157,8 +156,9 @@
                 <button type="button" class="secondary-button symbol-button search-button" id="default-alternates-search" data-search-target="default-alternates" aria-expanded="false" aria-controls="airfield-search-panel" aria-label="Search default alternate airfields" title="Search default alternate airfields"><span class="search-icon" aria-hidden="true"></span></button>
               </div>
             </label>
-            <div class="dice-region-setting" aria-label="Dice region setting">
+            <div class="dice-region-setting" aria-label="Code Hunt and dice region setting">
               <div class="dice-region-icons" aria-hidden="true">
+                <span class="code-hunt-icon"></span>
                 <span class="dice-icon"></span>
                 <span class="dice-icon risk-dice-icon"></span>
               </div>
@@ -312,6 +312,14 @@
                 <tr><td>20 MPS</td><td>39 kt</td></tr>
               </tbody>
             </table>
+          </section>
+
+          <section id="assist-lock-panel" class="rulebook-panel assist-lock-panel" hidden>
+            <div class="rulebook-header">
+              <h2>SIMBA Assist Disabled</h2>
+              <button type="button" class="secondary-button rulebook-close" id="assist-lock-close" aria-label="Close assist notice">X</button>
+            </div>
+            <p id="assist-lock-message">Could not find that item inside the specified mission window. An outside-window example was loaded and SIMBA Assist was disabled.</p>
           </section>
 
           <section id="airfield-search-panel" class="rulebook-panel airfield-search-panel" hidden>

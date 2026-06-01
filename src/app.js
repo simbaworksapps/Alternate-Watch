@@ -192,6 +192,8 @@ let missionNotice = "";
 let missionDataOverride = null;
 let submitFeedbackTimer = null;
 let codeHuntFeedbackTimer = null;
+let assistLockedOff = false;
+let activeCodeHunt = null;
 let lastLiveRedPractice = null;
 let activeDiceAction = null;
 let activeAirfieldTarget = null;
@@ -211,6 +213,8 @@ function init() {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     cancelActiveSearchForManualRun();
+    clearAssistLock();
+    clearCodeHunt();
     updateZuluDateTimeReadouts();
     await render(true);
   });
@@ -225,6 +229,7 @@ function init() {
   });
   setupCodeHuntControls();
   document.querySelector("#reset-alternates").addEventListener("click", async () => {
+    clearCodeHunt();
     resetMissionDefaults();
     await render();
   });
@@ -255,6 +260,7 @@ function init() {
     event.stopPropagation();
     closeWindTable();
   });
+  document.querySelector("#assist-lock-close").addEventListener("click", closeAssistLockPanel);
   setupDiceRegionToggles();
   setupAssistDefaultToggles();
   setupDefaultsKeyboardFlow();
@@ -300,6 +306,8 @@ function init() {
   cards.addEventListener("keydown", handleMetarAgeKeydown);
   cards.addEventListener("click", handleConversionTableClick);
   cards.addEventListener("keydown", handleConversionTableKeydown);
+  cards.addEventListener("click", handleCodeHuntChipClick);
+  cards.addEventListener("keydown", handleCodeHuntChipKeydown);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeRulebook();
@@ -310,6 +318,7 @@ function init() {
       closeAirfieldSearch();
       closeCodeHuntPanel();
       closeLimitsPanel();
+      closeAssistLockPanel();
     }
   });
   document.addEventListener("click", (event) => {
@@ -355,6 +364,10 @@ function init() {
       const panel = document.querySelector("#wind-table-panel");
       const clickedTrigger = event.target.closest(".conversion-table-button");
       if (!panel.contains(event.target) && !clickedTrigger) closeWindTable();
+    }
+    if (document.body.classList.contains("assist-lock-open")) {
+      const panel = document.querySelector("#assist-lock-panel");
+      if (!panel.contains(event.target)) closeAssistLockPanel();
     }
     if (document.body.classList.contains("search-open")) {
       const panel = document.querySelector("#airfield-search-panel");
@@ -438,6 +451,7 @@ function resetMissionDefaults() {
 }
 
 function clearMissionInputs() {
+  clearCodeHunt();
   document.querySelector("#departure").value = "";
   document.querySelector("#destination").value = "";
   document.querySelector("#takeoffDateTime").value = "";
@@ -448,6 +462,8 @@ function clearMissionInputs() {
 }
 
 function generateRandomMission() {
+  clearAssistLock();
+  clearCodeHunt();
   missionNotice = "";
   const [departure, destination, alternate] = pickUnique(getDiceAirfieldPool(), 3);
   const { takeoff, landing } = getDiceMissionTimes();
@@ -456,10 +472,19 @@ function generateRandomMission() {
 
 function getDiceMissionTimes() {
   const now = new Date();
+  const takeoff = getZuluDateTimeFieldDate("takeoffDateTime") || now;
+  const landing = getZuluDateTimeFieldDate("landingDateTime") || new Date(takeoff.getTime() + 3 * 60 * 60 * 1000);
   return {
-    takeoff: now,
-    landing: new Date(now.getTime() + 3 * 60 * 60 * 1000)
+    takeoff,
+    landing
   };
+}
+
+function getZuluDateTimeFieldDate(fieldId) {
+  const value = document.querySelector(`#${fieldId}`)?.value;
+  if (!value) return null;
+  const date = new Date(buildZuluDateTimeIso(value));
+  return Number.isFinite(date.getTime()) ? date : null;
 }
 
 function resetRandomMissionButton() {
@@ -524,6 +549,8 @@ async function generatePracticeWeatherMission() {
 
   const action = startDiceAction("practice");
   const previousInputs = getRawInputValues();
+  clearAssistLock();
+  clearCodeHunt();
   button.classList.add("dice-thinking");
   setSubmitButtonStatus("scanning");
 
@@ -617,6 +644,7 @@ function pickRandomMessage(messages, previousMessage = "") {
 function cancelDiceAction(message, showCancelled = false) {
   if (!activeDiceAction) return;
   activeDiceAction.cancelled = true;
+  activeDiceAction.showCancelled = showCancelled;
   setSubmitButtonMessage(message);
   if (showCancelled) {
     window.setTimeout(() => {
@@ -648,7 +676,9 @@ function isActiveDiceAction(action) {
 
 function finishDiceAction(action) {
   if (activeDiceAction === action) {
+    const shouldShowCancelled = action.cancelled && action.showCancelled;
     activeDiceAction = null;
+    if (shouldShowCancelled) setSubmitButtonStatus("cancelled");
   }
 }
 
@@ -749,6 +779,8 @@ async function runCodeHunt(target) {
   if (previousAction) cancelDiceAction("SWITCHING SEARCH");
   const action = startDiceAction("code-hunt");
   const previousInputs = getRawInputValues();
+  clearAssistLock();
+  clearCodeHunt();
   setCodeHuntButtonSearching();
 
   try {
@@ -756,6 +788,7 @@ async function runCodeHunt(target) {
     const pool = getDiceAirfieldPool();
     const scanFields = pickUnique(pool, pool.length);
     const found = [];
+    const outsideWindowFound = [];
 
     for (let index = 0; index < scanFields.length; index += practiceScanChunkSize) {
       if (!isActiveDiceAction(action)) break;
@@ -764,30 +797,44 @@ async function runCodeHunt(target) {
       const missionData = await getLiveMissionData(chunk);
       if (!isActiveDiceAction(action)) break;
       chunk.forEach((icao) => {
-        if (found.includes(icao)) return;
+        if (found.some((match) => match.icao === icao)) return;
         const airport = missionData.airports?.[icao];
-        if (airport && codeHuntMatches(target, airport)) found.push(icao);
+        if (!airport) return;
+        const match = getCodeHuntMatch(target, airport, takeoff, landing);
+        if (match.matches) found.push({ icao, ...match });
+        if (!match.matches && outsideWindowFound.length < 3 && codeHuntRawMatches(target, airport)) {
+          outsideWindowFound.push({ icao, departureMatch: true, landingMatch: true, outsideWindow: true });
+        }
       });
       if (found.length >= 3) break;
     }
 
     if (!isActiveDiceAction(action)) return;
-    if (!found.length) {
+    const selectedMatches = found.length ? found : outsideWindowFound;
+    const outsideWindowFallback = !found.length && outsideWindowFound.length > 0;
+
+    if (!selectedMatches.length) {
       setSubmitButtonStatus("unable");
       settleCodeHuntButton();
       missionNotice = `No live ${target.label} examples found.`;
       return;
     }
 
-    const foundCount = Math.min(found.length, 3);
-    const selected = found.slice(0, 3);
-    while (selected.length < 3) selected.push(selected[selected.length - 1]);
+    const selected = selectCodeHuntMission(selectedMatches);
+    const foundCount = Math.min(selected.uniqueCount, 3);
     pushScenarioHistory(previousInputs);
     missionDataOverride = null;
-    missionNotice = `Code hunt: ${target.label} (${foundCount}/3 found).`;
-    applyMissionFields(selected[0], selected[1], [selected[2]], takeoff, landing);
+    activeCodeHunt = buildActiveCodeHunt(target, selectedMatches, outsideWindowFallback);
+    if (outsideWindowFallback) {
+      lockAssistForOutsideWindowCodeHunt(target.label);
+      missionNotice = `Code hunt: ${target.label} found outside selected window; assist disabled.`;
+    } else {
+      missionNotice = `Code hunt: ${target.label} found in ${selected.foundInLabel} (${foundCount}/3).`;
+    }
+    applyMissionFields(selected.departure, selected.destination, [selected.alternate], takeoff, landing);
     await render({ showSubmitFeedback: false, preserveButtonMessage: true });
-    setSubmitButtonStatus(found.length >= 3 ? "success" : `partial-${foundCount}`);
+    setSubmitButtonStatus(outsideWindowFallback ? "code-1" : selected.uniqueCount >= 3 ? "code-success" : `code-${foundCount}`);
+    if (outsideWindowFallback) showAssistLockPanel(target.label);
     settleCodeHuntButton();
   } finally {
     if (action.cancelled) resetCodeHuntButton();
@@ -795,9 +842,89 @@ async function runCodeHunt(target) {
   }
 }
 
-function codeHuntMatches(target, airport) {
-  const text = [airport.metar, airport.tafRaw].filter(Boolean).join("\n").toUpperCase();
-  return target.pattern.test(text);
+function getCodeHuntMatch(target, airport, takeoff, landing) {
+  const metarMatch = codeHuntTextMatches(target, airport.metar);
+  const departureTafMatch = codeHuntPeriodsMatch(target, airport.taf, takeoff, "departure");
+  const landingTafMatch = codeHuntPeriodsMatch(target, airport.taf, landing, "destination");
+  const foundIn = [
+    metarMatch ? "METAR" : "",
+    departureTafMatch ? "T/O TAF window" : "",
+    landingTafMatch ? "LND TAF window" : ""
+  ].filter(Boolean);
+  return {
+    matches: metarMatch || departureTafMatch || landingTafMatch,
+    departureMatch: metarMatch || departureTafMatch,
+    landingMatch: metarMatch || landingTafMatch,
+    foundIn
+  };
+}
+
+function codeHuntRawMatches(target, airport) {
+  return codeHuntTextMatches(target, [airport.metar, airport.tafRaw].filter(Boolean).join("\n"));
+}
+
+function buildActiveCodeHunt(target, matches, outsideWindowFallback = false) {
+  return {
+    id: target.id,
+    label: target.label,
+    pattern: target.pattern,
+    outsideWindow: outsideWindowFallback,
+    icaos: [...new Set(matches.map((match) => match.icao))]
+  };
+}
+
+function codeHuntTextMatches(target, text) {
+  if (!text) return false;
+  target.pattern.lastIndex = 0;
+  return target.pattern.test(String(text).toUpperCase());
+}
+
+function codeHuntPeriodsMatch(target, periods = [], targetTime, ruleType) {
+  return getCodeHuntApplicablePeriods(periods, targetTime, ruleType)
+    .some((period) => codeHuntTextMatches(target, [
+      period.raw,
+      period.ceilingRaw,
+      period.visibilityRaw,
+      period.windRaw
+    ].filter(Boolean).join(" ")));
+}
+
+function getCodeHuntApplicablePeriods(periods = [], targetTime, ruleType) {
+  const target = new Date(targetTime).getTime();
+  if (!Number.isFinite(target)) return [];
+  const windowMs = ruleType === "departure" ? 0 : 60 * 60 * 1000;
+  const startWindow = target - windowMs;
+  const endWindow = target + windowMs;
+  return periods.filter((period) => {
+    const start = new Date(period.validFrom).getTime();
+    const end = new Date(period.validTo).getTime();
+    return Number.isFinite(start) && Number.isFinite(end) && start <= endWindow && end >= startWindow;
+  });
+}
+
+function selectCodeHuntMission(matches) {
+  const departure = matches.find((match) => match.departureMatch) || matches[0];
+  const landingPool = matches.filter((match) => match.landingMatch && match.icao !== departure.icao);
+  const destination = landingPool[0] || matches.find((match) => match.icao !== departure.icao) || departure;
+  const alternate = landingPool.find((match) => match.icao !== destination.icao)
+    || matches.find((match) => match.icao !== departure.icao && match.icao !== destination.icao)
+    || destination
+    || departure;
+  return {
+    departure: departure.icao,
+    destination: destination.icao,
+    alternate: alternate.icao,
+    uniqueCount: new Set([departure.icao, destination.icao, alternate.icao]).size,
+    foundInLabel: formatCodeHuntFoundIn(matches)
+  };
+}
+
+function formatCodeHuntFoundIn(matches) {
+  const labels = [...new Set(matches.flatMap((match) => match.foundIn || []))];
+  if (!labels.length) return "METAR/TAF";
+  if (labels.length === 1) return labels[0];
+  if (labels.includes("METAR") && labels.some((label) => label.includes("TAF"))) return "METAR and TAF window";
+  return labels.join(" and ");
 }
 
 function getRawInputValues() {
@@ -829,6 +956,7 @@ function pushScenarioHistory(values) {
 async function restorePreviousScenario() {
   if (!scenarioHistory.length) return;
   if (activeDiceAction) activeDiceAction.cancelled = true;
+  clearCodeHunt();
   const previous = scenarioHistory.pop();
   setRawInputValues(previous);
   updatePreviousScenarioButton();
@@ -1038,9 +1166,9 @@ function renderDecisionBanner(referenceDate = new Date()) {
   `).join("");
 
   return `
-    <p class="decision-label">${globalAssistEnabled ? (latestEvaluation.summary.status === "green" ? "Watch Item" : latestEvaluation.summary.label) : "Review Items"}${limitModePill}${globalAssistEnabled ? "" : ` <span class="assist-off-pill">Assist Off</span>`}</p>
+    <p class="decision-label">${globalAssistEnabled && !assistLockedOff ? (latestEvaluation.summary.status === "green" ? "Watch Item" : latestEvaluation.summary.label) : "Review Items"}${limitModePill}${assistLockedOff ? ` <span class="assist-off-pill assist-locked-pill">⊘ ASSIST</span>` : globalAssistEnabled ? "" : ` <span class="assist-off-pill">Assist Off</span>`}</p>
     <div class="summary-issues">${itemMarkup}</div>
-    <button type="button" class="assist-toggle summary-assist-toggle${globalAssistEnabled ? " active" : ""}" data-summary-assist-toggle="true" aria-pressed="${globalAssistEnabled ? "true" : "false"}" aria-label="Toggle all weather assist highlights" title="Toggle all weather assist highlights">✦</button>
+    <button type="button" class="assist-toggle summary-assist-toggle${globalAssistEnabled && !assistLockedOff ? " active" : ""}${assistLockedOff ? " assist-locked" : ""}" data-summary-assist-toggle="true" aria-pressed="${globalAssistEnabled && !assistLockedOff ? "true" : "false"}" aria-label="${assistLockedOff ? "SIMBA assist disabled for outside-window example" : "Toggle all weather assist highlights"}" title="${assistLockedOff ? "SIMBA assist disabled for outside-window example" : "Toggle all weather assist highlights"}"${assistLockedOff ? " disabled" : ""}>✦</button>
   `;
 }
 
@@ -1053,7 +1181,7 @@ function renderLimitModePill() {
 function updateDecisionBanner(referenceDate = new Date()) {
   if (!latestEvaluation) return;
   const status = getDecisionBannerStatus(referenceDate);
-  banner.className = `decision-banner status-${status}${globalAssistEnabled ? "" : " assist-off"}`;
+  banner.className = `decision-banner status-${status}${globalAssistEnabled && !assistLockedOff ? "" : " assist-off"}${assistLockedOff ? " assist-locked" : ""}`;
   banner.dataset.status = status;
   banner.tabIndex = -1;
   banner.setAttribute("role", "status");
@@ -1071,9 +1199,12 @@ function getDecisionBannerStatus(referenceDate = new Date()) {
 function getDecisionBannerItems() {
   return (latestEvaluation.summary.items || []).map((item) => ({
     icao: item.icao,
-    chips: getResultForIcao(item.icao)
-      ? getDisplayIssueChips(getResultForIcao(item.icao))
-      : [...(item.chips || [])]
+    chips: [
+      ...getCodeHuntChips(item.icao),
+      ...(getResultForIcao(item.icao)
+        ? getDisplayIssueChips(getResultForIcao(item.icao))
+        : [...(item.chips || [])])
+    ]
   }));
 }
 
@@ -1127,6 +1258,12 @@ function addTapFeedback(event) {
 }
 
 function handleSummaryIssueClick(event) {
+  const hunt = event.target.closest("[data-hunt-icao]");
+  if (hunt) {
+    event.stopPropagation();
+    highlightCodeHuntMatch(hunt.dataset.huntIcao);
+    return;
+  }
   const limits = event.target.closest("[data-summary-limits]");
   if (limits) {
     event.stopPropagation();
@@ -1152,6 +1289,12 @@ function handleSummaryIssueClick(event) {
 }
 
 function handleSummaryIssueKeydown(event) {
+  const hunt = event.target.closest("[data-hunt-icao]");
+  if (hunt && ["Enter", " "].includes(event.key)) {
+    event.preventDefault();
+    highlightCodeHuntMatch(hunt.dataset.huntIcao);
+    return;
+  }
   const limits = event.target.closest("[data-summary-limits]");
   if (limits && ["Enter", " "].includes(event.key)) {
     event.preventDefault();
@@ -1184,6 +1327,10 @@ function openSystemLimitsFromSummary() {
 }
 
 function toggleGlobalAssist() {
+  if (assistLockedOff) {
+    showAssistLockPanel();
+    return;
+  }
   globalAssistEnabled = !globalAssistEnabled;
   document.querySelectorAll(".result-card").forEach((card) => {
     card.classList.toggle("assist-off", !globalAssistEnabled);
@@ -1192,6 +1339,38 @@ function toggleGlobalAssist() {
     button?.setAttribute("aria-pressed", String(globalAssistEnabled));
   });
   updateDecisionBanner();
+}
+
+function clearAssistLock() {
+  assistLockedOff = false;
+  closeAssistLockPanel();
+}
+
+function clearCodeHunt() {
+  activeCodeHunt = null;
+}
+
+function lockAssistForOutsideWindowCodeHunt(label = "selected code") {
+  assistLockedOff = true;
+  globalAssistEnabled = false;
+  const message = `Could not find ${label} inside the specified takeoff/landing window. An outside-window METAR/TAF example was loaded, so SIMBA Assist was disabled.`;
+  const messageElement = document.querySelector("#assist-lock-message");
+  if (messageElement) messageElement.textContent = message;
+}
+
+function showAssistLockPanel(label = "") {
+  if (label) lockAssistForOutsideWindowCodeHunt(label);
+  const panel = document.querySelector("#assist-lock-panel");
+  if (!panel) return;
+  panel.hidden = false;
+  document.body.classList.add("assist-lock-open");
+}
+
+function closeAssistLockPanel() {
+  const panel = document.querySelector("#assist-lock-panel");
+  if (!panel) return;
+  panel.hidden = true;
+  document.body.classList.remove("assist-lock-open");
 }
 
 function scrollToAirfieldCard(icao) {
@@ -1234,6 +1413,39 @@ function scrollToIssue(icao, label, status = "") {
   window.setTimeout(() => target.classList.remove("scroll-focus", focusClass), 1400);
 }
 
+function highlightCodeHuntMatch(icao) {
+  if (!activeCodeHunt) return;
+  if (currentFilter !== "all") {
+    currentFilter = "all";
+    updateFilterButtons();
+    renderCards();
+  }
+  const card = document.querySelector(`.result-card[data-icao="${icao}"]`);
+  if (!card) return;
+  const details = card.querySelector(".card-disclosure");
+  if (details) details.open = true;
+  const target = findCodeHuntTarget(card);
+  if (!target) {
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  const container = target.closest(".metar-decode-row, .taf-decode-row") || target;
+  if (container.tagName === "DETAILS") container.open = true;
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  target.classList.remove("hunt-token-focus");
+  void target.offsetWidth;
+  target.classList.add("hunt-token-focus");
+  window.setTimeout(() => target.classList.remove("hunt-token-focus"), 1800);
+}
+
+function findCodeHuntTarget(card) {
+  const hunt = activeCodeHunt;
+  if (!hunt) return null;
+  const tokens = [...card.querySelectorAll(".hunt-search-token")];
+  return tokens.find((token) => codeHuntTextMatches(hunt, token.textContent))
+    || [...card.querySelectorAll(".metar-decode-row summary, .taf-decode-row summary")].find((summary) => codeHuntTextMatches(hunt, summary.textContent));
+}
+
 function findIssueTarget(card, label) {
   const normalizedLabel = label.toUpperCase();
   if (normalizedLabel.includes("CEILING")) return card.querySelector(".wx-grid div:nth-child(1)");
@@ -1262,13 +1474,30 @@ function handleWeatherSourceClick(event) {
   const tile = event.target.closest("[data-source-kind]");
   if (!tile) return;
   event.stopPropagation();
+  if (tile.closest(".result-card.assist-off")) return;
   jumpToWeatherSource(tile);
+}
+
+function handleCodeHuntChipClick(event) {
+  const chip = event.target.closest("[data-hunt-icao]");
+  if (!chip) return;
+  event.preventDefault();
+  event.stopPropagation();
+  highlightCodeHuntMatch(chip.dataset.huntIcao);
+}
+
+function handleCodeHuntChipKeydown(event) {
+  const chip = event.target.closest("[data-hunt-icao]");
+  if (!chip || !["Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+  highlightCodeHuntMatch(chip.dataset.huntIcao);
 }
 
 function handleWeatherSourceKeydown(event) {
   const tile = event.target.closest("[data-source-kind]");
   if (!tile || !["Enter", " "].includes(event.key)) return;
   event.preventDefault();
+  if (tile.closest(".result-card.assist-off")) return;
   jumpToWeatherSource(tile);
 }
 
@@ -1277,6 +1506,11 @@ function handleAssistToggle(event) {
   if (!button) return;
   event.preventDefault();
   event.stopPropagation();
+  if (assistLockedOff) {
+    showAssistLockPanel();
+    button.blur();
+    return;
+  }
   const card = button.closest(".result-card");
   if (!card) return;
   const enabled = card.classList.toggle("assist-off") === false;
@@ -1754,6 +1988,7 @@ function populateFactoryDefaults() {
 }
 
 function saveDefaultsFromPanel() {
+  clearCodeHunt();
   const defaults = normalizeMissionDefaults({
     departure: document.querySelector("#default-departure").value,
     destination: document.querySelector("#default-destination").value,
@@ -2312,25 +2547,35 @@ function setSubmitButtonStatus(status) {
     return;
   }
 
-  submitButton.disabled = false;
-  if (status === "success") {
-    submitButton.textContent = "SUCCESS";
+  if (/^code-\d$/.test(status)) {
+    submitButton.disabled = false;
+    submitButton.textContent = `FOUND ${status.slice(-1)}/3`;
+    submitButton.classList.add("button-partial");
+  } else if (status === "code-success") {
+    submitButton.disabled = false;
+    submitButton.textContent = "FOUND 3/3";
     submitButton.classList.add("button-success");
-  } else if (/^partial-\d$/.test(status)) {
-    submitButton.textContent = `FOUND ${status.slice(-1)}/3 RED`;
-    submitButton.classList.add("button-partial");
-  } else if (status === "sample") {
-    submitButton.textContent = "SAMPLE LOADED";
-    submitButton.classList.add("button-partial");
-  } else if (status === "cancelled") {
-    submitButton.textContent = "SCAN CANCELED";
-    submitButton.classList.add("button-partial");
-  } else if (status === "unable") {
-    submitButton.textContent = "UNABLE";
-    submitButton.classList.add("button-unable");
   } else {
-    submitButton.textContent = "Check Mission";
-    return;
+    submitButton.disabled = false;
+    if (status === "success") {
+      submitButton.textContent = "SUCCESS";
+      submitButton.classList.add("button-success");
+    } else if (/^partial-\d$/.test(status)) {
+      submitButton.textContent = `FOUND ${status.slice(-1)}/3 RED`;
+      submitButton.classList.add("button-partial");
+    } else if (status === "sample") {
+      submitButton.textContent = "SAMPLE LOADED";
+      submitButton.classList.add("button-partial");
+    } else if (status === "cancelled") {
+      submitButton.textContent = "SCAN CANCELED";
+      submitButton.classList.add("button-partial");
+    } else if (status === "unable") {
+      submitButton.textContent = "UNABLE";
+      submitButton.classList.add("button-unable");
+    } else {
+      submitButton.textContent = "Check Mission";
+      return;
+    }
   }
 
   submitFeedbackTimer = window.setTimeout(() => {
@@ -2358,7 +2603,7 @@ function formatZuluFromIso(value) {
 
 function renderCard(result) {
   const cardStatus = result.cardStatus || result.status;
-  const assistEnabled = getMissionDefaults().assistDefault !== false && globalAssistEnabled;
+  const assistEnabled = getMissionDefaults().assistDefault !== false && globalAssistEnabled && !assistLockedOff;
   const wxSource = rulesMetadata.weatherSource === "AWC" ? "AWC" : rulesMetadata.weatherSource === "Practice" ? "Practice" : "!";
   const taf = result.tafRaw
     ? `<div class="taf-line">${renderHighlightedTaf(result)}</div>`
@@ -2370,6 +2615,7 @@ function renderCard(result) {
       ? '<p class="notam-unavailable">No active NOTAMs for selected time.</p>'
       : '<p class="notam-unavailable">NOTAM feature currently unavailable.</p>';
   const cardChips = [
+    ...getCodeHuntChips(result.icao),
     ...getDisplayIssueChips(result),
     ...getWeatherProductChips(result)
   ].map(markAssistChip);
@@ -2406,7 +2652,7 @@ function renderCard(result) {
           </div>
           ${chips}
           <span class="card-actions">
-            <button type="button" class="assist-toggle${assistEnabled ? " active" : ""}" data-assist-toggle="true" aria-pressed="${assistEnabled ? "true" : "false"}" aria-label="Toggle weather assist highlights" title="Weather assist highlights">✦</button>
+            <button type="button" class="assist-toggle${assistEnabled ? " active" : ""}${assistLockedOff ? " assist-locked" : ""}" data-assist-toggle="true" aria-pressed="${assistEnabled ? "true" : "false"}" aria-label="${assistLockedOff ? "SIMBA assist disabled for outside-window example" : "Toggle weather assist highlights"}" title="${assistLockedOff ? "SIMBA assist disabled for outside-window example" : "Weather assist highlights"}"${assistLockedOff ? " disabled" : ""}>✦</button>
             <span class="expand-toggle" aria-hidden="true"></span>
           </span>
         </summary>
@@ -2471,6 +2717,16 @@ function getDisplayIssueChips(result) {
   });
 }
 
+function getCodeHuntChips(icao) {
+  if (!activeCodeHunt || !activeCodeHunt.icaos.includes(icao)) return [];
+  return [{
+    label: `HUNT: ${activeCodeHunt.label}`,
+    status: "blue",
+    className: "hunt-chip",
+    hunt: true
+  }];
+}
+
 function renderEvaluationLabel(result) {
   return result.role === "Departure" ? "T/O" : "LND";
 }
@@ -2492,7 +2748,9 @@ function formatSignedDurationMinutes(deltaMinutes) {
 }
 
 function renderIssueChip(chip, icao = "") {
-  const attrs = icao
+  const attrs = icao && chip.hunt
+    ? ` role="button" tabindex="0" data-hunt-icao="${escapeHtml(icao)}"`
+    : icao
     ? ` role="button" tabindex="0" data-issue-icao="${escapeHtml(icao)}" data-issue-label="${escapeHtml(chip.label)}" data-issue-status="${escapeHtml(chip.status)}"`
     : "";
   const extraClass = chip.className ? ` ${escapeHtml(chip.className)}` : "";
@@ -2829,11 +3087,48 @@ function renderTafSourceTokens(line) {
     .map((part) => {
       if (/^\s+$/.test(part)) return part;
       const classes = getTafSourceTokenClasses(part);
+      if (isCodeHuntToken(part) && !getCodeHuntLiteral()) classes.push("hunt-search-token");
+      const token = renderCodeHuntTokenText(part);
       return classes.length
-        ? `<span class="${classes.join(" ")}">${escapeHtml(part)}</span>`
-        : escapeHtml(part);
+        ? `<span class="${classes.join(" ")}">${token}</span>`
+        : token;
     })
     .join("");
+}
+
+function renderCodeHuntTokenText(part) {
+  if (!isCodeHuntToken(part)) return escapeHtml(part);
+  const literal = getCodeHuntLiteral();
+  if (!literal) return escapeHtml(part);
+  const text = String(part);
+  const index = text.toUpperCase().indexOf(literal);
+  if (index < 0) return escapeHtml(part);
+  return [
+    escapeHtml(text.slice(0, index)),
+    `<span class="hunt-search-token">${escapeHtml(text.slice(index, index + literal.length))}</span>`,
+    escapeHtml(text.slice(index + literal.length))
+  ].join("");
+}
+
+function getCodeHuntLiteral() {
+  if (!activeCodeHunt) return "";
+  if (activeCodeHunt.id === "tsra") return "TSRA";
+  return "";
+}
+
+function isCodeHuntToken(part) {
+  if (!activeCodeHunt || !part || /^\s+$/.test(part)) return false;
+  const token = String(part).toUpperCase();
+  if (codeHuntTextMatches(activeCodeHunt, token)) return true;
+  const phraseTokens = {
+    "becmgtempo": ["BECMG", "TEMPO"],
+    "lastnoamd": ["LAST", "NO", "AMD"],
+    "ltg": ["LTG", "DSNT"],
+    "pk-wnd": ["PK", "WND"],
+    "rwywind": ["RWY"],
+    "windheight": ["WIND"]
+  };
+  return (phraseTokens[activeCodeHunt.id] || []).some((phraseToken) => token.startsWith(phraseToken));
 }
 
 function getTafSourceTokenClasses(token) {
@@ -2894,9 +3189,11 @@ function renderMetarSourceTokens(metar) {
     .split(/(\s+)/)
     .map((part) => {
       if (/^\s+$/.test(part)) return part;
+      const token = renderCodeHuntTokenText(part);
+      const huntClass = isCodeHuntToken(part) && !getCodeHuntLiteral() ? " hunt-search-token" : "";
       return /^\d{6}Z$/.test(part)
-        ? `<span class="metar-source-time">${escapeHtml(part)}</span>`
-        : escapeHtml(part);
+        ? `<span class="metar-source-time${huntClass}">${token}</span>`
+        : token;
     })
     .join("");
 }
