@@ -77,7 +77,7 @@
           </label>
 
           <div class="alternate-actions">
-            <button type="button" class="secondary-button symbol-button" id="clear-alternates" aria-label="Clear all mission fields" title="Clear all mission fields">&#8623;</button>
+            <button type="button" class="secondary-button symbol-button code-hunt-button" id="code-hunt-toggle" aria-expanded="false" aria-controls="code-hunt-panel" aria-label="Find weather code examples" title="Find weather code examples"><span class="code-hunt-icon" aria-hidden="true"></span></button>
             <button type="button" class="secondary-button symbol-button dice-button" id="random-mission" aria-label="Random" title="Random"><span class="dice-icon" aria-hidden="true"></span></button>
             <button type="button" class="secondary-button symbol-button dice-button risk-dice-button" id="practice-weather" aria-label="Random Bad Weather" title="Random Bad Weather"><span class="dice-icon risk-dice-icon" aria-hidden="true"></span></button>
             <button type="button" class="secondary-button symbol-button" id="reset-alternates" aria-label="Reset default mission fields" title="Reset default mission fields">&#10227;</button>
@@ -99,12 +99,12 @@
             <ul class="guide-control-list">
               <li><span class="guide-symbol dice-icon" aria-hidden="true"></span><span>Random mission.</span></li>
               <li><span class="guide-symbol dice-icon risk-dice-icon" aria-hidden="true"></span><span>Random bad-weather practice mission.</span></li>
+              <li><span class="guide-symbol code-hunt-icon" aria-hidden="true"></span><span>Code Hunt. Search live weather for METAR/TAF examples like RVR, VV, MPS, TEMPO, BECMG, QFE, and TSRA.</span></li>
               <li><span class="guide-symbol search-icon" aria-hidden="true"></span><span>Search airfields by ICAO, name, or city.</span></li>
               <li><span class="guide-symbol compass-icon" aria-hidden="true"></span><span>Guidebook and trigger-point logic.</span></li>
               <li><span class="guide-glyph" aria-hidden="true">&#9881;</span><span>Set the saved departure, destination, and alternates used by refresh.</span></li>
               <li><span class="guide-glyph" aria-hidden="true">&#10022;</span><span>SIMBA assist. When off, weather answer colors, weather chips, and weather values are hidden so the user must evaluate the METAR and TAF.</span></li>
               <li><span class="guide-glyph" aria-hidden="true">&#128207;</span><span>Open conversion tables for SM/KT equivalents when editing custom limits.</span></li>
-              <li><span class="guide-glyph" aria-hidden="true">&#8623;</span><span>Clear mission fields.</span></li>
               <li><span class="guide-glyph" aria-hidden="true">&#10227;</span><span>Restore default mission fields.</span></li>
             </ul>
             <h3>Logic</h3>
@@ -119,6 +119,15 @@
               <li>OCONUS departure or destination shows an OCONUS chip, but filters focus on weather-driven status.</li>
               <li>NOTAM feature currently unavailable.</li>
             </ul>
+          </section>
+
+          <section id="code-hunt-panel" class="rulebook-panel code-hunt-panel" hidden>
+            <div class="rulebook-header">
+              <h2>Code Hunt</h2>
+              <button type="button" class="secondary-button rulebook-close" id="code-hunt-close" aria-label="Close code hunt">X</button>
+            </div>
+            <p>Find live METAR/TAF examples for training.</p>
+            <div class="code-hunt-grid" id="code-hunt-options"></div>
           </section>
 
           <section id="defaults-panel" class="rulebook-panel defaults-panel" hidden>

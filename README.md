@@ -13,6 +13,7 @@ This tool is for training and awareness only. It is not approved for operational
 - Accepts takeoff Zulu date/time, landing/ETA Zulu date/time, departure, destination, and alternates.
 - Shows current local time and Zulu time for reference.
 - Pulls available METAR and TAF data from AWC through the included backend proxy.
+- Searches live weather for training examples of selected METAR/TAF codes.
 - Evaluates takeoff at takeoff time and destination/alternates at ETA plus or minus 1 hour.
 - Displays METAR/TAF availability chips, data age, TAF currency, and whether takeoff/landing times are inside the TAF window.
 - Highlights applicable TAF timing references with `T`, `L`, `ETA-1`, and `ETA+1`.
@@ -169,6 +170,36 @@ The airfield search uses the included offline airport search file. If an airport
 The white dice generates a random practice mission. The red dice searches for bad-weather practice missions that evaluate red using the active saved limits. Dice region settings can include CONUS, OCONUS, or both.
 
 If the red dice cannot find three live red-weather fields quickly enough, the app reports what it found and may use sample fields for practice continuity.
+
+## Code Hunt
+
+The Code Hunt button searches live AWC METAR/TAF text for real-world examples of selected aviation weather codes. When it finds examples, it populates the mission fields with matching airfields so users can practice decoding them.
+
+Current hunt targets include:
+
+- `AMD / COR`: amended or corrected reports.
+- `AFT / NEXT`: TAF admin timing.
+- `AUTO`: automated reports.
+- `BKN`: broken cloud layers.
+- `BLDU / BLSN`: blowing dust or snow.
+- `RVR`: runway visual range groups.
+- `VV`: vertical visibility.
+- `MPS`: metric wind reports.
+- `CAVOK`: ceiling and visibility OK.
+- `TSRA`: thunderstorm rain.
+- `TEMPO`: temporary TAF conditions.
+- `BECMG`: becoming TAF conditions.
+- `PROB`: probability groups.
+- `QFE`: field pressure remarks.
+- `QNH`: TAF altimeter settings.
+- `RAB / RAE`: rain began or ended.
+- `RVR TREND`: runway visual range trend groups.
+- `SLP`: sea-level pressure remarks.
+- `SNOCLO`: aerodrome closed due snow.
+- `TX / TN`: TAF max/min temperatures.
+- Gusts, variable wind, wind shear, wind at height, runway wind, `CB`/`TCU`, fog/mist, remarks, missing sensor groups, freezing weather, drizzle, squalls, distant lightning, directional visibility, `SPECI`, recent weather, pressure change remarks, military color states, and clear/sky-clear groups.
+
+Code Hunt uses the same live-weather capable field pool as the dice tools. If it cannot find an example, it reports unable instead of silently loading unrelated fields.
 
 ## NOTAMs
 

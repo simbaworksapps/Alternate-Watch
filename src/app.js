@@ -113,11 +113,85 @@ const randomMissionMessages = [
   "PICKING SOMEWHERE SPICY",
   "GIVING THE CREW HOMEWORK"
 ];
+const codeHuntTargets = [
+  { id: "amdcor", label: "AMD / COR", hint: "Amended or corrected", pattern: /\b(?:AMD|COR)\b/ },
+  { id: "aftnext", label: "AFT / NEXT", hint: "TAF admin timing", pattern: /\b(?:AFT|NEXT)\b/ },
+  { id: "auto", label: "AUTO", hint: "Automated report", pattern: /\bAUTO\b/ },
+  { id: "becmg", label: "BECMG", hint: "Becoming condition", pattern: /\bBECMG\b/ },
+  { id: "becmgtempo", label: "BECMG + TEMPO", hint: "Mixed TAF changes", pattern: /(?=.*\bBECMG\b)(?=.*\bTEMPO\b)/s },
+  { id: "bkn", label: "BKN", hint: "Broken cloud", pattern: /\bBKN\d{3}(?:CB|TCU)?\b/ },
+  { id: "blowing", label: "BLDU / BLSN", hint: "Blowing dust or snow", pattern: /\b(?:BLDU|BLSN|BLSA)\b/ },
+  { id: "cavok", label: "CAVOK", hint: "Ceiling and visibility OK", pattern: /\bCAVOK\b/ },
+  { id: "cbtcu", label: "CB / TCU", hint: "Convective cloud", pattern: /\b(?:FEW|SCT|BKN|OVC)\d{3}(?:CB|TCU)\b|\/\/\/CB\b/ },
+  { id: "clrskc", label: "CLR / SKC", hint: "Clear sky groups", pattern: /\b(?:CLR|SKC)\b/ },
+  { id: "dirvis", label: "DIR VIS", hint: "Directional visibility", pattern: /\b\d{4}(?:N|NE|E|SE|S|SW|W|NW)\b/ },
+  { id: "dustsand", label: "DS / SS", hint: "Dust or sandstorm", pattern: /\b(?:DS|SS)\b/ },
+  { id: "dz", label: "DZ", hint: "Drizzle", pattern: /\b[+-]?(?:FZ)?DZ\b/ },
+  { id: "fog", label: "FG / BR", hint: "Fog or mist", pattern: /\b(?:MIFG|PRFG|BCFG|FZFG|FG|BR)\b/ },
+  { id: "fz", label: "FZ", hint: "Freezing weather", pattern: /\b(?:FZRA|FZDZ|FZFG)\b/ },
+  { id: "hail", label: "GR / GS", hint: "Hail or small hail", pattern: /\b[+-]?(?:GR|GS)\b/ },
+  { id: "hazesmoke", label: "HZ / FU / DU / SA", hint: "Obscurations", pattern: /\b(?:HZ|FU|DU|SA)\b/ },
+  { id: "gust", label: "GUST", hint: "Gust factor", pattern: /\b(?:\d{3}|VRB)\d{2,3}G\d{2,3}(?:KT|MPS)\b/ },
+  { id: "inter", label: "INTER", hint: "Intermittent condition", pattern: /\bINTER\b/ },
+  { id: "lastnoamd", label: "LAST NO AMD", hint: "TAF amendment limit", pattern: /\bLAST\s+NO\s+AMD\b/ },
+  { id: "ltg", label: "LTG DSNT", hint: "Distant lightning", pattern: /\bLTG\s+DSNT\b/ },
+  { id: "missing", label: "////", hint: "Missing sensor values", pattern: /\/{2,}/ },
+  { id: "milcolor", label: "MIL COLOR", hint: "Military color state", pattern: /\b(?:BLU|WHT|GRN|YLO|AMB|RED|BLACK)\b/ },
+  { id: "mps", label: "MPS", hint: "Metric winds", pattern: /\b(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?MPS\b/ },
+  { id: "ncd", label: "NCD", hint: "No cloud detected", pattern: /\bNCD\b/ },
+  { id: "nsc", label: "NSC", hint: "No significant cloud", pattern: /\bNSC\b/ },
+  { id: "nsw", label: "NSW", hint: "No significant weather", pattern: /\bNSW\b/ },
+  { id: "ovc", label: "OVC", hint: "Overcast cloud", pattern: /\bOVC\d{3}(?:CB|TCU)?\b/ },
+  { id: "p6sm", label: "P6SM", hint: "Greater than 6 SM", pattern: /\bP6SM\b/ },
+  { id: "pk-wnd", label: "PK WND", hint: "Peak wind remark", pattern: /\bPK\s+WND\b/ },
+  { id: "precip", label: "P####", hint: "Precipitation amount", pattern: /\bP\d{4}\b/ },
+  { id: "pres", label: "PRESFR / PRESRR", hint: "Pressure change", pattern: /\bPRES(?:FR|RR)\b/ },
+  { id: "prob", label: "PROB", hint: "Probability group", pattern: /\bPROB\d{2}\b/ },
+  { id: "qfe", label: "QFE", hint: "Field pressure remark", pattern: /\bQFE\d{3,4}(?:\/\d{3,4})?\b/ },
+  { id: "qnh", label: "QNH", hint: "TAF altimeter setting", pattern: /\bQNH\d{4}(?:INS)?\b/ },
+  { id: "rab-rea", label: "RAB / RAE", hint: "Rain began or ended", pattern: /\bRA[BE]\d{2,4}\b/ },
+  { id: "recent", label: "RE WX", hint: "Recent weather", pattern: /\bRE(?:RA|SN|TS|SHRA|SHSN|DZ|FG|GR|GS)\b/ },
+  { id: "rmk", label: "RMK", hint: "Remarks section", pattern: /\bRMK\b/ },
+  { id: "rwywind", label: "RWY WIND", hint: "Runway wind remark", pattern: /\bRWY\d{2}[LCR]?\s+(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?KT\b/ },
+  { id: "rvr", label: "RVR", hint: "Runway visual range", pattern: /\bR\d{2}[LCR]?\/(?:CLRD)?\d{2,4}[UDN]?/ },
+  { id: "rvrtrend", label: "RVR TREND", hint: "RVR up/down/no change", pattern: /\bR\d{2}[LCR]?\/(?:CLRD)?\d{2,4}[UDN]\b/ },
+  { id: "sct", label: "SCT", hint: "Scattered cloud", pattern: /\bSCT\d{3}(?:CB|TCU)?\b/ },
+  { id: "slp", label: "SLP", hint: "Sea-level pressure", pattern: /\bSLP\d{3}\b/ },
+  { id: "snoclo", label: "SNOCLO", hint: "Closed due snow", pattern: /\bSNOCLO\b/ },
+  { id: "speci", label: "SPECI", hint: "Special observation", pattern: /\bSPECI\b/ },
+  { id: "sq", label: "SQ", hint: "Squalls", pattern: /\bSQ\b/ },
+  { id: "tempo", label: "TEMPO", hint: "Temporary condition", pattern: /\bTEMPO\b/ },
+  { id: "t-group", label: "T########", hint: "Precise temp/dewpoint", pattern: /\bT[01]\d{3}[01]\d{3}\b/ },
+  { id: "tsb-tse", label: "TSB / TSE", hint: "Thunderstorm began/ended", pattern: /\bTS[BE]\d{2,4}\b/ },
+  { id: "tsra", label: "TSRA", hint: "Thunderstorm rain", pattern: /\b[+-]?TS(?:RA|SHRA)?\b|\b[+-]?TSRA\b/ },
+  { id: "txtn", label: "TX / TN", hint: "TAF max/min temp", pattern: /\bT[XN]\d{2}\/\d{4}Z\b/ },
+  { id: "up", label: "UP", hint: "Unknown precipitation", pattern: /\b[+-]?UP\b/ },
+  { id: "varwind", label: "VAR WIND", hint: "VRB or directional spread", pattern: /\bVRB\d{2,3}(?:KT|MPS)\b|\b\d{3}V\d{3}\b/ },
+  { id: "vc", label: "VCSH / VCTS", hint: "Vicinity weather", pattern: /\bVC(?:SH|TS|FG|RA|SN)\b/ },
+  { id: "windheight", label: "WIND HEIGHT", hint: "Wind at height remark", pattern: /\bWIND\s+\d{3,4}FT\s+(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?KT\b/ },
+  { id: "windshear", label: "WS", hint: "Wind shear", pattern: /\bWS(?:\d{3}\/\d{3}\d{2,3}KT|\s+ALL\s+RWY|\d{3})?\b/ },
+  { id: "vv", label: "VV", hint: "Vertical visibility", pattern: /\bVV\d{3}\b/ }
+].sort((left, right) => left.label.localeCompare(right.label));
+const codeHuntMessages = [
+  "HUNTING DECODE BAIT",
+  "SCANNING REAL TAFS",
+  "ASKING METAR FOR RECEIPTS",
+  "CHECKING FOR TRAINING GOLD",
+  "LOOKING FOR THE WEIRD STUFF",
+  "SORTING LIVE EXAMPLES",
+  "DIGGING THROUGH AWC",
+  "CHECKING THE ODD GROUPS",
+  "FINDING A TEACHABLE LINE",
+  "THE RMK SECTION IS TALKING",
+  "VERIFYING THE WEATHER CODE",
+  "LOOKING FOR A CLEAN EXAMPLE"
+];
 let currentFilter = "all";
 let latestEvaluation = null;
 let missionNotice = "";
 let missionDataOverride = null;
 let submitFeedbackTimer = null;
+let codeHuntFeedbackTimer = null;
 let lastLiveRedPractice = null;
 let activeDiceAction = null;
 let activeAirfieldTarget = null;
@@ -136,6 +210,7 @@ function init() {
   render();
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    cancelActiveSearchForManualRun();
     updateZuluDateTimeReadouts();
     await render(true);
   });
@@ -148,10 +223,7 @@ function init() {
   document.querySelector("#landing-plus-one").addEventListener("click", () => {
     addHoursToZuluDateTimeField("landingDateTime", 1);
   });
-  document.querySelector("#clear-alternates").addEventListener("click", async () => {
-    clearMissionInputs();
-    await render();
-  });
+  setupCodeHuntControls();
   document.querySelector("#reset-alternates").addEventListener("click", async () => {
     resetMissionDefaults();
     await render();
@@ -236,6 +308,7 @@ function init() {
       closeVisibilityTable();
       closeWindTable();
       closeAirfieldSearch();
+      closeCodeHuntPanel();
       closeLimitsPanel();
     }
   });
@@ -262,6 +335,11 @@ function init() {
       const conversionPanel = getOpenConversionPanel();
       const clickedConversionPanel = conversionPanel && conversionPanel.contains(event.target);
       if (!panel.contains(event.target) && !clickedTrigger && !clickedConversionPanel) closeLimitsPanel();
+    }
+    if (document.body.classList.contains("code-hunt-open")) {
+      const panel = document.querySelector("#code-hunt-panel");
+      const toggle = document.querySelector("#code-hunt-toggle");
+      if (!panel.contains(event.target) && !toggle.contains(event.target)) closeCodeHuntPanel();
     }
     if (document.body.classList.contains("sortie-duration-open")) {
       const panel = document.querySelector("#sortie-duration-panel");
@@ -547,6 +625,23 @@ function cancelDiceAction(message, showCancelled = false) {
   }
 }
 
+function cancelActiveSearchForManualRun() {
+  if (!activeDiceAction) return;
+  const action = activeDiceAction;
+  cancelDiceAction("SEARCH CANCELED");
+  if (action.type === "random") {
+    const button = document.querySelector("#random-mission");
+    button?.classList.remove("dice-thinking");
+    if (button) resetRandomMissionButton();
+  } else if (action.type === "practice") {
+    const button = document.querySelector("#practice-weather");
+    button?.classList.remove("dice-thinking");
+    resetPracticeWeatherButton();
+  } else if (action.type === "code-hunt") {
+    resetCodeHuntButton();
+  }
+}
+
 function isActiveDiceAction(action) {
   return activeDiceAction === action && !action.cancelled;
 }
@@ -562,12 +657,147 @@ function resetPracticeWeatherButton() {
   button.innerHTML = '<span class="dice-icon risk-dice-icon" aria-hidden="true"></span>';
 }
 
+function resetCodeHuntButton() {
+  const button = document.querySelector("#code-hunt-toggle");
+  if (!button) return;
+  window.clearTimeout(codeHuntFeedbackTimer);
+  button.classList.remove("code-hunt-thinking", "code-hunt-settle");
+  button.innerHTML = '<span class="code-hunt-icon" aria-hidden="true"></span>';
+  button.disabled = false;
+}
+
+function setCodeHuntButtonSearching() {
+  const button = document.querySelector("#code-hunt-toggle");
+  if (!button) return;
+  window.clearTimeout(codeHuntFeedbackTimer);
+  button.classList.remove("code-hunt-settle");
+  button.classList.add("code-hunt-thinking");
+  button.innerHTML = '<span class="code-hunt-icon" aria-hidden="true"></span>';
+  button.disabled = false;
+}
+
+function settleCodeHuntButton() {
+  const button = document.querySelector("#code-hunt-toggle");
+  if (!button) return;
+  window.clearTimeout(codeHuntFeedbackTimer);
+  button.classList.remove("code-hunt-thinking", "code-hunt-settle");
+  button.innerHTML = '<span class="code-hunt-icon" aria-hidden="true"></span>';
+  void button.offsetWidth;
+  button.classList.add("code-hunt-settle");
+  codeHuntFeedbackTimer = window.setTimeout(() => {
+    button.classList.remove("code-hunt-settle");
+  }, 520);
+}
+
 function setupRiskDiceAttention() {
   const button = document.querySelector("#practice-weather");
   if (!button || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   button.classList.add("dice-on-fire");
   window.setTimeout(() => button.classList.add("dice-fire-fade"), 2400);
   window.setTimeout(() => button.classList.remove("dice-on-fire", "dice-fire-fade"), 3200);
+}
+
+function setupCodeHuntControls() {
+  const toggle = document.querySelector("#code-hunt-toggle");
+  const close = document.querySelector("#code-hunt-close");
+  const options = document.querySelector("#code-hunt-options");
+  if (!toggle || !close || !options) return;
+  options.innerHTML = codeHuntTargets.map((target) => `
+    <button type="button" class="secondary-button code-hunt-option" data-code-hunt="${target.id}">
+      <strong>${escapeHtml(target.label)}</strong>
+      <span>${escapeHtml(target.hint)}</span>
+    </button>
+  `).join("");
+  toggle.addEventListener("click", toggleCodeHuntPanel);
+  close.addEventListener("click", closeCodeHuntPanel);
+  options.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-code-hunt]");
+    if (!button) return;
+    const target = codeHuntTargets.find((item) => item.id === button.dataset.codeHunt);
+    if (!target) return;
+    closeCodeHuntPanel();
+    await runCodeHunt(target);
+  });
+}
+
+function toggleCodeHuntPanel() {
+  if (activeDiceAction?.type === "code-hunt") {
+    cancelDiceAction("CANCELING SEARCH", true);
+    resetCodeHuntButton();
+    closeCodeHuntPanel();
+    return;
+  }
+  const panel = document.querySelector("#code-hunt-panel");
+  const toggle = document.querySelector("#code-hunt-toggle");
+  const open = panel.hidden;
+  panel.hidden = !open;
+  toggle.setAttribute("aria-expanded", String(open));
+  document.body.classList.toggle("code-hunt-open", open);
+}
+
+function closeCodeHuntPanel() {
+  const panel = document.querySelector("#code-hunt-panel");
+  const toggle = document.querySelector("#code-hunt-toggle");
+  if (!panel) return;
+  panel.hidden = true;
+  toggle?.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("code-hunt-open");
+}
+
+async function runCodeHunt(target) {
+  const previousAction = activeDiceAction;
+  if (previousAction) cancelDiceAction("SWITCHING SEARCH");
+  const action = startDiceAction("code-hunt");
+  const previousInputs = getRawInputValues();
+  setCodeHuntButtonSearching();
+
+  try {
+    const { takeoff, landing } = getDiceMissionTimes();
+    const pool = getDiceAirfieldPool();
+    const scanFields = pickUnique(pool, pool.length);
+    const found = [];
+
+    for (let index = 0; index < scanFields.length; index += practiceScanChunkSize) {
+      if (!isActiveDiceAction(action)) break;
+      const chunk = scanFields.slice(index, index + practiceScanChunkSize);
+      setRandomDiceMessage(action, codeHuntMessages, ` ${target.label} ${Math.min(index + chunk.length, scanFields.length)}/${scanFields.length}`);
+      const missionData = await getLiveMissionData(chunk);
+      if (!isActiveDiceAction(action)) break;
+      chunk.forEach((icao) => {
+        if (found.includes(icao)) return;
+        const airport = missionData.airports?.[icao];
+        if (airport && codeHuntMatches(target, airport)) found.push(icao);
+      });
+      if (found.length >= 3) break;
+    }
+
+    if (!isActiveDiceAction(action)) return;
+    if (!found.length) {
+      setSubmitButtonStatus("unable");
+      settleCodeHuntButton();
+      missionNotice = `No live ${target.label} examples found.`;
+      return;
+    }
+
+    const foundCount = Math.min(found.length, 3);
+    const selected = found.slice(0, 3);
+    while (selected.length < 3) selected.push(selected[selected.length - 1]);
+    pushScenarioHistory(previousInputs);
+    missionDataOverride = null;
+    missionNotice = `Code hunt: ${target.label} (${foundCount}/3 found).`;
+    applyMissionFields(selected[0], selected[1], [selected[2]], takeoff, landing);
+    await render({ showSubmitFeedback: false, preserveButtonMessage: true });
+    setSubmitButtonStatus(found.length >= 3 ? "success" : `partial-${foundCount}`);
+    settleCodeHuntButton();
+  } finally {
+    if (action.cancelled) resetCodeHuntButton();
+    finishDiceAction(action);
+  }
+}
+
+function codeHuntMatches(target, airport) {
+  const text = [airport.metar, airport.tafRaw].filter(Boolean).join("\n").toUpperCase();
+  return target.pattern.test(text);
 }
 
 function getRawInputValues() {
