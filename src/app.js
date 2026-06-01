@@ -1579,7 +1579,22 @@ function applyLimitsFromPanel() {
   const limits = getLimitsFromPanel();
   setLimitsPanelValues(limits);
   updateLimitSummaries(limits);
+  saveLimitsToDefaults(limits);
+  applyActiveRuleLimits(limits);
+  updateDecisionBanner();
   closeLimitsPanel();
+}
+
+function saveLimitsToDefaults(limits) {
+  const defaults = normalizeMissionDefaults({
+    ...getMissionDefaults(),
+    limits
+  });
+  try {
+    localStorage.setItem(missionDefaultsStorageKey, JSON.stringify(defaults));
+  } catch (error) {
+    // If storage is unavailable, the current session still uses the applied limits.
+  }
 }
 
 function getLimitsFromPanel() {
