@@ -924,25 +924,39 @@ function selectCodeHuntMission(matches) {
     destination: destination.icao,
     alternate: alternate.icao,
     uniqueCount: new Set([departure.icao, destination.icao, alternate.icao]).size,
-    foundInLabel: formatCodeHuntFoundIn(matches)
+    foundInLabel: formatSelectedCodeHuntFoundIn(departure, destination, alternate)
   };
+}
+
+function formatSelectedCodeHuntFoundIn(departure, destination, alternate) {
+  const labels = [
+    ...(departure.departureMatch ? departure.foundIn.filter((label) => label.startsWith("T/O")) : []),
+    ...(destination.landingMatch ? destination.foundIn.filter((label) => label.startsWith("LND")) : []),
+    ...(alternate.landingMatch ? alternate.foundIn.filter((label) => label.startsWith("LND")) : [])
+  ];
+  return formatCodeHuntFoundInLabels(labels);
 }
 
 function formatCodeHuntFoundIn(matches) {
   const labels = [...new Set(matches.flatMap((match) => match.foundIn || []))];
+  return formatCodeHuntFoundInLabels(labels);
+}
+
+function formatCodeHuntFoundInLabels(labels) {
+  const uniqueLabels = [...new Set(labels)];
   const groups = [
     {
       prefix: "T/O",
       values: [
-        labels.includes("T/O METAR window") ? "METAR" : "",
-        labels.includes("T/O TAF window") ? "TAF" : ""
+        uniqueLabels.includes("T/O METAR window") ? "METAR" : "",
+        uniqueLabels.includes("T/O TAF window") ? "TAF" : ""
       ].filter(Boolean)
     },
     {
       prefix: "LND",
       values: [
-        labels.includes("LND METAR window") ? "METAR" : "",
-        labels.includes("LND TAF window") ? "TAF" : ""
+        uniqueLabels.includes("LND METAR window") ? "METAR" : "",
+        uniqueLabels.includes("LND TAF window") ? "TAF" : ""
       ].filter(Boolean)
     }
   ].filter((group) => group.values.length);
@@ -1448,18 +1462,27 @@ function highlightCodeHuntMatch(icao) {
     return;
   }
   target.scrollIntoView({ behavior: "smooth", block: "center" });
-  target.classList.remove("hunt-token-focus");
+  const tokens = findCodeHuntTargets(card);
+  tokens.forEach((token) => token.classList.remove("hunt-token-focus"));
   void target.offsetWidth;
-  target.classList.add("hunt-token-focus");
-  window.setTimeout(() => target.classList.remove("hunt-token-focus"), 1800);
+  tokens.forEach((token) => token.classList.add("hunt-token-focus"));
+  window.setTimeout(() => {
+    tokens.forEach((token) => token.classList.remove("hunt-token-focus"));
+  }, 1800);
 }
 
 function findCodeHuntTarget(card) {
+  return findCodeHuntTargets(card)[0] || null;
+}
+
+function findCodeHuntTargets(card) {
   const hunt = activeCodeHunt;
-  if (!hunt) return null;
+  if (!hunt) return [];
   const tokens = [...card.querySelectorAll(".hunt-search-token")];
-  return tokens.find((token) => codeHuntTextMatches(hunt, token.textContent))
-    || [...card.querySelectorAll(".metar-decode-row summary, .taf-decode-row.taf-applicable summary, .taf-decode-row.taf-window summary")].find((summary) => codeHuntTextMatches(hunt, summary.textContent));
+  const tokenMatches = tokens.filter((token) => codeHuntTextMatches(hunt, token.textContent));
+  if (tokenMatches.length) return tokenMatches;
+  return [...card.querySelectorAll(".metar-decode-row summary, .taf-decode-row.taf-applicable summary, .taf-decode-row.taf-window summary")]
+    .filter((summary) => codeHuntTextMatches(hunt, summary.textContent));
 }
 
 function findIssueTarget(card, label) {
@@ -3204,7 +3227,9 @@ function renderMetarSourceTokens(metar) {
       const huntClass = isCodeHuntToken(part) && !getCodeHuntLiteralForToken(part) ? " hunt-search-token" : "";
       return /^\d{6}Z$/.test(part)
         ? `<span class="metar-source-time${huntClass}">${token}</span>`
-        : token;
+        : huntClass
+          ? `<span class="${huntClass.trim()}">${token}</span>`
+          : token;
     })
     .join("");
 }

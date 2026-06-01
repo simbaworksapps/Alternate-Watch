@@ -61,7 +61,7 @@ input[type="datetime-local"] {
 .app-shell {
   align-items: start;
   display: grid;
-  gap: 16px;
+  gap: 0;
   margin: 0 auto;
   max-width: 1120px;
   padding: 16px;
@@ -3273,7 +3273,7 @@ ul {
 
 @media (min-width: 980px) {
   .mission-panel {
-    left: max(24px, calc((100vw - 1120px) / 2 + 24px));
+    left: max(24px, calc(50% - 536px));
     max-height: none;
     overflow: visible;
     position: fixed;
@@ -3304,7 +3304,7 @@ ul {
 @media (min-width: 760px) and (max-height: 560px) {
   .app-shell {
     display: grid;
-    gap: 6px;
+    gap: 0;
     grid-template-columns: 1fr;
     max-width: 100%;
     padding: 0;
@@ -3330,9 +3330,31 @@ ul {
   }
 }
 
+@media (pointer: coarse) and (orientation: landscape) {
+  .app-shell {
+    display: grid;
+    grid-template-columns: 1fr;
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .mission-panel {
+    left: auto;
+    max-height: none;
+    overflow: hidden;
+    position: relative;
+    top: auto;
+    width: auto;
+  }
+
+  .results-panel {
+    grid-column: auto;
+  }
+}
+
 @media (max-width: 759px) {
   .app-shell {
-    gap: 6px;
+    gap: 0;
     max-width: 100%;
     padding: 0;
   }
