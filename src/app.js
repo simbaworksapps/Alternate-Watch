@@ -833,31 +833,20 @@ function updateDecisionBanner(referenceDate = new Date()) {
 }
 
 function getDecisionBannerStatus(referenceDate = new Date()) {
-  const liveStatus = getLiveTafSummaryItems(referenceDate).reduce((current, item) => {
-    const itemStatus = item.chips.reduce((chipStatus, chip) =>
-      STATUS_RANK[chip.status] > STATUS_RANK[chipStatus] ? chip.status : chipStatus
-    , "green");
-    return STATUS_RANK[itemStatus] > STATUS_RANK[current] ? itemStatus : current;
-  }, "green");
-  return STATUS_RANK[liveStatus] > STATUS_RANK[latestEvaluation.summary.status] ? liveStatus : latestEvaluation.summary.status;
+  return latestEvaluation.summary.status;
 }
 
-function getDecisionBannerItems(referenceDate = new Date()) {
-  const items = (latestEvaluation.summary.items || []).map((item) => ({
+function getDecisionBannerItems() {
+  return (latestEvaluation.summary.items || []).map((item) => ({
     icao: item.icao,
-    chips: [...(item.chips || [])]
+    chips: getResultForIcao(item.icao)
+      ? getDisplayIssueChips(getResultForIcao(item.icao))
+      : [...(item.chips || [])]
   }));
-  getLiveTafSummaryItems(referenceDate).forEach((liveItem) => {
-    const existing = items.find((item) => item.icao === liveItem.icao);
-    if (existing) {
-      liveItem.chips.forEach((chip) => {
-        if (!existing.chips.some((existingChip) => existingChip.label === chip.label)) existing.chips.push(chip);
-      });
-    } else {
-      items.push(liveItem);
-    }
-  });
-  return items;
+}
+
+function getResultForIcao(icao) {
+  return latestEvaluation?.results?.find((result) => result.icao === icao) || null;
 }
 
 function getLiveTafSummaryItems(referenceDate = new Date()) {
@@ -2126,8 +2115,7 @@ function renderCard(result) {
       ? '<p class="notam-unavailable">No active NOTAMs for selected time.</p>'
       : '<p class="notam-unavailable">NOTAM feature currently unavailable.</p>';
   const cardChips = [
-    ...(result.chips || [{ label: "NO ISSUES", status: "green" }]),
-    ...getLiveTafTimeChips(result),
+    ...getDisplayIssueChips(result),
     ...getWeatherProductChips(result)
   ].map(markAssistChip);
   const chips = `<div class="issue-chips">${cardChips.map(renderIssueChip).join("")}</div>`;
@@ -2213,6 +2201,14 @@ function updateEvaluationDeltaBadges(referenceDate = new Date()) {
     badge.classList.remove("eval-delta-future", "eval-delta-past");
     badge.classList.add(state.className);
     badge.textContent = state.label;
+  });
+}
+
+function getDisplayIssueChips(result) {
+  const chips = result.chips || [{ label: "NO ISSUES", status: "green" }];
+  return chips.map((chip) => {
+    if (String(chip.label || "").toUpperCase() !== "TAF TIME") return chip;
+    return { ...chip, label: `${renderEvaluationLabel(result)} N/A TAF` };
   });
 }
 
