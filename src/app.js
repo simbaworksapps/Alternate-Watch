@@ -3400,7 +3400,7 @@ function renderConversionTableButton(item) {
 }
 
 function renderTableButton(type, label, title) {
-  return ` <button type="button" class="conversion-table-button" data-conversion-table="${type}" aria-label="${escapeHtml(label)}" title="${escapeHtml(title)}">Table</button>`;
+  return ` <button type="button" class="conversion-table-button limit-ruler-button" data-conversion-table="${type}" aria-label="${escapeHtml(label)}" title="${escapeHtml(title)}"><span class="limit-ruler" aria-hidden="true"></span></button>`;
 }
 
 function renderMetar(metar) {
@@ -3864,6 +3864,7 @@ function isWeatherToken(token) {
   if (/^(METAR|SPECI|AUTO|COR|RMK|QNH|LAST|NEXT|AFT|NIL|SKC|CLR|NSC)$/.test(token)) return false;
   if (/^(FEW|SCT|BKN|OVC|VV)\d{3}/.test(token)) return false;
   const clean = token.replace(/^[-+]/, "");
+  if (clean === "TS") return true;
   if (clean === "NSW") return true;
   if (/^RE(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|TS|SH|FZ)+$/.test(clean)) return true;
   return /^(VC)?(MI|PR|BC|BD|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+$/.test(clean);
