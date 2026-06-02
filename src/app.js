@@ -4318,8 +4318,8 @@ function formatZuluTime(date) {
 
 function formatNowReference(date) {
   const julianDate = formatZuluJulianDate(date);
-  const localDate = formatCompactLocalDate(date);
-  const zuluDate = formatCompactZuluDate(date);
+  const localDate = formatNowLocalDate(date);
+  const zuluDate = formatNowZuluDate(date);
   const localTime = formatLocalTime(date);
   const zuluTime = formatZuluTime(date);
   const offset = formatUtcOffsetLabel(date);
@@ -4345,6 +4345,20 @@ function formatCompactLocalDate(date) {
 
 function formatCompactZuluDate(date) {
   const day = String(date.getUTCDate()).padStart(2, "0");
+  const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" }).toUpperCase();
+  const year = String(date.getUTCFullYear()).slice(-2);
+  return `${day}${month}${year}`;
+}
+
+function formatNowLocalDate(date) {
+  const day = String(date.getDate());
+  const month = date.toLocaleString("en-US", { month: "short" }).toUpperCase();
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day}${month}${year}`;
+}
+
+function formatNowZuluDate(date) {
+  const day = String(date.getUTCDate());
   const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" }).toUpperCase();
   const year = String(date.getUTCFullYear()).slice(-2);
   return `${day}${month}${year}`;
