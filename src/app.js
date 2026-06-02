@@ -408,17 +408,23 @@ function setupBrandAnimation() {
   const brandRow = document.querySelector(".brand-row");
   const brandLink = document.querySelector(".brand-link");
   const title = document.querySelector("#app-title");
-  const watchText = title?.querySelectorAll("span")[1];
   const fireButton = document.querySelector("#brand-fire-button");
   if (!brandRow || !brandLink || !title) return;
   let isBrandAnimating = false;
 
   const updateBrandImpactTarget = () => {
-    if (!watchText) return;
+    if (!fireButton) return;
     const rowRect = brandRow.getBoundingClientRect();
-    const watchRect = watchText.getBoundingClientRect();
-    brandRow.style.setProperty("--impact-x", `${Math.round(watchRect.left - rowRect.left + 1)}px`);
-    brandRow.style.setProperty("--impact-y", `${Math.round(watchRect.top - rowRect.top + (watchRect.height / 2) - 2)}px`);
+    const linkRect = brandLink.getBoundingClientRect();
+    const buttonRect = fireButton.getBoundingClientRect();
+    const impactX = Math.round(buttonRect.left - rowRect.left + (buttonRect.width / 2));
+    const muzzleX = Math.round(linkRect.right - rowRect.left + 8);
+    const travel = Math.max(24, impactX - muzzleX);
+    const tracerWidth = Math.max(42, Math.min(126, travel));
+    brandRow.style.setProperty("--impact-x", `${impactX}px`);
+    brandRow.style.setProperty("--impact-y", `${Math.round(buttonRect.top - rowRect.top + (buttonRect.height / 2) - 2)}px`);
+    brandRow.style.setProperty("--tracer-travel", `${travel}px`);
+    brandRow.style.setProperty("--tracer-width", `${tracerWidth}px`);
   };
 
   const playBrandAnimation = () => {
@@ -438,6 +444,7 @@ function setupBrandAnimation() {
   brandLink.addEventListener("focus", playBrandAnimation);
   window.addEventListener("resize", updateBrandImpactTarget);
   updateBrandImpactTarget();
+  window.requestAnimationFrame(playBrandAnimation);
   fireButton?.addEventListener("click", (event) => {
     event.stopPropagation();
     playBrandAnimation();
