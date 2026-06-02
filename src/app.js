@@ -4317,15 +4317,23 @@ function formatZuluTime(date) {
 }
 
 function formatNowReference(date) {
+  const julianDate = formatZuluJulianDate(date);
   const localDate = formatCompactLocalDate(date);
   const zuluDate = formatCompactZuluDate(date);
   const localTime = formatLocalTime(date);
   const zuluTime = formatZuluTime(date);
   const offset = formatUtcOffsetLabel(date);
   if (localDate === zuluDate) {
-    return `${localDate} ${localTime} | ${zuluTime} (${offset})`;
+    return `${localDate} ${localTime} | ${zuluTime} (${offset}) | ${julianDate}`;
   }
-  return `${localDate} ${localTime} | ${zuluDate} ${zuluTime} (${offset})`;
+  return `${localDate} ${localTime} | ${zuluDate} ${zuluTime} (${offset}) | ${julianDate}`;
+}
+
+function formatZuluJulianDate(date) {
+  const start = Date.UTC(date.getUTCFullYear(), 0, 1);
+  const current = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const day = Math.floor((current - start) / 86400000) + 1;
+  return `JD${String(day).padStart(3, "0")}`;
 }
 
 function formatCompactLocalDate(date) {
