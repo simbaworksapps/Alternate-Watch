@@ -1452,7 +1452,7 @@ function scrollToAirfieldCard(icao) {
   if (!card) return;
   const details = card.querySelector(".card-disclosure");
   if (details) details.open = true;
-  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  scrollCardToViewportTop(card);
   const focusClass = card.classList.contains("status-red")
     ? "scroll-focus-red"
     : card.classList.contains("status-yellow")
@@ -1460,6 +1460,12 @@ function scrollToAirfieldCard(icao) {
       : "scroll-focus-green";
   card.classList.add("scroll-focus", focusClass);
   window.setTimeout(() => card.classList.remove("scroll-focus", focusClass), 1400);
+}
+
+function scrollCardToViewportTop(card) {
+  window.requestAnimationFrame(() => {
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 function scrollToIssue(icao, label, status = "") {
@@ -3680,6 +3686,8 @@ function isKnownMetarToken(token, index, tokens) {
   if (/^DZB\d{2}E\d{2}$/.test(token)) return true;
   if (/^RA(B|E)\d{2}(\d{2})?$/.test(token)) return true;
   if (/^TS(B|E)\d{2}(\d{2})?$/.test(token)) return true;
+  if (token === "CIG" && tokens.includes("RMK")) return true;
+  if (/^\d{3}V\d{3}$/.test(token) && tokens[index - 1] === "CIG") return true;
   if (/^(HZY|8\/\d{3})$/.test(token) && tokens.includes("RMK")) return true;
   if (/^(ST\dST\d|ST|TR|CB\/[A-Z-]+|DENSITY|ALT|FT)$/.test(token) && tokens.includes("RMK")) return true;
   if (/^\d{3,5}$/.test(token) && tokens[index - 2] === "DENSITY" && tokens[index - 1] === "ALT") return true;
@@ -4053,6 +4061,7 @@ function getMetarRemarkDecoders() {
   (token) => matchDecode(token, /^TS(B|E)(\d{2})(\d{2})?$/, (match) => `Thunderstorm ${match[1] === "B" ? "began" : "ended"} at ${match[2]}${match[3] || ""}Z.`),
   (token) => token === "TSNO" ? "Thunderstorm information not available." : null,
   (token) => token === "FZRANO" ? "Freezing rain sensor not available." : null,
+  (token, index, rmk) => token === "CIG" && /^\d{3}V\d{3}$/.test(rmk[index + 1] || "") ? decodeVariableCeilingRemark(rmk[index + 1]) : null,
   (token) => token === "TEMPO" ? "Temporary trend condition follows." : null,
   (token, index, rmk) => {
     if (token !== "WIND" || !/^\d{3,4}FT$/.test(rmk[index + 1] || "") || !matchWindToken(rmk[index + 2])) return null;
@@ -4151,6 +4160,12 @@ function decodePeakWind(wind, time) {
   if (!match) return `Peak wind ${wind || ""} ${time || ""}.`.trim();
   const timeToken = match[3] || (/^\d{4}$/.test(time || "") ? time : "");
   return `Peak wind ${match[1]} degrees at ${Number(match[2])} kt${timeToken ? ` at ${timeToken}Z` : ""}.`;
+}
+
+function decodeVariableCeilingRemark(token) {
+  const match = String(token || "").match(/^(\d{3})V(\d{3})$/);
+  if (!match) return "";
+  return `Variable ceiling from ${Number(match[1]) * 100} to ${Number(match[2]) * 100} ft AGL.`;
 }
 
 function decodeDirection(value) {
@@ -4264,7 +4279,10 @@ function formatDateOnly(value) {
 
 function formatCaoDate(value) {
   const date = new Date(`${value}T00:00:00Z`);
-  return formatCompactZuluDate(date);
+  const day = String(date.getUTCDate());
+  const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" }).toUpperCase();
+  const year = String(date.getUTCFullYear()).slice(-2);
+  return `${day}${month}${year}`;
 }
 
 function formatDisplayDate(date) {

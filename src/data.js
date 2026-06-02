@@ -1,5 +1,5 @@
 const rulesMetadata = {
-  caoDate: "2026-06-01",
+  caoDate: "2026-06-02",
   rulesProfile: "Prototype thresholds pending current AFMAN 11-202V3 / AMC supplement mapping",
   weatherSource: "Sample",
   notamSource: "Unavailable",
