@@ -85,6 +85,7 @@ input[type="datetime-local"] {
 .brand-row {
   align-items: center;
   --impact-x: clamp(228px, 68vw, 304px);
+  --impact-y: 33px;
   --tracer-end: calc(var(--impact-x) - 204px);
   display: flex;
   gap: 12px;
@@ -188,7 +189,7 @@ input[type="datetime-local"] {
   pointer-events: none;
   position: absolute;
   left: var(--impact-x);
-  top: 33px;
+  top: var(--impact-y);
   transform-origin: 40% 50%;
   width: 6px;
   z-index: 6;

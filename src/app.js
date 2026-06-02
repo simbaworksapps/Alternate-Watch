@@ -408,13 +408,23 @@ function setupBrandAnimation() {
   const brandRow = document.querySelector(".brand-row");
   const brandLink = document.querySelector(".brand-link");
   const title = document.querySelector("#app-title");
+  const watchText = title?.querySelectorAll("span")[1];
   const fireButton = document.querySelector("#brand-fire-button");
   if (!brandRow || !brandLink || !title) return;
   let isBrandAnimating = false;
 
+  const updateBrandImpactTarget = () => {
+    if (!watchText) return;
+    const rowRect = brandRow.getBoundingClientRect();
+    const watchRect = watchText.getBoundingClientRect();
+    brandRow.style.setProperty("--impact-x", `${Math.round(watchRect.left - rowRect.left + 1)}px`);
+    brandRow.style.setProperty("--impact-y", `${Math.round(watchRect.top - rowRect.top + (watchRect.height / 2) - 2)}px`);
+  };
+
   const playBrandAnimation = () => {
     if (isBrandAnimating) return;
     isBrandAnimating = true;
+    updateBrandImpactTarget();
     brandRow.classList.remove("brand-animate");
     void brandRow.offsetWidth;
     brandRow.classList.add("brand-animate");
@@ -426,6 +436,8 @@ function setupBrandAnimation() {
 
   brandLink.addEventListener("mouseenter", playBrandAnimation);
   brandLink.addEventListener("focus", playBrandAnimation);
+  window.addEventListener("resize", updateBrandImpactTarget);
+  updateBrandImpactTarget();
   fireButton?.addEventListener("click", (event) => {
     event.stopPropagation();
     playBrandAnimation();
