@@ -1,9 +1,14 @@
-const CACHE_NAME = "simba-alternate-watch-v418";
+const CACHE_NAME = "simba-alternate-watch-v424";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./public/SIMBA.jpg",
+  "./public/apple-touch-icon.png",
+  "./public/simba-header-mark.png",
+  "./public/simba-app-icon-192.png",
+  "./public/simba-app-icon-512.png",
+  "./public/simba-app-icon-1024.png",
   "./src/app.js",
   "./src/airports.js",
   "./src/data.js",

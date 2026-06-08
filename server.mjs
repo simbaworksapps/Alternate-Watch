@@ -46,7 +46,7 @@ createServer(async (request, response) => {
 
 async function proxyWeather(url, response) {
   const type = url.searchParams.get("type");
-  const ids = url.searchParams.get("ids");
+  const ids = normalizeWeatherIds(url.searchParams.get("ids"));
   if (!["metar", "taf", "stationinfo"].includes(type) || !ids) {
     response.writeHead(400);
     response.end("Invalid weather request");
@@ -68,4 +68,15 @@ async function proxyWeather(url, response) {
     "Content-Type": type === "stationinfo" ? "application/json; charset=utf-8" : "text/plain; charset=utf-8"
   });
   response.end(await awcResponse.text());
+}
+
+function normalizeWeatherIds(value) {
+  const ids = String(value || "")
+    .split(",")
+    .map((id) => id.trim().toUpperCase())
+    .filter(Boolean);
+
+  if (!ids.length || ids.length > 100) return "";
+  if (!ids.every((id) => /^[A-Z0-9]{4}$/.test(id))) return "";
+  return [...new Set(ids)].join(",");
 }

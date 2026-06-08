@@ -97,19 +97,24 @@ input[type="datetime-local"] {
 }
 
 .brand-mark {
-  border: 1px solid rgba(245, 197, 66, 0.42);
-  border-radius: 8px;
+  border: 0;
+  border-radius: 0;
+  display: block;
   filter: brightness(0.88) contrast(0.95);
-  height: 72px;
+  height: 100%;
   object-fit: cover;
-  width: 72px;
+  width: 100%;
 }
 
 .brand-link {
-  border-radius: 8px;
+  border: 1px solid rgba(245, 197, 66, 0.42);
+  border-radius: 50%;
   display: inline-flex;
+  height: 72px;
+  overflow: hidden;
   position: relative;
   transition: box-shadow 160ms ease, transform 120ms ease;
+  width: 72px;
 }
 
 .brand-link::before,
@@ -121,7 +126,7 @@ input[type="datetime-local"] {
 
 .brand-link::before {
   border: 1px solid rgba(245, 197, 66, 0.62);
-  border-radius: 10px;
+  border-radius: 50%;
   inset: -4px;
   opacity: 0;
 }

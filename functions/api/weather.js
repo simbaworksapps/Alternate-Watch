@@ -1,7 +1,7 @@
 export async function onRequestGet(context) {
   const { searchParams } = new URL(context.request.url);
   const type = searchParams.get("type");
-  const ids = searchParams.get("ids");
+  const ids = normalizeWeatherIds(searchParams.get("ids"));
 
   if (!["metar", "taf", "stationinfo"].includes(type) || !ids) {
     return new Response("Invalid weather request", { status: 400 });
@@ -33,4 +33,15 @@ export async function onRequestGet(context) {
       "Content-Type": type === "stationinfo" ? "application/json; charset=utf-8" : "text/plain; charset=utf-8"
     }
   });
+}
+
+function normalizeWeatherIds(value) {
+  const ids = String(value || "")
+    .split(",")
+    .map((id) => id.trim().toUpperCase())
+    .filter(Boolean);
+
+  if (!ids.length || ids.length > 100) return "";
+  if (!ids.every((id) => /^[A-Z0-9]{4}$/.test(id))) return "";
+  return [...new Set(ids)].join(",");
 }
