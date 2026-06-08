@@ -956,7 +956,7 @@ function getCodeHuntApplicablePeriods(periods = [], targetTime, ruleType) {
   return periods.filter((period) => {
     const start = new Date(period.validFrom).getTime();
     const end = new Date(period.validTo).getTime();
-    return Number.isFinite(start) && Number.isFinite(end) && start <= endWindow && end >= startWindow;
+    return Number.isFinite(start) && Number.isFinite(end) && start <= endWindow && end > startWindow;
   });
 }
 

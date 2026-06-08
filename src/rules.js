@@ -198,7 +198,7 @@ function findApplicablePeriod(periods, targetTime) {
   const applicable = periods.filter((period) => {
     const start = new Date(period.validFrom).getTime();
     const end = new Date(period.validTo).getTime();
-    return target >= start && target <= end;
+    return target >= start && target < end;
   });
   if (!applicable.length) return null;
 
@@ -216,7 +216,7 @@ function findEvaluatedPeriods(periods, targetTime, ruleType) {
   const applicable = periods.filter((period) => {
     const start = new Date(period.validFrom).getTime();
     const end = new Date(period.validTo).getTime();
-    return start <= endWindow && end >= startWindow;
+    return start <= endWindow && end > startWindow;
   });
   if (!applicable.length) return { period: null, periods: [] };
   return {

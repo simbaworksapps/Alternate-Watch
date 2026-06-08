@@ -448,6 +448,7 @@ function extractWeatherElements(raw) {
     ceilingFt: ceiling.ceilingFt,
     ceilingSource: ceiling.ceilingSource,
     ceilingRaw: ceiling.ceilingSource ? raw : null,
+    hasCloudGroup: ceiling.hasCloudGroup,
     visibilitySm: visibility.visibilitySm,
     visibilitySource: visibility.visibilitySource,
     visibilityRaw: visibility.visibilitySource ? raw : null,
@@ -458,10 +459,11 @@ function extractWeatherElements(raw) {
 
 function mergeWeatherElements(group, elements, prevailing) {
   const base = group.conditional || group.changeType === "BECMG" ? prevailing : null;
+  const clearsCeiling = elements.hasCloudGroup && !elements.ceilingSource;
   return {
-    ceilingFt: elements.ceilingFt ?? base?.ceilingFt ?? null,
-    ceilingSource: elements.ceilingSource ?? base?.ceilingSource ?? null,
-    ceilingRaw: elements.ceilingSource ? elements.ceilingRaw : base?.ceilingRaw ?? null,
+    ceilingFt: elements.ceilingSource ? elements.ceilingFt : clearsCeiling ? null : base?.ceilingFt ?? null,
+    ceilingSource: elements.ceilingSource ? elements.ceilingSource : clearsCeiling ? null : base?.ceilingSource ?? null,
+    ceilingRaw: elements.ceilingSource ? elements.ceilingRaw : clearsCeiling ? null : base?.ceilingRaw ?? null,
     visibilitySm: elements.visibilitySm ?? base?.visibilitySm ?? 99,
     visibilitySource: elements.visibilitySource ?? base?.visibilitySource ?? "P6SM",
     visibilityRaw: elements.visibilitySource ? elements.visibilityRaw : base?.visibilityRaw ?? null,
@@ -591,12 +593,15 @@ function parseFraction(value) {
 }
 
 function extractCeiling(raw) {
-  const matches = [...normalizeWeatherRaw(raw).matchAll(/\b(BKN|OVC|VV)(\d{3})(CB|TCU)?\b/g)];
-  if (!matches.length) return { ceilingFt: null, ceilingSource: null };
+  const normalized = normalizeWeatherRaw(raw);
+  const hasCloudGroup = /\b(?:FEW|SCT|BKN|OVC|VV)(?:\d{3}|\/\/\/)(?:CB|TCU)?\b|\b(?:CAVOK|NSC|NCD|SKC|CLR)\b/.test(normalized);
+  const matches = [...normalized.matchAll(/\b(BKN|OVC|VV)(\d{3})(CB|TCU)?\b/g)];
+  if (!matches.length) return { ceilingFt: null, ceilingSource: null, hasCloudGroup };
   const lowest = matches.reduce((current, match) => (Number(match[2]) < Number(current[2]) ? match : current));
   return {
     ceilingFt: Number(lowest[2]) * 100,
-    ceilingSource: lowest[0]
+    ceilingSource: lowest[0],
+    hasCloudGroup
   };
 }
 
