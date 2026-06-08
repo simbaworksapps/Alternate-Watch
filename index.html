@@ -24,12 +24,13 @@
           </a>
           <span class="brand-tracer" aria-hidden="true"></span>
           <span class="brand-shatter" aria-hidden="true"></span>
-          <div>
+          <div class="brand-title-area">
             <h1 id="app-title" data-text="Alternate Watch">
               <span>Alternate</span>
               <button type="button" class="brand-fire-button" id="brand-fire-button" aria-label="Fire logo animation" title="Fire logo animation"><span aria-hidden="true"></span></button>
               <span>Watch</span>
             </h1>
+            <button type="button" class="suggestion-button" id="suggestion-toggle" aria-expanded="false" aria-controls="suggestion-panel" aria-label="Send suggestion or concern" title="Send suggestion or concern"><span class="suggestion-icon" aria-hidden="true"></span></button>
           </div>
         </header>
 
@@ -323,6 +324,23 @@
               <button type="button" class="secondary-button rulebook-close" id="assist-lock-close" aria-label="Close assist notice">X</button>
             </div>
             <p id="assist-lock-message">Could not find that item inside the specified mission window. An outside-window example was loaded and SIMBA Assist was disabled.</p>
+          </section>
+
+          <section id="suggestion-panel" class="rulebook-panel suggestion-panel" hidden>
+            <div class="rulebook-header">
+              <h2></h2>
+              <button type="button" class="secondary-button rulebook-close" id="suggestion-close" aria-label="Close suggestion box">X</button>
+            </div>
+            <label class="suggestion-message-label">
+              <span id="suggestion-message-label"><span class="suggestion-icon" aria-hidden="true"></span>Suggestion or concern</span>
+              <textarea id="suggestion-message" rows="6" maxlength="1600" placeholder="What did you notice?" aria-labelledby="suggestion-message-label"></textarea>
+            </label>
+            <div class="suggestion-actions">
+              <button type="button" class="secondary-button" id="suggestion-clear">Clear</button>
+              <button type="button" class="secondary-button symbol-button suggestion-copy-email" id="suggestion-copy-email" aria-label="Copy suggestion email address" title="Copy suggestion email address"><span aria-hidden="true">@</span></button>
+              <button type="button" id="suggestion-send">Send</button>
+            </div>
+            <p class="suggestion-copy-status" id="suggestion-copy-status" aria-live="polite"></p>
           </section>
 
           <section id="airfield-search-panel" class="rulebook-panel airfield-search-panel" hidden>

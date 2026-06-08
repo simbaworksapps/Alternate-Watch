@@ -262,6 +262,11 @@ function init() {
     closeWindTable();
   });
   document.querySelector("#assist-lock-close").addEventListener("click", closeAssistLockPanel);
+  document.querySelector("#suggestion-toggle").addEventListener("click", toggleSuggestionPanel);
+  document.querySelector("#suggestion-close").addEventListener("click", closeSuggestionPanel);
+  document.querySelector("#suggestion-clear").addEventListener("click", clearSuggestionMessage);
+  document.querySelector("#suggestion-send").addEventListener("click", sendSuggestionEmail);
+  document.querySelector("#suggestion-copy-email").addEventListener("click", copySuggestionEmailAddress);
   setupDiceRegionToggles();
   setupAssistDefaultToggles();
   setupDefaultsKeyboardFlow();
@@ -320,6 +325,7 @@ function init() {
       closeCodeHuntPanel();
       closeLimitsPanel();
       closeAssistLockPanel();
+      closeSuggestionPanel();
     }
   });
   document.addEventListener("click", (event) => {
@@ -369,6 +375,11 @@ function init() {
     if (document.body.classList.contains("assist-lock-open")) {
       const panel = document.querySelector("#assist-lock-panel");
       if (!panel.contains(event.target)) closeAssistLockPanel();
+    }
+    if (document.body.classList.contains("suggestion-open")) {
+      const panel = document.querySelector("#suggestion-panel");
+      const toggle = document.querySelector("#suggestion-toggle");
+      if (!panel.contains(event.target) && !toggle.contains(event.target)) closeSuggestionPanel();
     }
     if (document.body.classList.contains("search-open")) {
       const panel = document.querySelector("#airfield-search-panel");
@@ -2065,6 +2076,81 @@ function getOpenConversionPanel() {
   return null;
 }
 
+function toggleSuggestionPanel(event) {
+  event?.stopPropagation();
+  const panel = document.querySelector("#suggestion-panel");
+  const button = document.querySelector("#suggestion-toggle");
+  const isOpen = panel.hidden;
+  if (isOpen) {
+    closeRulebook();
+    closeDefaultsPanel();
+    closeSortieDurationPanel();
+    closeVisibilityTable();
+    closeWindTable();
+    closeCodeHuntPanel();
+    closeAssistLockPanel();
+    closeAirfieldSearch();
+  }
+  panel.hidden = !isOpen;
+  button.setAttribute("aria-expanded", String(isOpen));
+  document.body.classList.toggle("suggestion-open", isOpen);
+  if (isOpen) window.setTimeout(() => document.querySelector("#suggestion-message")?.focus(), 0);
+}
+
+function closeSuggestionPanel() {
+  const panel = document.querySelector("#suggestion-panel");
+  const button = document.querySelector("#suggestion-toggle");
+  if (!panel || !button) return;
+  panel.hidden = true;
+  button.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("suggestion-open");
+}
+
+function clearSuggestionMessage() {
+  const field = document.querySelector("#suggestion-message");
+  if (!field) return;
+  field.value = "";
+  setSuggestionCopyStatus("");
+  field.focus();
+}
+
+function sendSuggestionEmail() {
+  const field = document.querySelector("#suggestion-message");
+  const message = field?.value.trim() || "";
+  if (!message) {
+    field?.focus();
+    return;
+  }
+  const nowText = document.querySelector("#now-reference")?.textContent?.trim() || "";
+  const subject = "Alternate Watch suggestion";
+  const body = [
+    "Suggestion / Concern:",
+    "",
+    message,
+    "",
+    "App context:",
+    `URL: ${window.location.href}`,
+    nowText ? `Now: ${nowText}` : ""
+  ].filter(Boolean).join("\n");
+  window.location.href = `mailto:simbaworksapps@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  closeSuggestionPanel();
+}
+
+function setSuggestionCopyStatus(message = "") {
+  const status = document.querySelector("#suggestion-copy-status");
+  if (status) status.textContent = message;
+}
+
+async function copySuggestionEmailAddress() {
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+    await navigator.clipboard.writeText("simbaworksapps@gmail.com");
+    setSuggestionCopyStatus("Email copied: simbaworksapps@gmail.com");
+  } catch (error) {
+    setSuggestionCopyStatus("Copy blocked: simbaworksapps@gmail.com");
+  }
+}
+
 function populateSortieDurationPanel() {
   const duration = getFlightDurationState(
     document.querySelector("#takeoffDateTime").value,
@@ -3666,7 +3752,7 @@ function isKnownTafToken(token, index, tokens) {
   if (token === "FZRANO") return true;
   if (/^(AUTOMATED|SENSOR|METWATCH)$/.test(token)) return true;
   if (token === "LTG" || token === "DSNT") return true;
-  if (isDirectionToken(token) && tokens[index - 1] === "DSNT") return true;
+  if ((isDirectionToken(token) || isDirectionRangeToken(token)) && tokens[index - 1] === "DSNT") return true;
   return false;
 }
 
@@ -3678,6 +3764,7 @@ function isKnownMetarToken(token, index, tokens) {
   if (/^(NOSIG|OBST|OBSC|BIRD|HAZARD|RWY|WET|DRY|DAMP|CONTAM|CONTAMINATED|SLUSH|SNOW|ICE|BRAKING|ACTION|GOOD|MEDIUM|POOR|NIL|MT|PT)$/.test(token)) return true;
   if (/^(BLU|WHT|GRN|YLO|AMB|RED|BLACK)$/.test(token) && tokens.includes("RMK")) return true;
   if (/^(TEMPO|BECMG|INTER|WIND)$/.test(token)) return true;
+  if (/^\d+$/.test(token) && /^\d+\/\dSM$/.test(tokens[index + 1] || "")) return true;
   if (/^R\d{2}[LCR]?\/\d{6}$/.test(token)) return true;
   if (/^R\d{2}[LCR]?\/CLRD\d{2}$/.test(token)) return true;
   if (/^R\d{2}[LCR]?\/[PM]?\d{4}[UDN]?$/.test(token)) return true;
@@ -3704,7 +3791,12 @@ function isKnownMetarToken(token, index, tokens) {
   if (/^5\d{4}$/.test(token)) return true;
   if (/^DZB\d{2}E\d{2}$/.test(token)) return true;
   if (/^RA(B|E)\d{2}(\d{2})?$/.test(token)) return true;
-  if (/^TS(B|E)\d{2}(\d{2})?$/.test(token)) return true;
+  if (/^TS(?:B\d{2}|E\d{2})+$/.test(token)) return true;
+  if ((token === "VIS" || token === "CIG") && tokens.includes("RMK")) return true;
+  if (/^M?\d+(?:\/\d+)?SM?$/.test(token) && (tokens[index - 1] === "VIS" || tokens[index - 2] === "VIS")) return true;
+  if (/^\d{3}(?:V\d{3})?$/.test(token) && tokens[index - 1] === "CIG") return true;
+  if (/^(OCNL|LTG|LTGIC|LTGCG|LTGCC|LTGCA|MOV)$/.test(token) && tokens.includes("RMK")) return true;
+  if ((isDirectionToken(token) || isDirectionRangeToken(token)) && (/^LTG/.test(tokens[index - 1] || "") || tokens[index - 1] === "TS" || tokens[index - 1] === "MOV")) return true;
   if (token === "CIG" && tokens.includes("RMK")) return true;
   if (/^\d{3}V\d{3}$/.test(token) && tokens[index - 1] === "CIG") return true;
   if (/^(HZY|8\/\d{3})$/.test(token) && tokens.includes("RMK")) return true;
@@ -3714,7 +3806,7 @@ function isKnownMetarToken(token, index, tokens) {
   if (/^\d{3}\d{2,3}\/?(\d{4})?$/.test(token) && (tokens[index - 1] === "WND" || tokens[index - 2] === "PK")) return true;
   if (token === "LTG" || token === "DSNT" || token === "ALQDS") return true;
   if (token === "AND" && (isDirectionToken(tokens[index - 1]) || isDirectionToken(tokens[index + 1]))) return true;
-  if (isDirectionToken(token) && tokens[index - 1] === "DSNT") return true;
+  if ((isDirectionToken(token) || isDirectionRangeToken(token)) && tokens[index - 1] === "DSNT") return true;
   if (isDirectionToken(token) && tokens[index - 1] === "AND") return true;
   if (/^RWY\d{2}[LCR]?$/.test(token) && tokens.includes("RMK")) return true;
   return false;
@@ -3811,7 +3903,7 @@ function decodeWindToken(match) {
 }
 
 function decodeVisibilityToken(tokens) {
-  const token = tokens.find((item) => item === "CAVOK" || item === "P6SM" || /^M?\d{1,2}(?:\/\d)?SM$/.test(item) || /^\d{4}$/.test(item));
+  const token = getVisibilitySourceToken(tokens);
   const compact = tokens.find(matchCompactVisibilityWeatherToken);
   const directional = tokens.find((item) => /^\d{4}(N|NE|E|SE|S|SW|W|NW)$/.test(item));
   if (!token && !compact && !directional) return null;
@@ -3826,6 +3918,15 @@ function decodeVisibilityToken(tokens) {
   if (/^\d{4}$/.test(token)) return decodeMetersVisibility(token);
   if (token.startsWith("M")) return `Less than ${token.replace("M", "").replace("SM", "")} SM.`;
   return `${token.replace("SM", "")} SM.`;
+}
+
+function getVisibilitySourceToken(tokens) {
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (/^\d+$/.test(token) && /^\d\/\dSM$/.test(tokens[index + 1] || "")) return `${token} ${tokens[index + 1]}`;
+    if (token === "CAVOK" || token === "P6SM" || /^M?\d{1,2}(?:\/\d)?SM$/.test(token) || /^\d{4}$/.test(token)) return token;
+  }
+  return null;
 }
 
 function decodeRvrTokens(tokens) {
@@ -4076,12 +4177,16 @@ function getMetarRemarkDecoders() {
   (token, index, rmk) => token === "ST" && rmk[index + 1] === "TR" ? "Stratus trace." : null,
   (token) => matchDecode(token, /^CB\/([A-Z-]+)$/, (match) => `Cumulonimbus observed ${decodeSector(match[1])}.`),
   (token, index, rmk) => token === "DENSITY" && rmk[index + 1] === "ALT" && /^\d{3,5}$/.test(rmk[index + 2] || "") ? `Density altitude ${Number(rmk[index + 2]).toLocaleString("en-US")} ft.` : null,
-  (token) => /^DZB\d{2}E\d{2}$/.test(token) ? `Drizzle began and ended during the hour: ${token}.` : null,
-  (token) => matchDecode(token, /^RA(B|E)(\d{2})(\d{2})?$/, (match) => `Rain ${match[1] === "B" ? "began" : "ended"} at ${match[2]}${match[3] || ""}Z.`),
-  (token) => matchDecode(token, /^TS(B|E)(\d{2})(\d{2})?$/, (match) => `Thunderstorm ${match[1] === "B" ? "began" : "ended"} at ${match[2]}${match[3] || ""}Z.`),
+  (token) => matchDecode(token, /^DZB(\d{2})E(\d{2})$/, (match) => `Drizzle began at ${formatObservationMinute(match[1])} and ended at ${formatObservationMinute(match[2])} past the hour.`),
+  (token) => matchDecode(token, /^RA(B|E)(\d{2})(\d{2})?$/, (match) => `Rain ${match[1] === "B" ? "began" : "ended"} at ${formatObservationMinute(match[2] + (match[3] || ""))} past the hour.`),
+  (token) => /^TS(?:B\d{2}|E\d{2})+$/.test(token) ? decodeThunderstormEventSequence(token) : null,
   (token) => token === "TSNO" ? "Thunderstorm information not available." : null,
   (token) => token === "FZRANO" ? "Freezing rain sensor not available." : null,
   (token, index, rmk) => token === "CIG" && /^\d{3}V\d{3}$/.test(rmk[index + 1] || "") ? decodeVariableCeilingRemark(rmk[index + 1]) : null,
+  (token, index, rmk) => token === "CIG" && /^\d{3}$/.test(rmk[index + 1] || "") ? decodeRunwayCeilingRemark(rmk, index) : null,
+  (token, index, rmk) => token === "VIS" ? decodeRunwayVisibilityRemark(rmk, index) : null,
+  (token, index, rmk) => token === "OCNL" && /^LTG/.test(rmk[index + 1] || "") ? decodeLightningRemark(rmk, index) : null,
+  (token, index, rmk) => token === "TS" && isDirectionToken(rmk[index + 1] || "") && rmk[index + 2] === "MOV" ? `Thunderstorm ${decodeDirection(rmk[index + 1])} moving ${decodeDirection(rmk[index + 3] || "")}.` : null,
   (token) => token === "TEMPO" ? "Temporary trend condition follows." : null,
   (token, index, rmk) => {
     if (token !== "WIND" || !/^\d{3,4}FT$/.test(rmk[index + 1] || "") || !matchWindToken(rmk[index + 2])) return null;
@@ -4188,8 +4293,75 @@ function decodeVariableCeilingRemark(token) {
   return `Variable ceiling from ${Number(match[1]) * 100} to ${Number(match[2]) * 100} ft AGL.`;
 }
 
+function decodeRunwayCeilingRemark(rmk, index) {
+  const ceiling = rmk[index + 1];
+  const runway = getRemarkRunwayToken(rmk, index + 2);
+  const value = `${Number(ceiling) * 100} ft AGL`;
+  return runway ? `Runway ${runway} ceiling ${value}.` : `Ceiling ${value}.`;
+}
+
+function decodeRunwayVisibilityRemark(rmk, index) {
+  const visibility = getRemarkVisibilityValue(rmk, index + 1);
+  if (!visibility) return null;
+  const runway = getRemarkRunwayToken(rmk, visibility.nextIndex);
+  return runway ? `Runway ${runway} visibility ${visibility.label} SM.` : `Visibility ${visibility.label} SM.`;
+}
+
+function getRemarkVisibilityValue(tokens, index) {
+  const first = tokens[index] || "";
+  const second = tokens[index + 1] || "";
+  if (/^\d+$/.test(first) && /^\d+\/\d+(?:SM)?$/.test(second)) {
+    return { label: `${first} ${second.replace(/SM$/, "")}`, nextIndex: index + 2 };
+  }
+  if (/^M?\d+\/\d+(?:SM)?$/.test(first)) {
+    const clean = first.replace(/SM$/, "");
+    return { label: clean.startsWith("M") ? `less than ${clean.slice(1)}` : clean, nextIndex: index + 1 };
+  }
+  if (/^M?\d+(?:SM)?$/.test(first)) {
+    const clean = first.replace(/SM$/, "");
+    return { label: clean.startsWith("M") ? `less than ${clean.slice(1)}` : clean, nextIndex: index + 1 };
+  }
+  return null;
+}
+
+function getRemarkRunwayToken(tokens, index) {
+  const token = tokens[index] || "";
+  if (/^RWY\d{2}[LCR]?$/.test(token)) return token.slice(3);
+  if (token === "RWY" && /^\d{2}[LCR]?$/.test(tokens[index + 1] || "")) return tokens[index + 1];
+  return "";
+}
+
+function decodeLightningRemark(rmk, index) {
+  const frequency = rmk[index] === "OCNL" ? "Occasional" : "";
+  const type = decodeLightningType(rmk[index + 1]);
+  const direction = isDirectionToken(rmk[index + 2] || "") ? ` ${decodeDirection(rmk[index + 2])}` : "";
+  return `${frequency} ${type}${direction}.`.replace(/\s+/g, " ").trim();
+}
+
+function decodeLightningType(token) {
+  return {
+    LTG: "lightning",
+    LTGIC: "in-cloud lightning",
+    LTGCG: "cloud-to-ground lightning",
+    LTGCC: "cloud-to-cloud lightning",
+    LTGCA: "cloud-to-air lightning"
+  }[token] || "lightning";
+}
+
+function decodeThunderstormEventSequence(token) {
+  const events = Array.from(String(token || "").slice(2).matchAll(/([BE])(\d{2})/g))
+    .map((match) => `${match[1] === "B" ? "began" : "ended"} at ${formatObservationMinute(match[2])}`);
+  return events.length ? `Thunderstorm ${events.join(", ")} past the hour.` : null;
+}
+
+function formatObservationMinute(value) {
+  const minute = String(value || "").padStart(2, "0");
+  return `:${minute}`;
+}
+
 function decodeDirection(value) {
   const directions = { N: "north", NE: "northeast", E: "east", SE: "southeast", S: "south", SW: "southwest", W: "west", NW: "northwest" };
+  if (isDirectionRangeToken(value)) return decodeSector(value);
   return directions[value] || value || "direction not reported";
 }
 
@@ -4197,7 +4369,7 @@ function decodeDirectionSequence(tokens) {
   const directions = [];
   for (const token of tokens) {
     if (token === "AND") continue;
-    if (!isDirectionToken(token)) break;
+    if (!isDirectionToken(token) && !isDirectionRangeToken(token)) break;
     directions.push(decodeDirection(token));
   }
   if (!directions.length) return "direction not reported";
@@ -4214,6 +4386,10 @@ function decodeSector(value) {
 
 function isDirectionToken(value) {
   return /^(N|NE|E|SE|S|SW|W|NW)$/.test(value);
+}
+
+function isDirectionRangeToken(value) {
+  return /^(N|NE|E|SE|S|SW|W|NW)-(N|NE|E|SE|S|SW|W|NW)$/.test(value);
 }
 
 function decodeSeaLevelPressure(value) {

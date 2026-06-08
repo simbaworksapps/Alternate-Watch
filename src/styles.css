@@ -48,7 +48,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -96,6 +97,14 @@ input[type="datetime-local"] {
   position: relative;
 }
 
+.brand-title-area {
+  align-items: center;
+  display: flex;
+  font-size: 1.65rem;
+  gap: 8px;
+  min-width: 0;
+}
+
 .brand-mark {
   border: 0;
   border-radius: 0;
@@ -104,6 +113,67 @@ input[type="datetime-local"] {
   height: 100%;
   object-fit: cover;
   width: 100%;
+}
+
+.suggestion-button {
+  align-items: center;
+  align-self: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #cfe7ff;
+  cursor: pointer;
+  display: inline-grid;
+  flex: 0 0 auto;
+  height: 1.08em;
+  justify-items: center;
+  margin: 0 0.02em;
+  min-height: 0;
+  padding: 0;
+  position: relative;
+  transition: filter 140ms ease, transform 110ms ease;
+  width: 0.78em;
+}
+
+.suggestion-button:hover,
+.suggestion-button:focus-visible {
+  box-shadow: none;
+  color: #e2d8bd;
+  filter: drop-shadow(0 0 6px rgba(201, 159, 53, 0.46));
+  outline: none;
+}
+
+.suggestion-icon {
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  display: inline-block;
+  height: 0.72em;
+  position: relative;
+  width: 0.72em;
+}
+
+.suggestion-icon::before {
+  background: currentColor;
+  border-radius: 50%;
+  content: "";
+  height: 0.12em;
+  left: 50%;
+  position: absolute;
+  top: 0.16em;
+  transform: translateX(-50%);
+  width: 0.12em;
+}
+
+.suggestion-icon::after {
+  background: currentColor;
+  border-radius: 999px;
+  content: "";
+  height: 0.24em;
+  left: 50%;
+  position: absolute;
+  top: 0.34em;
+  transform: translateX(-50%);
+  width: 0.12em;
 }
 
 .brand-link {
@@ -260,7 +330,7 @@ h1 {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  font-size: 1.65rem;
+  font-size: inherit;
   gap: 0.18em;
   line-height: 1.1;
   margin-bottom: 0;
@@ -675,7 +745,8 @@ label span {
   gap: 12px;
 }
 
-input {
+input,
+textarea {
   background: #0b111b;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -685,6 +756,13 @@ input {
   padding: 10px 12px;
   text-transform: uppercase;
   width: 100%;
+}
+
+textarea {
+  line-height: 1.4;
+  min-height: 144px;
+  resize: vertical;
+  text-transform: none;
 }
 
 input[type="date"] {
@@ -801,6 +879,7 @@ body.visibility-table-open::before,
 body.wind-table-open::before,
 body.code-hunt-open::before,
 body.assist-lock-open::before,
+body.suggestion-open::before,
 body.search-open::before {
   content: none;
 }
@@ -813,6 +892,7 @@ body.visibility-table-open,
 body.wind-table-open,
 body.code-hunt-open,
 body.assist-lock-open,
+body.suggestion-open,
 body.search-open {
   overflow: hidden;
 }
@@ -878,6 +958,84 @@ body.search-open {
   gap: 8px;
   margin-bottom: 0;
   text-transform: uppercase;
+}
+
+.rulebook-panel h2 .suggestion-icon {
+  color: #cfe7ff;
+  flex: 0 0 auto;
+  font-size: 1.35em;
+  height: 0.72em;
+  width: 0.72em;
+}
+
+.suggestion-panel .rulebook-header {
+  justify-content: flex-end;
+}
+
+.suggestion-panel {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 10px;
+}
+
+.suggestion-panel[hidden] {
+  display: none;
+}
+
+.suggestion-actions {
+  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
+  width: 100%;
+}
+
+.suggestion-message-label {
+  gap: 6px;
+}
+
+.suggestion-message-label > span {
+  display: inline-flex;
+  justify-content: flex-start;
+  gap: 6px;
+  width: fit-content;
+}
+
+.suggestion-message-label .suggestion-icon {
+  color: #cfe7ff;
+  flex: 0 0 auto;
+  font-size: 1.2em;
+}
+
+.suggestion-message-label textarea {
+  height: 136px;
+  min-height: 136px;
+  resize: none;
+}
+
+.suggestion-actions button {
+  min-height: 54px;
+  width: 100%;
+}
+
+.suggestion-copy-email {
+  border-color: var(--line);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 1000;
+  min-width: 34px;
+  padding: 5px 8px;
+}
+
+.suggestion-copy-status {
+  color: #ffe0a3;
+  font-size: 0.76rem;
+  font-weight: 800;
+  margin: -4px 0 0;
+  min-height: 0;
+}
+
+.suggestion-copy-status:empty {
+  display: none;
 }
 
 .guide-title-icon {
@@ -3388,7 +3546,7 @@ ul {
     align-items: center;
   }
 
-  h1 {
+  .brand-title-area {
     font-size: 1.45rem;
   }
 

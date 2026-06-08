@@ -555,12 +555,12 @@ function extractVisibility(raw) {
   let visibilitySource = null;
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
-    if (token === "CAVOK" || token === "P6SM" || /^M?\d{1,2}(?:\/\d)?SM$/.test(token) || /^\d{4}$/.test(token)) {
-      visibilitySource = token;
-      break;
-    }
     if (/^\d+$/.test(token) && /^\d\/\dSM$/.test(tokens[index + 1] || "")) {
       visibilitySource = `${token} ${tokens[index + 1]}`;
+      break;
+    }
+    if (token === "CAVOK" || token === "P6SM" || /^M?\d{1,2}(?:\/\d)?SM$/.test(token) || /^\d{4}$/.test(token)) {
+      visibilitySource = token;
       break;
     }
   }
