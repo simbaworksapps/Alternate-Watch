@@ -110,11 +110,11 @@ input[type="datetime-local"] {
   border: 1px solid rgba(245, 197, 66, 0.42);
   border-radius: 50%;
   display: inline-flex;
-  height: 72px;
+  height: 60px;
   overflow: hidden;
   position: relative;
   transition: box-shadow 160ms ease, transform 120ms ease;
-  width: 72px;
+  width: 60px;
 }
 
 .brand-link::before,
