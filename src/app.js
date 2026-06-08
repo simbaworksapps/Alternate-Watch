@@ -341,9 +341,11 @@ function init() {
       const clickedSearchPanel = searchPanel && searchPanel.contains(event.target);
       const limitsPanel = document.querySelector("#limits-panel");
       const clickedLimitsPanel = limitsPanel && limitsPanel.contains(event.target);
+      const suggestionPanel = document.querySelector("#suggestion-panel");
+      const clickedSuggestionPanel = suggestionPanel && suggestionPanel.contains(event.target);
       const conversionPanel = getOpenConversionPanel();
       const clickedConversionPanel = conversionPanel && conversionPanel.contains(event.target);
-      if (!panel.contains(event.target) && !toggle.contains(event.target) && !clickedSearchPanel && !clickedLimitsPanel && !clickedConversionPanel) closeDefaultsPanel();
+      if (!panel.contains(event.target) && !toggle.contains(event.target) && !clickedSearchPanel && !clickedLimitsPanel && !clickedSuggestionPanel && !clickedConversionPanel) closeDefaultsPanel();
     }
     if (document.body.classList.contains("limits-open")) {
       const panel = document.querySelector("#limits-panel");
@@ -2083,7 +2085,6 @@ function toggleSuggestionPanel(event) {
   const isOpen = panel.hidden;
   if (isOpen) {
     closeRulebook();
-    closeDefaultsPanel();
     closeSortieDurationPanel();
     closeVisibilityTable();
     closeWindTable();

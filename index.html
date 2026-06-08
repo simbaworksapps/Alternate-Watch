@@ -30,10 +30,8 @@
               <button type="button" class="brand-fire-button" id="brand-fire-button" aria-label="Fire logo animation" title="Fire logo animation"><span aria-hidden="true"></span></button>
               <span>Watch</span>
             </h1>
-            <button type="button" class="suggestion-button" id="suggestion-toggle" aria-expanded="false" aria-controls="suggestion-panel" aria-label="Send suggestion or concern" title="Send suggestion or concern"><span class="suggestion-icon" aria-hidden="true"></span></button>
           </div>
         </header>
-
         <form id="mission-form" class="mission-form">
           <div class="now-reference" aria-live="polite">
             <span>Now</span>
@@ -173,6 +171,7 @@
             </div>
             <div class="assist-default-setting" aria-label="Weather assist default setting">
               <button type="button" class="secondary-button assist-default-toggle" id="assist-default-toggle" aria-pressed="true" aria-label="SIMBA assist default on" title="SIMBA assist default on"></button>
+              <button type="button" class="secondary-button suggestion-default-toggle" id="suggestion-toggle" aria-expanded="false" aria-controls="suggestion-panel" aria-label="Send suggestion or concern" title="Send suggestion or concern"><span class="suggestion-icon" aria-hidden="true"></span></button>
             </div>
             <div class="limits-setting" aria-label="Custom weather limits">
               <div class="limits-setting-header">
@@ -328,11 +327,10 @@
 
           <section id="suggestion-panel" class="rulebook-panel suggestion-panel" hidden>
             <div class="rulebook-header">
-              <h2></h2>
+              <h2 id="suggestion-message-label"><span class="suggestion-icon" aria-hidden="true"></span>Suggestion or concern</h2>
               <button type="button" class="secondary-button rulebook-close" id="suggestion-close" aria-label="Close suggestion box">X</button>
             </div>
             <label class="suggestion-message-label">
-              <span id="suggestion-message-label"><span class="suggestion-icon" aria-hidden="true"></span>Suggestion or concern</span>
               <textarea id="suggestion-message" rows="6" maxlength="1600" placeholder="What did you notice?" aria-labelledby="suggestion-message-label"></textarea>
             </label>
             <div class="suggestion-actions">
