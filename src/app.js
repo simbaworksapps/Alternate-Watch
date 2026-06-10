@@ -314,6 +314,7 @@ function init() {
   cards.addEventListener("keydown", handleConversionTableKeydown);
   cards.addEventListener("click", handleCodeHuntChipClick);
   cards.addEventListener("keydown", handleCodeHuntChipKeydown);
+  cards.addEventListener("toggle", handleCardDisclosureToggle, true);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeRulebook();
@@ -1322,9 +1323,19 @@ function setAllCardsOpen(open) {
     details.open = open;
   });
   if (open) return;
-  document.querySelectorAll(".metar-decode-row, .taf-decode-row").forEach((details) => {
+  closeNestedDecoderRows(document);
+}
+
+function closeNestedDecoderRows(root) {
+  root.querySelectorAll(".metar-decode-row, .taf-decode-row, .decode-structure").forEach((details) => {
     details.open = false;
   });
+}
+
+function handleCardDisclosureToggle(event) {
+  const disclosure = event.target;
+  if (!disclosure.classList?.contains("card-disclosure") || disclosure.open) return;
+  closeNestedDecoderRows(disclosure);
 }
 
 function scrollToHighestPriorityItem() {
@@ -3008,7 +3019,7 @@ function renderCard(result) {
               ${renderMetar(result.metar)}
             </section>
             <section class="taf-block">
-              <h4 class="taf-title">Full TAF ${renderTafValidityBadge(result.tafRaw)} ${renderTafEvaluationTime(result)}</h4>
+              <h4 class="taf-title">TAF ${renderTafValidityBadge(result.tafRaw)} ${renderTafEvaluationTime(result)}</h4>
               ${taf}
             </section>
             <section class="notam-block">
