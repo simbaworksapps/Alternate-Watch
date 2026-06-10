@@ -59,7 +59,7 @@ async function getLiveMissionData(icaos) {
       };
     });
 
-    rulesMetadata.weatherSource = "AWC/NOAA";
+    rulesMetadata.weatherSource = getCombinedWeatherSource(airports);
     return {
       pulledAt: new Date().toISOString(),
       sourceIssuedAt: getLatestIssueTime(airports) || new Date().toISOString(),
@@ -69,6 +69,14 @@ async function getLiveMissionData(icaos) {
     rulesMetadata.weatherSource = "Unavailable";
     return createUnavailableMissionData(uniqueIcaos);
   }
+}
+
+function getCombinedWeatherSource(airports) {
+  const sources = Object.values(airports || {})
+    .flatMap((airport) => [airport.metarSource, airport.tafSource])
+    .filter(Boolean);
+  if (!sources.length) return "AWC";
+  return [...new Set(sources)].sort().join("/");
 }
 
 function createUnavailableMissionData(icaos) {
@@ -516,7 +524,7 @@ function parseTafPeriods(tafRaw) {
   const baseStart = tafWindowBoundaryToDate(validWindow.slice(0, 4), issuedAt);
   const baseEnd = tafWindowBoundaryToDate(validWindow.slice(5, 9), baseStart);
   const bodyTokens = tokens.slice(validTokenIndex + 1);
-  const groups = splitTafGroups(bodyTokens);
+  const groups = sortTafGroupsByEffectiveTime(splitTafGroups(bodyTokens), issuedAt, baseStart);
   let prevailing = null;
 
   return groups.map((group, index) => {
@@ -601,21 +609,50 @@ function buildTafGroup(tokens) {
   return {
     changeType,
     changeToken,
-    conditional: changeType === "TEMPO" || changeType === "PROB",
+    conditional: changeType === "TEMPO" || changeType === "PROB" || changeType === "INTER",
     raw: tokens.join(" ")
   };
 }
 
 function isTafChangeToken(token) {
-  return /^FM\d{6}$/.test(token) || token === "BECMG" || token === "TEMPO" || /^PROB\d{2}$/.test(token);
+  return /^FM\d{6}$/.test(token) || token === "BECMG" || token === "TEMPO" || token === "INTER" || /^PROB\d{2}$/.test(token);
 }
 
 function getTafChangeType(token) {
   if (/^FM\d{6}$/.test(token)) return "FM";
   if (token === "BECMG") return "BECMG";
   if (token === "TEMPO") return "TEMPO";
+  if (token === "INTER") return "INTER";
   if (/^PROB\d{2}$/.test(token)) return "PROB";
   return "BASE";
+}
+
+function sortTafGroupsByEffectiveTime(groups, issuedAt, baseStart) {
+  return [...groups]
+    .map((group, index) => ({
+      group,
+      index,
+      startsAt: getTafGroupSortStart(group, issuedAt, baseStart).getTime(),
+      weight: getTafGroupSortWeight(group)
+    }))
+    .sort((left, right) =>
+      left.startsAt - right.startsAt || left.weight - right.weight || left.index - right.index
+    )
+    .map((item) => item.group);
+}
+
+function getTafGroupSortStart(group, issuedAt, baseStart) {
+  if (group.changeType === "FM") return tafFmToDate(group.changeToken, issuedAt);
+  if (group.changeType === "BECMG" || group.changeType === "TEMPO" || group.changeType === "PROB" || group.changeType === "INTER") {
+    return tafWindowFromGroup(group, issuedAt).validFrom;
+  }
+  return baseStart;
+}
+
+function getTafGroupSortWeight(group) {
+  if (group.changeType === "BASE") return 0;
+  if (group.changeType === "FM" || group.changeType === "BECMG") return 1;
+  return 2;
 }
 
 function getTafGroupWindow(group, index, groups, issuedAt, baseStart, baseEnd) {
@@ -624,7 +661,7 @@ function getTafGroupWindow(group, index, groups, issuedAt, baseStart, baseEnd) {
     return { validFrom, validTo: getNextPrevailingStart(groups, index + 1, issuedAt, baseEnd) };
   }
 
-  if (group.changeType === "BECMG" || group.changeType === "TEMPO" || group.changeType === "PROB") {
+  if (group.changeType === "BECMG" || group.changeType === "TEMPO" || group.changeType === "PROB" || group.changeType === "INTER") {
     const window = tafWindowFromGroup(group, issuedAt);
     if (group.changeType === "BECMG") {
       return { validFrom: window.validFrom, validTo: getNextPrevailingStart(groups, index + 1, issuedAt, baseEnd) };
@@ -643,7 +680,7 @@ function getNextPrevailingStart(groups, startIndex, issuedAt, fallback) {
 }
 
 function tafWindowFromGroup(group, issuedAt) {
-  const windowToken = group.changeType === "BECMG" || group.changeType === "TEMPO" || group.changeType === "PROB"
+  const windowToken = group.changeType === "BECMG" || group.changeType === "TEMPO" || group.changeType === "PROB" || group.changeType === "INTER"
     ? group.raw.match(/\b(\d{4})\/(\d{4})\b/)?.[0]
     : null;
   if (!windowToken) return { validFrom: issuedAt, validTo: issuedAt };

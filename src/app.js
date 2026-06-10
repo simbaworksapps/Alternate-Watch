@@ -1227,10 +1227,14 @@ async function render(options = false) {
   updateFilterButtons();
   updateFilterCounts();
   if (renderOptions.showSubmitFeedback) {
-    setSubmitButtonStatus(rulesMetadata.weatherSource === "AWC/NOAA" ? "success" : "unable");
+    setSubmitButtonStatus(isLiveWeatherSource(rulesMetadata.weatherSource) ? "success" : "unable");
   } else if (!renderOptions.preserveButtonMessage) {
     setSubmitButtonStatus("idle");
   }
+}
+
+function isLiveWeatherSource(source) {
+  return ["AWC", "NOAA", "AWC/NOAA"].includes(source);
 }
 
 function renderCards() {
@@ -3396,7 +3400,7 @@ function formatWindDisplay(wind) {
 }
 
 function renderHighlightedTaf(result) {
-  const lines = splitTafLines(result.tafRaw);
+  const lines = sortTafLinesByEffectiveTime(splitTafLines(result.tafRaw), result.taf || []);
   if (!result.period || !result.period.raw) {
     return lines.map((line) => renderTafLine(line, "none", [])).join("");
   }
@@ -3696,10 +3700,38 @@ function splitTafLines(value) {
   return String(value)
     .replace(/\s+/g, " ")
     .trim()
-    .replace(/\s+(?=(FM\d{6}|BECMG|TEMPO|PROB\d{2}))/g, "\n")
+    .replace(/\s+(?=(FM\d{6}|BECMG|TEMPO|INTER|PROB\d{2}))/g, "\n")
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+function sortTafLinesByEffectiveTime(lines, periods = []) {
+  return [...lines]
+    .map((line, index) => {
+      const matchingPeriods = periods.filter((period) => isApplicableTafLine(line, period.raw));
+      const startsAt = matchingPeriods.length
+        ? Math.min(...matchingPeriods.map((period) => new Date(period.validFrom).getTime()))
+        : Number.MAX_SAFE_INTEGER;
+      return {
+        line,
+        index,
+        startsAt,
+        weight: getTafLineSortWeight(line, matchingPeriods)
+      };
+    })
+    .sort((left, right) =>
+      left.startsAt - right.startsAt || left.weight - right.weight || left.index - right.index
+    )
+    .map((item) => item.line);
+}
+
+function getTafLineSortWeight(line, matchingPeriods) {
+  if (matchingPeriods.some((period) => period.conditional)) return 2;
+  const text = String(line || "").trim();
+  if (/^(FM\d{6}|BECMG)\b/.test(text)) return 1;
+  if (/^(TEMPO|INTER|PROB\d{2})\b/.test(text)) return 2;
+  return 0;
 }
 
 function isApplicableTafLine(line, periodRaw) {
@@ -3893,7 +3925,7 @@ function isKnownTafToken(token, index, tokens) {
   if (isWeatherToken(token)) return true;
   if (/^FM\d{6}$/.test(token)) return true;
   if (/^\d{4}\/\d{4}$/.test(token)) return true;
-  if (/^(TAF|AMD|COR|TEMPO|BECMG|NSW|NSC|CAVOK|NIL|CNL|LAST|NO|AFT|NEXT|RMK)$/.test(token)) return true;
+  if (/^(TAF|AMD|COR|TEMPO|BECMG|INTER|NSW|NSC|CAVOK|NIL|CNL|LAST|NO|AFT|NEXT|RMK)$/.test(token)) return true;
   if (/^PROB\d{2}$/.test(token)) return true;
   if (/^(TX|TN)(M?\d{2})\/(\d{4})Z$/.test(token)) return true;
   if (/^(TX|TN)M?\d{1,2}\/\d{4}Z$/.test(token)) return true;
@@ -4039,6 +4071,7 @@ function decodeTempDewpoint(token) {
 function decodeChangeType(token) {
   if (token === "TEMPO") return "Temporary condition.";
   if (token === "BECMG") return "Becoming condition.";
+  if (token === "INTER") return "Intermittent condition.";
   if (/^FM\d{6}$/.test(token)) return "From condition.";
   if (/^PROB\d{2}$/.test(token)) return `${token.slice(4)} percent probability condition.`;
   return null;
@@ -4357,7 +4390,7 @@ function getMetarRemarkDecoders() {
   (token) => matchDecode(token, /^CB\/([A-Z-]+)$/, (match) => `Cumulonimbus observed ${decodeSector(match[1])}.`),
   (token, index, rmk) => token === "DENSITY" && rmk[index + 1] === "ALT" && /^\d{3,5}$/.test(rmk[index + 2] || "") ? `Density altitude ${Number(rmk[index + 2]).toLocaleString("en-US")} ft.` : null,
   (token) => matchDecode(token, /^DZB(\d{2})E(\d{2})$/, (match) => `Drizzle began at ${formatObservationMinute(match[1])} and ended at ${formatObservationMinute(match[2])} past the hour.`),
-  (token) => matchDecode(token, /^RA(B|E)(\d{2})(\d{2})?$/, (match) => `Rain ${match[1] === "B" ? "began" : "ended"} at ${formatObservationMinute(match[2] + (match[3] || ""))} past the hour.`),
+  (token) => decodePrecipEventSequence(token),
   (token) => /^TS(?:B\d{2}|E\d{2})+$/.test(token) ? decodeThunderstormEventSequence(token) : null,
   (token) => token === "TSNO" ? "Thunderstorm information not available." : null,
   (token) => token === "FZRANO" ? "Freezing rain sensor not available." : null,
@@ -4531,6 +4564,32 @@ function decodeThunderstormEventSequence(token) {
   const events = Array.from(String(token || "").slice(2).matchAll(/([BE])(\d{2})/g))
     .map((match) => `${match[1] === "B" ? "began" : "ended"} at ${formatObservationMinute(match[2])}`);
   return events.length ? `Thunderstorm ${events.join(", ")} past the hour.` : null;
+}
+
+function decodePrecipEventSequence(token) {
+  const match = String(token || "").match(/^([A-Z]{2,6})((?:[BE]\d{2})+)$/);
+  if (!match) return null;
+  const eventName = decodePrecipEventName(match[1]);
+  if (!eventName) return null;
+  const events = Array.from(match[2].matchAll(/([BE])(\d{2})/g))
+    .map((event) => `${event[1] === "B" ? "began" : "ended"} at ${formatObservationMinute(event[2])}`);
+  return events.length ? `${eventName} ${events.join(", ")} past the hour.` : null;
+}
+
+function decodePrecipEventName(code) {
+  const names = {
+    DZ: "Drizzle",
+    RA: "Rain",
+    SN: "Snow",
+    SG: "Snow grains",
+    PL: "Ice pellets",
+    GR: "Hail",
+    GS: "Small hail or snow pellets",
+    SHRA: "Rain showers",
+    SHSN: "Snow showers",
+    TSRA: "Thunderstorm rain"
+  };
+  return names[code] || "";
 }
 
 function formatObservationMinute(value) {
