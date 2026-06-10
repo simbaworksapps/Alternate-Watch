@@ -120,11 +120,12 @@ function weatherTextHasReport(text, icao) {
 function parseRawReports(text) {
   return combineRawReports(text)
     .map((raw) => raw.trim())
-    .filter(Boolean)
+    .filter((raw) => raw && !/^(METAR|SPECI|TAF)$/i.test(raw))
     .reduce((reports, raw) => {
       const normalized = raw
         .replace(/^(METAR|SPECI)\s+/, "")
         .replace(/^TAF\s+(AMD\s+|COR\s+)?/, "")
+        .replace(/\s+\$/g, "")
         .trim();
       const icao = normalized.split(/\s+/)[0];
       if (/^[A-Z0-9]{4}$/.test(icao) && !reports[icao]) {
@@ -139,8 +140,9 @@ function combineRawReports(text) {
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+$/, ""))
     .filter(Boolean)
+    .filter((line) => !/^(METAR|SPECI|TAF)$/i.test(line.trim()))
     .reduce((reports, line) => {
-      const startsReport = /^(METAR|SPECI|TAF)\s+/.test(line.trim());
+      const startsReport = isRawReportStart(line);
       if (startsReport || reports.length === 0) {
         reports.push(line.trim());
       } else {
@@ -153,7 +155,14 @@ function combineRawReports(text) {
 function normalizeRawReportBoundaries(text) {
   return String(text || "")
     .replace(/\bTAF\s*\r?\n\s+(?=(?:AMD|COR)\s+[A-Z0-9]{4}\b)/g, "TAF ")
-    .replace(/\s+(?=(?:METAR|SPECI|TAF)\s+(?:AMD\s+|COR\s+)?[A-Z0-9]{4}\b)/g, "\n");
+    .replace(/\s+(?=(?:METAR|SPECI|TAF)\s+(?:AMD\s+|COR\s+)?[A-Z0-9]{4}\b)/g, "\n")
+    .replace(/\s+(?=(?:AMD\s+|COR\s+)?[A-Z0-9]{4}\s+\d{6}Z\b)/g, "\n");
+}
+
+function isRawReportStart(line) {
+  const text = String(line || "").trim();
+  return /^(METAR|SPECI|TAF)\s+/.test(text)
+    || /^(?:AMD\s+|COR\s+)?[A-Z0-9]{4}\s+\d{6}Z\b/.test(text);
 }
 
 async function fetchNoaaStationWeatherText(type, icao) {
@@ -168,7 +177,8 @@ function normalizeNoaaStationWeatherText(type, icao, text) {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .filter((line) => !/^\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}$/.test(line));
+    .filter((line) => !/^\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}$/.test(line))
+    .filter((line) => !/^(METAR|SPECI|TAF)$/.test(line));
   const report = cleanNoaaWeatherReport(lines.join(type === "taf" ? "\n" : " "));
   if (!weatherTextHasReport(report, icao)) return "";
   return report;

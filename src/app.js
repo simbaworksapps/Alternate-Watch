@@ -3004,7 +3004,7 @@ function renderCard(result) {
   const wxSourceFailed = wxSource === "!";
   const taf = result.tafRaw
     ? `<div class="taf-line">${renderHighlightedTaf(result)}</div>`
-    : `<p class="raw-line">No full TAF available.</p>`;
+    : `<p class="raw-line">No TAF available.</p>`;
 
   const notams = result.notams.length
     ? `<ul class="notam-list">${result.notams.map(renderNotam).join("")}</ul>`
@@ -3025,7 +3025,9 @@ function renderCard(result) {
         ${renderWeatherSourceTile("wind", "Wind", formatWindDisplay(result.period.wind), result)}
       </dl>
     `
-    : `<p class="raw-line">${result.tafRaw ? "Selected time is outside this TAF valid window." : "No current TAF available from live sources for this airfield."}</p>`;
+    : result.tafRaw
+      ? `<p class="raw-line">Selected time is outside this TAF valid window.</p>`
+      : "";
 
   return `
     <article class="result-card status-${cardStatus}${assistEnabled ? "" : " assist-off"}" data-icao="${safeIcao}" data-rule-status="${safeRuleStatus}">
@@ -3587,7 +3589,7 @@ function renderTableButton(type, label, title) {
 }
 
 function renderMetar(metar) {
-  if (!metar) return `<p>No METAR available.</p>`;
+  if (!metar) return `<p class="raw-line">No METAR available.</p>`;
   return `
     <details class="metar-decode-row">
       <summary title="Tap to decode this METAR">
