@@ -1959,7 +1959,7 @@ function handleMissionInputPointerUp(event) {
 }
 
 function handleMissionInputKeydown(event) {
-  if (event.key !== "Enter") return;
+  if (!isForwardFieldAdvanceKey(event)) return;
   event.preventDefault();
   event.stopPropagation();
 
@@ -1976,6 +1976,11 @@ function handleMissionInputKeydown(event) {
   formatAlternateListField(event.currentTarget, false);
   updateAlternatesCount();
   form.requestSubmit();
+}
+
+function isForwardFieldAdvanceKey(event) {
+  if (event.key === "Enter") return true;
+  return event.key === "Tab" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
 }
 
 function setZuluDateTimeOffset(fieldId, hours) {
@@ -2368,7 +2373,7 @@ function getLimitInputFields() {
 }
 
 function handleLimitInputKeydown(event) {
-  if (event.key !== "Enter") return;
+  if (!isForwardFieldAdvanceKey(event)) return;
   event.preventDefault();
   event.stopPropagation();
 
@@ -2848,8 +2853,9 @@ function setupDefaultsKeyboardFlow() {
     field.addEventListener("click", selectMissionInputTextAfterClick);
     field.addEventListener("pointerup", handleMissionInputPointerUp);
     field.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter") return;
+      if (!isForwardFieldAdvanceKey(event)) return;
       event.preventDefault();
+      event.stopPropagation();
       if (index < fields.length - 1) {
         fields[index + 1].focus();
         fields[index + 1].select?.();
