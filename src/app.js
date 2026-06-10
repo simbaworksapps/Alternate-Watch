@@ -17,6 +17,15 @@ const appDefaultMission = {
 };
 const missionDefaultsStorageKey = "alternateWatchMissionDefaults";
 const airfieldHistoryStorageKey = "alternateWatchAirfieldHistory";
+const awcTafCapabilityOverrides = [
+  "KBAD", "KBIX", "KCBM", "KCVS", "KDLF", "KDMA", "KEDW", "KEND", "KESF", "KFCS",
+  "KGSB", "KHMN", "KIAB", "KLFI", "KLRF", "KLTS", "KLUF", "KMIB", "KMUO", "KNBC",
+  "KNCA", "KNFL", "KNLC", "KNMM", "KNPA", "KNQI", "KOZR", "KPAM", "KRCA", "KRDR",
+  "KRND", "KSSC", "KSZL", "KVAD"
+];
+const weatherCapabilityOverrides = Object.fromEntries(
+  awcTafCapabilityOverrides.map((icao) => [icao, { metar: true, taf: true }])
+);
 let nowReferenceTimer = null;
 let globalAssistEnabled = true;
 const randomMissionFields = [
@@ -2607,13 +2616,30 @@ function searchAirfields(query) {
 function scoreAirfieldSearchRecord(record, query, compactQuery) {
   const fields = [record.icao, record.shortCode, record.iata, record.name, record.city, record.country, record.type, record.aliases]
     .filter(Boolean)
-    .map((value) => String(value).toUpperCase());
+    .flatMap((value) => expandAirfieldSearchText(value));
   if (record.icao === query || record.shortCode === query || record.iata === query) return 100;
   if (fields.some((value) => value.startsWith(query))) return 80;
   if (fields.some((value) => value.replace(/\s+/g, "").startsWith(compactQuery))) return 70;
   if (fields.some((value) => value.includes(query))) return 55;
   if (fields.some((value) => value.replace(/\s+/g, "").includes(compactQuery))) return 45;
   return 0;
+}
+
+function expandAirfieldSearchText(value) {
+  const text = String(value).toUpperCase();
+  return [...new Set([
+    text,
+    text.replace(/\bAIR\s+FORCE\s+BASE\b/g, "AFB"),
+    text.replace(/\bAFB\b/g, "AIR FORCE BASE"),
+    text.replace(/\bAIR\s+BASE\b/g, "AB"),
+    text.replace(/\bAB\b/g, "AIR BASE"),
+    text.replace(/\bARMY\s+AIRFIELD\b/g, "AAF"),
+    text.replace(/\bAAF\b/g, "ARMY AIRFIELD"),
+    text.replace(/\bNAVAL\s+AIR\s+STATION\b/g, "NAS"),
+    text.replace(/\bNAS\b/g, "NAVAL AIR STATION"),
+    text.replace(/\bMARINE\s+CORPS\s+AIR\s+STATION\b/g, "MCAS"),
+    text.replace(/\bMCAS\b/g, "MARINE CORPS AIR STATION")
+  ])];
 }
 
 function buildAirfieldSearchIndex() {
@@ -2691,6 +2717,8 @@ function getWeatherCapability(icao) {
       taf: new Set(source.taf || [])
     };
   }
+  const override = weatherCapabilityOverrides[icao];
+  if (override) return override;
   return {
     metar: weatherCapabilitySets.metar.has(icao),
     taf: weatherCapabilitySets.taf.has(icao)
@@ -2710,6 +2738,8 @@ function getAirfieldCityAlias(icao) {
     KBHM: "Birmingham",
     KMEI: "Meridian",
     KGSB: "Goldsboro Seymour Johnson",
+    KCBM: "Columbus AFB",
+    KDLF: "Del Rio Laughlin AFB",
     KEND: "Enid Vance",
     KDOV: "Dover",
     KJFK: "New York",
