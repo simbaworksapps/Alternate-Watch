@@ -3134,21 +3134,9 @@ dd {
   margin: 0 2px;
 }
 
-.details-block {
+.weather-details-block {
+  display: block;
   margin-top: 12px;
-}
-
-.details-block summary {
-  align-items: center;
-  color: var(--muted);
-  cursor: pointer;
-  display: flex;
-  flex-wrap: wrap;
-  font-size: 0.86rem;
-  gap: 8px;
-  font-weight: 800;
-  list-style-position: inside;
-  text-transform: uppercase;
 }
 
 .metar-decode-row,
@@ -3710,15 +3698,6 @@ ul {
 
   .wx-grid {
     grid-template-columns: 1fr;
-  }
-
-  .details-block:not([open]) {
-    border-top: 1px solid var(--line);
-    padding-top: 10px;
-  }
-
-  .details-block[open] summary {
-    margin-bottom: 8px;
   }
 
   .airfield-search-panel {

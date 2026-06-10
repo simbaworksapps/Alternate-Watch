@@ -1334,8 +1334,15 @@ function closeNestedDecoderRows(root) {
 
 function handleCardDisclosureToggle(event) {
   const disclosure = event.target;
-  if (!disclosure.classList?.contains("card-disclosure") || disclosure.open) return;
-  closeNestedDecoderRows(disclosure);
+  if (disclosure.classList?.contains("card-disclosure")) {
+    if (!disclosure.open) closeNestedDecoderRows(disclosure);
+    return;
+  }
+  if (!disclosure.classList?.contains("metar-decode-row") && !disclosure.classList?.contains("taf-decode-row")) return;
+  if (disclosure.open) return;
+  disclosure.querySelectorAll(".decode-structure").forEach((details) => {
+    details.open = false;
+  });
 }
 
 function scrollToHighestPriorityItem() {
@@ -3012,8 +3019,7 @@ function renderCard(result) {
         </summary>
         <div class="card-expanded">
           ${period}
-          <details class="details-block" open>
-            <summary><span>METAR / TAF / NOTAMs</span></summary>
+          <section class="weather-details-block">
             <section class="metar-block">
               <h4 class="metar-title">METAR ${renderMetarAgeBadge(result.metar, latestEvaluation.pulledAt)}</h4>
               ${renderMetar(result.metar)}
@@ -3026,7 +3032,7 @@ function renderCard(result) {
               <h4>NOTAMs</h4>
               ${notams}
             </section>
-          </details>
+          </section>
           <span class="card-nav-buttons">
             <button type="button" class="card-nav-button" data-card-inputs="true" aria-label="Back to inputs" title="Back to inputs"><span class="pencil-icon" aria-hidden="true"></span></button>
             <button type="button" class="card-nav-button" data-card-home="true" aria-label="Back to top of outputs" title="Back to top of outputs"><span class="home-icon" aria-hidden="true"></span></button>
