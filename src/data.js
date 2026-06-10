@@ -131,7 +131,7 @@ async function fetchWeatherData(type, encodedIds) {
   }
 
   const directResponse = await fetch(directUrl);
-  if (!directResponse.ok) throw new Error("AWC request failed");
+  if (!directResponse.ok) return fillMissingWeatherReports(type, encodedIds, "");
   return fillMissingWeatherReports(type, encodedIds, await directResponse.text());
 }
 
@@ -141,22 +141,29 @@ async function fillMissingWeatherReports(type, encodedIds, text) {
     .split(",")
     .map((id) => id.trim().toUpperCase())
     .filter((id) => /^[A-Z0-9]{4}$/.test(id));
-  const reports = [text.trim()].filter(Boolean);
+  const awcReports = parseRawReports(text);
+  const fallbackReports = {};
   const sources = {};
 
   await Promise.all(ids.map(async (icao) => {
-    if (weatherTextHasReport(text, icao)) {
+    if (awcReports[icao] || weatherTextHasReport(text, icao)) {
       sources[icao] = "AWC";
       return;
     }
     const fallback = await fetchNoaaStationWeatherText(type, icao);
     if (fallback) {
-      reports.push(fallback);
+      fallbackReports[icao] = parseRawReports(fallback)[icao] || fallback;
       sources[icao] = "NOAA";
     }
   }));
 
-  return { text: reports.join("\n"), sources };
+  return {
+    text: ids
+      .map((icao) => awcReports[icao] || fallbackReports[icao] || "")
+      .filter(Boolean)
+      .join("\n"),
+    sources
+  };
 }
 
 function parseWeatherSourceHeader(value) {
@@ -466,7 +473,7 @@ function parseRawReports(text) {
 }
 
 function combineRawReports(text) {
-  return text
+  return normalizeRawReportBoundaries(text)
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+$/, ""))
     .filter(Boolean)
@@ -479,6 +486,12 @@ function combineRawReports(text) {
       }
       return reports;
     }, []);
+}
+
+function normalizeRawReportBoundaries(text) {
+  return String(text || "")
+    .replace(/\bTAF\s*\r?\n\s+(?=(?:AMD|COR)\s+[A-Z0-9]{4}\b)/g, "TAF ")
+    .replace(/\s+(?=(?:METAR|SPECI|TAF)\s+(?:AMD\s+|COR\s+)?[A-Z0-9]{4}\b)/g, "\n");
 }
 
 function parseTafPeriods(tafRaw) {

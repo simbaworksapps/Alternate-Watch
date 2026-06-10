@@ -23,12 +23,15 @@ export async function onRequestGet(context) {
     }
   });
 
-  if (!response.ok) {
+  if (!response.ok && type === "stationinfo") {
     return new Response("Weather source unavailable", { status: 502 });
   }
 
-  const awcText = await response.text();
+  const awcText = response.ok ? await response.text() : "";
   const weatherData = await fillMissingWeatherReports(type, ids, awcText);
+  if (!weatherData.text && !response.ok) {
+    return new Response("Weather source unavailable", { status: 502 });
+  }
 
   return new Response(weatherData.text, {
     headers: {
@@ -41,22 +44,30 @@ export async function onRequestGet(context) {
 
 async function fillMissingWeatherReports(type, ids, text) {
   if (type !== "metar" && type !== "taf") return { text, sources: {} };
-  const reports = [text.trim()].filter(Boolean);
+  const idList = ids.split(",");
+  const awcReports = parseRawReports(text);
+  const fallbackReports = {};
   const sources = {};
 
-  await Promise.all(ids.split(",").map(async (icao) => {
-    if (weatherTextHasReport(text, icao)) {
+  await Promise.all(idList.map(async (icao) => {
+    if (awcReports[icao] || weatherTextHasReport(text, icao)) {
       sources[icao] = "AWC";
       return;
     }
     const fallback = await fetchNoaaStationWeatherText(type, icao);
     if (fallback) {
-      reports.push(fallback);
+      fallbackReports[icao] = parseRawReports(fallback)[icao] || fallback;
       sources[icao] = "NOAA";
     }
   }));
 
-  return { text: reports.join("\n"), sources };
+  return {
+    text: idList
+      .map((icao) => awcReports[icao] || fallbackReports[icao] || "")
+      .filter(Boolean)
+      .join("\n"),
+    sources
+  };
 }
 
 function formatWeatherSourceHeader(sources) {
@@ -67,6 +78,45 @@ function formatWeatherSourceHeader(sources) {
 
 function weatherTextHasReport(text, icao) {
   return new RegExp(`(?:^|\\n)\\s*(?:METAR\\s+|SPECI\\s+|TAF\\s+(?:AMD\\s+|COR\\s+)?)?${icao}\\b`).test(text);
+}
+
+function parseRawReports(text) {
+  return combineRawReports(text)
+    .map((raw) => raw.trim())
+    .filter(Boolean)
+    .reduce((reports, raw) => {
+      const normalized = raw
+        .replace(/^(METAR|SPECI)\s+/, "")
+        .replace(/^TAF\s+(AMD\s+|COR\s+)?/, "")
+        .trim();
+      const icao = normalized.split(/\s+/)[0];
+      if (/^[A-Z0-9]{4}$/.test(icao) && !reports[icao]) {
+        reports[icao] = normalized;
+      }
+      return reports;
+    }, {});
+}
+
+function combineRawReports(text) {
+  return normalizeRawReportBoundaries(text)
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+$/, ""))
+    .filter(Boolean)
+    .reduce((reports, line) => {
+      const startsReport = /^(METAR|SPECI|TAF)\s+/.test(line.trim());
+      if (startsReport || reports.length === 0) {
+        reports.push(line.trim());
+      } else {
+        reports[reports.length - 1] += `\n${line.trim()}`;
+      }
+      return reports;
+    }, []);
+}
+
+function normalizeRawReportBoundaries(text) {
+  return String(text || "")
+    .replace(/\bTAF\s*\r?\n\s+(?=(?:AMD|COR)\s+[A-Z0-9]{4}\b)/g, "TAF ")
+    .replace(/\s+(?=(?:METAR|SPECI|TAF)\s+(?:AMD\s+|COR\s+)?[A-Z0-9]{4}\b)/g, "\n");
 }
 
 async function fetchNoaaStationWeatherText(type, icao) {

@@ -3016,13 +3016,11 @@ dd {
 }
 
 .raw-line {
-  background: #080d14;
-  border: 1px solid var(--line);
-  border-radius: 8px;
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 0.86rem;
   line-height: 1.55;
-  padding: 10px 0;
+  margin: 4px 0 0;
+  padding: 0;
   white-space: normal;
   word-break: break-word;
 }

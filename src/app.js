@@ -3234,7 +3234,11 @@ function renderMetarAgeBadge(metar, referenceValue) {
 function getMetarAgeState(observedAt, referenceDate = new Date()) {
   const ageMinutes = Math.max(0, getWholeMinuteDelta(referenceDate, observedAt));
   const className = ageMinutes > 60 ? "age-red" : ageMinutes >= 50 ? "age-yellow" : "age-green";
-  const label = ageMinutes >= 1440 ? "> 1 day old" : `${ageMinutes} min old`;
+  const label = ageMinutes >= 1440
+    ? "> 1 day old"
+    : ageMinutes > 99
+      ? `${Math.max(2, Math.round(ageMinutes / 60))} hrs old`
+      : `${ageMinutes} min old`;
   return { className, label };
 }
 
@@ -3268,7 +3272,7 @@ function getTafValidityStateFromWindow(window, referenceDate = new Date()) {
   if (reference > end) {
     return {
       status: "expired",
-      label: `Expired (${formatSignedDurationMinutes(getWholeMinuteDelta(window.end, referenceDate))})`,
+      label: `Expired (${formatTafCurrencyAge(getWholeMinuteDelta(window.end, referenceDate), "expired")})`,
       className: "age-red",
       start: window.start,
       end: window.end
@@ -3277,13 +3281,24 @@ function getTafValidityStateFromWindow(window, referenceDate = new Date()) {
   if (reference < start) {
     return {
       status: "future",
-      label: `Future (${formatSignedDurationMinutes(getWholeMinuteDelta(window.start, referenceDate))})`,
+      label: `Future (${formatTafCurrencyAge(getWholeMinuteDelta(window.start, referenceDate), "future")})`,
       className: "age-yellow",
       start: window.start,
       end: window.end
     };
   }
   return { status: "current", label: "Current", className: "age-green", start: window.start, end: window.end };
+}
+
+function formatTafCurrencyAge(deltaMinutes, mode) {
+  const absoluteMinutes = Math.abs(deltaMinutes);
+  if (mode === "expired" && absoluteMinutes >= 1440) return "> 1 day old";
+  if (mode === "future" && absoluteMinutes >= 1440) return "in > 1 day";
+  if (absoluteMinutes > 99) {
+    const hours = Math.max(2, Math.round(absoluteMinutes / 60));
+    return mode === "future" ? `in ${hours} hrs` : `${hours} hrs old`;
+  }
+  return mode === "future" ? `in ${absoluteMinutes} min` : `${absoluteMinutes} min old`;
 }
 
 function updateTafValidityBadges(referenceDate = new Date()) {
