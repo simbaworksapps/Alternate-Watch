@@ -4,6 +4,10 @@ import { extname, join, normalize } from "node:path";
 
 const root = new URL(".", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const port = Number(process.env.PORT || 5173);
+const NOAA_STATION_MAX_AGE_HOURS = {
+  metar: 6,
+  taf: 36
+};
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -173,15 +177,40 @@ async function fetchNoaaStationWeatherText(type, icao) {
 }
 
 function normalizeNoaaStationWeatherText(type, icao, text) {
-  const lines = String(text || "")
+  const rawLines = String(text || "")
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter(Boolean)
+    .filter(Boolean);
+  if (!isNoaaStationFileFresh(type, rawLines)) return "";
+  const lines = rawLines
     .filter((line) => !/^\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}$/.test(line))
     .filter((line) => !/^(METAR|SPECI|TAF)$/.test(line));
   const report = cleanNoaaWeatherReport(lines.join(type === "taf" ? "\n" : " "));
   if (!weatherTextHasReport(report, icao)) return "";
   return report;
+}
+
+function isNoaaStationFileFresh(type, lines, now = new Date()) {
+  const fileTime = getNoaaStationFileTime(lines);
+  if (!fileTime) return true;
+  const maxAgeHours = NOAA_STATION_MAX_AGE_HOURS[type] || 24;
+  const ageMs = now.getTime() - fileTime.getTime();
+  if (ageMs < -10 * 60 * 1000) return false;
+  return ageMs <= maxAgeHours * 60 * 60 * 1000;
+}
+
+function getNoaaStationFileTime(lines) {
+  const timestamp = (lines || [])
+    .map((line) => String(line || "").match(/^(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})$/))
+    .find(Boolean);
+  if (!timestamp) return null;
+  return new Date(Date.UTC(
+    Number(timestamp[1]),
+    Number(timestamp[2]) - 1,
+    Number(timestamp[3]),
+    Number(timestamp[4]),
+    Number(timestamp[5])
+  ));
 }
 
 function cleanNoaaWeatherReport(report) {

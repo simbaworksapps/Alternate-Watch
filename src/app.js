@@ -3735,12 +3735,21 @@ function getTafLineSortWeight(line, matchingPeriods) {
 }
 
 function isApplicableTafLine(line, periodRaw) {
-  if (line.includes(periodRaw)) {
-    return true;
-  }
+  const lineText = normalizeTafMatchText(line);
+  const periodText = normalizeTafMatchText(periodRaw);
+  if (!lineText || !periodText) return false;
+  if (lineText === periodText) return true;
+  return getBaseTafLineWeatherText(lineText) === periodText;
+}
 
-  const periodWithoutChange = periodRaw.replace(/^FM\d{6}\s+/, "");
-  return periodWithoutChange.length > 0 && line.includes(periodWithoutChange);
+function normalizeTafMatchText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function getBaseTafLineWeatherText(line) {
+  return String(line || "")
+    .replace(/^(?:TAF\s+)?(?:AMD\s+|COR\s+)?[A-Z0-9]{4}\s+\d{6}Z\s+\d{4}\/\d{4}\s+/, "")
+    .trim();
 }
 
 function tafWindowToDates(startToken, endToken, referenceDate) {
