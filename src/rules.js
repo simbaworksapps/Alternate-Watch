@@ -107,6 +107,8 @@ function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulle
       locationImpact: null,
       metar: null,
       tafRaw: null,
+      metarSource: "",
+      tafSource: "",
       taf: [],
       notams: []
     };
@@ -122,6 +124,8 @@ function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulle
       period: null,
       metar: null,
       tafRaw: null,
+      metarSource: "",
+      tafSource: "",
       notams: []
     };
   }
@@ -158,6 +162,8 @@ function buildAirportResult(icao, role, targetTime, missionData, ruleType, pulle
     locationImpact: locationStatus.impact,
     metar: airport.metar,
     tafRaw: airport.tafRaw,
+    metarSource: airport.metarSource || "",
+    tafSource: airport.tafSource || "",
     taf: airport.taf,
     notams: activeNotams
   };

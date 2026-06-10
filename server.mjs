@@ -63,11 +63,70 @@ async function proxyWeather(url, response) {
     return;
   }
 
+  const awcText = await awcResponse.text();
+  const weatherData = await fillMissingWeatherReports(type, ids, awcText);
+
   response.writeHead(200, {
     "Cache-Control": type === "stationinfo" ? "max-age=86400" : "max-age=60",
-    "Content-Type": type === "stationinfo" ? "application/json; charset=utf-8" : "text/plain; charset=utf-8"
+    "Content-Type": type === "stationinfo" ? "application/json; charset=utf-8" : "text/plain; charset=utf-8",
+    "X-Weather-Sources": formatWeatherSourceHeader(weatherData.sources)
   });
-  response.end(await awcResponse.text());
+  response.end(weatherData.text);
+}
+
+async function fillMissingWeatherReports(type, ids, text) {
+  if (type !== "metar" && type !== "taf") return { text, sources: {} };
+  const reports = [text.trim()].filter(Boolean);
+  const sources = {};
+
+  await Promise.all(ids.split(",").map(async (icao) => {
+    if (weatherTextHasReport(text, icao)) {
+      sources[icao] = "AWC";
+      return;
+    }
+    const fallback = await fetchNoaaStationWeatherText(type, icao);
+    if (fallback) {
+      reports.push(fallback);
+      sources[icao] = "NOAA";
+    }
+  }));
+
+  return { text: reports.join("\n"), sources };
+}
+
+function formatWeatherSourceHeader(sources) {
+  return Object.entries(sources || {})
+    .map(([icao, source]) => `${icao}=${source}`)
+    .join(",");
+}
+
+function weatherTextHasReport(text, icao) {
+  return new RegExp(`(?:^|\\n)\\s*(?:METAR\\s+|SPECI\\s+|TAF\\s+(?:AMD\\s+|COR\\s+)?)?${icao}\\b`).test(text);
+}
+
+async function fetchNoaaStationWeatherText(type, icao) {
+  const folder = type === "metar" ? "observations/metar" : "forecasts/taf";
+  const response = await fetch(`https://tgftp.nws.noaa.gov/data/${folder}/stations/${icao}.TXT`);
+  if (!response.ok) return "";
+  return normalizeNoaaStationWeatherText(type, icao, await response.text());
+}
+
+function normalizeNoaaStationWeatherText(type, icao, text) {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}$/.test(line));
+  const report = cleanNoaaWeatherReport(lines.join(type === "taf" ? "\n" : " "));
+  if (!weatherTextHasReport(report, icao)) return "";
+  return report;
+}
+
+function cleanNoaaWeatherReport(report) {
+  return String(report || "")
+    .replace(/\s+\$/g, "")
+    .replace(/\s+$/g, "")
+    .trim();
 }
 
 function normalizeWeatherIds(value) {

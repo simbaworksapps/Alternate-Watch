@@ -1227,7 +1227,7 @@ async function render(options = false) {
   updateFilterButtons();
   updateFilterCounts();
   if (renderOptions.showSubmitFeedback) {
-    setSubmitButtonStatus(rulesMetadata.weatherSource === "AWC" ? "success" : "unable");
+    setSubmitButtonStatus(rulesMetadata.weatherSource === "AWC/NOAA" ? "success" : "unable");
   } else if (!renderOptions.preserveButtonMessage) {
     setSubmitButtonStatus("idle");
   }
@@ -3000,7 +3000,8 @@ function renderCard(result) {
   const safeName = escapeHtml(result.name || "Airfield");
   const safeRuleStatus = escapeHtml(result.status);
   const assistEnabled = getMissionDefaults().assistDefault !== false && globalAssistEnabled && !assistLockedOff;
-  const wxSource = rulesMetadata.weatherSource === "AWC" ? "AWC" : rulesMetadata.weatherSource === "Practice" ? "Practice" : "!";
+  const wxSource = getCardWeatherSourceLabel(result);
+  const wxSourceFailed = wxSource === "!";
   const taf = result.tafRaw
     ? `<div class="taf-line">${renderHighlightedTaf(result)}</div>`
     : `<p class="raw-line">No full TAF available.</p>`;
@@ -3024,7 +3025,7 @@ function renderCard(result) {
         ${renderWeatherSourceTile("wind", "Wind", formatWindDisplay(result.period.wind), result)}
       </dl>
     `
-    : `<p class="raw-line">${result.tafRaw ? "Selected time is outside this TAF valid window." : "No TAF available from AWC for this airfield."}</p>`;
+    : `<p class="raw-line">${result.tafRaw ? "Selected time is outside this TAF valid window." : "No current TAF available from live sources for this airfield."}</p>`;
 
   return `
     <article class="result-card status-${cardStatus}${assistEnabled ? "" : " assist-off"}" data-icao="${safeIcao}" data-rule-status="${safeRuleStatus}">
@@ -3040,7 +3041,7 @@ function renderCard(result) {
             </div>
             <div class="card-meta">
               <p class="evaluated-at">${renderEvaluationLabel(result)}: ${formatCompactDateTime(result.evaluatedAt)} ${renderEvaluationDeltaBadge(result.evaluatedAt)}</p>
-              <p class="source-labels">WX: <span class="${rulesMetadata.weatherSource === "AWC" ? "" : "wx-failed"}">${escapeHtml(wxSource)}</span> | NOTAM: ${escapeHtml(rulesMetadata.notamSource)}</p>
+              <p class="source-labels">WX: <span class="${wxSourceFailed ? "wx-failed" : ""}">${escapeHtml(wxSource)}</span> | NOTAM: ${escapeHtml(rulesMetadata.notamSource)}</p>
             </div>
             <div class="card-status">
               <span class="status-pill">${cardStatus}</span>
@@ -3140,6 +3141,14 @@ function formatSignedDurationMinutes(deltaMinutes) {
   const hours = Math.floor(absoluteMinutes / 60);
   const minutes = absoluteMinutes % 60;
   return `${sign}${String(hours).padStart(2, "0")}${String(minutes).padStart(2, "0")}`;
+}
+
+function getCardWeatherSourceLabel(result) {
+  if (rulesMetadata.weatherSource === "Practice") return "Practice";
+  if (rulesMetadata.weatherSource === "Unavailable") return "!";
+  const sources = [result.metarSource, result.tafSource].filter(Boolean);
+  if (!sources.length) return rulesMetadata.weatherSource === "AWC/NOAA" ? "AWC/NOAA" : "!";
+  return [...new Set(sources)].sort().join("/");
 }
 
 function renderIssueChip(chip, icao = "") {

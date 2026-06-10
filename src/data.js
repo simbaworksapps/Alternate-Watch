@@ -1,5 +1,5 @@
 const rulesMetadata = {
-  caoDate: "2026-06-09",
+  caoDate: "2026-06-10",
   rulesProfile: "Prototype thresholds pending current AFMAN 11-202V3 / AMC supplement mapping",
   weatherSource: "Sample",
   notamSource: "Unavailable",
@@ -31,21 +31,21 @@ async function getLiveMissionData(icaos) {
 
   try {
     const ids = encodeURIComponent(uniqueIcaos.join(","));
-    const [metarText, tafText, stationInfo] = await Promise.all([
-      fetchWeatherText("metar", ids),
-      fetchWeatherText("taf", ids),
+    const [metarData, tafData, stationInfo] = await Promise.all([
+      fetchWeatherData("metar", ids),
+      fetchWeatherData("taf", ids),
       fetchStationInfo(ids)
     ]);
 
-    const metars = parseRawReports(metarText);
-    const tafs = parseRawReports(tafText);
+    const metars = parseRawReports(metarData.text);
+    const tafs = parseRawReports(tafData.text);
     const airports = {};
 
     uniqueIcaos.forEach((icao) => {
       const sample = sampleData.airports[icao] || {};
-      const metar = metars[icao] || sample.metar || null;
-      const tafRaw = tafs[icao] || sample.tafRaw || null;
-      const taf = tafRaw ? parseTafPeriods(tafRaw) : sample.taf || [];
+      const metar = metars[icao] || null;
+      const tafRaw = tafs[icao] || null;
+      const taf = tafRaw ? parseTafPeriods(tafRaw) : [];
 
       airports[icao] = {
         name: getAirportName(icao, sample, stationInfo),
@@ -53,11 +53,13 @@ async function getLiveMissionData(icaos) {
         metar,
         tafRaw,
         taf,
+        metarSource: metar ? metarData.sources[icao] || "AWC" : "",
+        tafSource: tafRaw ? tafData.sources[icao] || "AWC" : "",
         notams: []
       };
     });
 
-    rulesMetadata.weatherSource = "AWC";
+    rulesMetadata.weatherSource = "AWC/NOAA";
     return {
       pulledAt: new Date().toISOString(),
       sourceIssuedAt: getLatestIssueTime(airports) || new Date().toISOString(),
@@ -81,6 +83,8 @@ function createUnavailableMissionData(icaos) {
         metar: null,
         tafRaw: null,
         taf: [],
+        metarSource: "",
+        tafSource: "",
         notams: []
       };
       return airports;
@@ -109,20 +113,99 @@ async function fetchStationInfo(encodedIds) {
   return {};
 }
 
-async function fetchWeatherText(type, encodedIds) {
+async function fetchWeatherData(type, encodedIds) {
   const proxyUrl = `./api/weather?type=${type}&ids=${encodedIds}`;
   const directUrl = `https://aviationweather.gov/api/data/${type}?ids=${encodedIds}&format=raw${type === "metar" ? "&hours=3" : ""}`;
 
   try {
     const proxyResponse = await fetch(proxyUrl);
-    if (proxyResponse.ok) return proxyResponse.text();
+    if (proxyResponse.ok) {
+      const text = await proxyResponse.text();
+      return {
+        text,
+        sources: parseWeatherSourceHeader(proxyResponse.headers.get("X-Weather-Sources")) || inferWeatherSources(type, encodedIds, text, "AWC")
+      };
+    }
   } catch (error) {
     // Static previews and GitHub Pages do not provide the proxy endpoint.
   }
 
   const directResponse = await fetch(directUrl);
   if (!directResponse.ok) throw new Error("AWC request failed");
-  return directResponse.text();
+  return fillMissingWeatherReports(type, encodedIds, await directResponse.text());
+}
+
+async function fillMissingWeatherReports(type, encodedIds, text) {
+  if (type !== "metar" && type !== "taf") return { text, sources: {} };
+  const ids = decodeURIComponent(encodedIds)
+    .split(",")
+    .map((id) => id.trim().toUpperCase())
+    .filter((id) => /^[A-Z0-9]{4}$/.test(id));
+  const reports = [text.trim()].filter(Boolean);
+  const sources = {};
+
+  await Promise.all(ids.map(async (icao) => {
+    if (weatherTextHasReport(text, icao)) {
+      sources[icao] = "AWC";
+      return;
+    }
+    const fallback = await fetchNoaaStationWeatherText(type, icao);
+    if (fallback) {
+      reports.push(fallback);
+      sources[icao] = "NOAA";
+    }
+  }));
+
+  return { text: reports.join("\n"), sources };
+}
+
+function parseWeatherSourceHeader(value) {
+  const entries = String(value || "")
+    .split(",")
+    .map((entry) => entry.trim().split("="))
+    .filter(([icao, source]) => /^[A-Z0-9]{4}$/.test(icao) && /^(AWC|NOAA)$/.test(source));
+  if (!entries.length) return null;
+  return Object.fromEntries(entries);
+}
+
+function inferWeatherSources(type, encodedIds, text, source) {
+  if (type !== "metar" && type !== "taf") return {};
+  return Object.fromEntries(
+    decodeURIComponent(encodedIds)
+      .split(",")
+      .map((id) => id.trim().toUpperCase())
+      .filter((icao) => /^[A-Z0-9]{4}$/.test(icao) && weatherTextHasReport(text, icao))
+      .map((icao) => [icao, source])
+  );
+}
+
+function weatherTextHasReport(text, icao) {
+  return new RegExp(`(?:^|\\n)\\s*(?:METAR\\s+|SPECI\\s+|TAF\\s+(?:AMD\\s+|COR\\s+)?)?${icao}\\b`).test(text);
+}
+
+async function fetchNoaaStationWeatherText(type, icao) {
+  const folder = type === "metar" ? "observations/metar" : "forecasts/taf";
+  const response = await fetch(`https://tgftp.nws.noaa.gov/data/${folder}/stations/${icao}.TXT`);
+  if (!response.ok) return "";
+  return normalizeNoaaStationWeatherText(type, icao, await response.text());
+}
+
+function normalizeNoaaStationWeatherText(type, icao, text) {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !/^\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}$/.test(line));
+  const report = cleanNoaaWeatherReport(lines.join(type === "taf" ? "\n" : " "));
+  if (!weatherTextHasReport(report, icao)) return "";
+  return report;
+}
+
+function cleanNoaaWeatherReport(report) {
+  return String(report || "")
+    .replace(/\s+\$/g, "")
+    .replace(/\s+$/g, "")
+    .trim();
 }
 
 function normalizeStationInfo(payload) {
