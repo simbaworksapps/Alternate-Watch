@@ -18,10 +18,15 @@ const appDefaultMission = {
 const missionDefaultsStorageKey = "alternateWatchMissionDefaults";
 const airfieldHistoryStorageKey = "alternateWatchAirfieldHistory";
 const awcTafCapabilityOverrides = [
-  "KBAD", "KBIX", "KCBM", "KCVS", "KDLF", "KDMA", "KEDW", "KEND", "KESF", "KFCS",
-  "KGSB", "KHMN", "KIAB", "KLFI", "KLRF", "KLTS", "KLUF", "KMIB", "KMUO", "KNBC",
-  "KNCA", "KNFL", "KNLC", "KNMM", "KNPA", "KNQI", "KOZR", "KPAM", "KRCA", "KRDR",
-  "KRND", "KSSC", "KSZL", "KVAD"
+  "KAFF", "KANB", "KANE", "KASN", "KBAD", "KBCE", "KBIX", "KBYS", "KCBM", "KCKZ",
+  "KCOF", "KCVS", "KDAA", "KDLF", "KDMA", "KDRA", "KDTN", "KDWH", "KDWU", "KEDW",
+  "KEGI", "KEND", "KEPH", "KESF", "KFAF", "KFCM", "KFCS", "KFHU", "KFRI", "KFSI",
+  "KFTK", "KGAG", "KGRF", "KGSB", "KGTB", "KHBR", "KHMN", "KHSA", "KHUA", "KHWO",
+  "KHYI", "KIAB", "KLFI", "KLNA", "KLOL", "KLRF", "KLSF", "KLTS", "KLUF", "KLVJ",
+  "KLVN", "KLVS", "KMIB", "KMUI", "KMUO", "KNBC", "KNCA", "KNFL", "KNID", "KNJM",
+  "KNLC", "KNMM", "KNPA", "KNQI", "KNRB", "KNUC", "KNYG", "KOSH", "KOZR", "KPAM",
+  "KPOB", "KRCA", "KRDR", "KRGK", "KRND", "KSSC", "KSTP", "KSZL", "KTBN", "KTCC",
+  "KTOI", "KTTS", "KVAD", "KVBG", "KVOK"
 ];
 const weatherCapabilityOverrides = Object.fromEntries(
   awcTafCapabilityOverrides.map((icao) => [icao, { metar: true, taf: true }])
