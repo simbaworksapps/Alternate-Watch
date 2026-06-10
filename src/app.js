@@ -3671,6 +3671,8 @@ function openConversionTable(type) {
 
 function splitTafLines(value) {
   return String(value)
+    .replace(/\s+/g, " ")
+    .trim()
     .replace(/\s+(?=(FM\d{6}|BECMG|TEMPO|PROB\d{2}))/g, "\n")
     .split("\n")
     .map((line) => line.trim())
@@ -3711,6 +3713,13 @@ function tafMarker(result) {
 function decodeTafLine(line) {
   const tokens = normalizeReportTokens(line.trim().split(/\s+/));
   const items = [];
+  if (isTafAdminOnlyLine(tokens)) {
+    const remarks = decodeTafRemarks(tokens);
+    return remarks.length
+      ? [{ label: "Remarks", value: remarks.join("; ") }]
+      : [{ label: "Remarks", value: tokens.join(" ") }];
+  }
+
   const changeType = decodeChangeType(tokens[0]);
   if (changeType) items.push({ label: "Change", value: changeType });
   const station = tokens.find((token) => /^[A-Z0-9]{4}$/.test(token));
@@ -3750,6 +3759,23 @@ function decodeTafLine(line) {
   if (undecoded.length) items.push({ label: "Not Decoded", value: formatNotDecodedTokens(undecoded, "taf") });
 
   return items.length ? items : [{ label: "Decode", value: "No decoded training items found for this line." }];
+}
+
+function isTafAdminOnlyLine(tokens) {
+  if (!tokens.length) return false;
+  const hasWeatherGroup = tokens.some((token) =>
+    decodeChangeType(token)
+    || /^[A-Z0-9]{4}$/.test(token)
+    || /^\d{6}Z$/.test(token)
+    || /^\d{4}\/\d{4}$/.test(token)
+    || /^FM\d{6}$/.test(token)
+    || /^(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?(?:KT|MPS)$/.test(token)
+    || isWeatherToken(token)
+    || matchWindShearToken(token)
+    || /^(BKN|OVC|VV|FEW|SCT)(\d{3}|\/\/\/)(CB|TCU)?$/.test(token)
+    || /^(NSW|NSC|SKC|CLR|CAVOK)$/.test(token)
+  );
+  return !hasWeatherGroup && tokens.some((token) => /^(LAST|NO|AMD|AMDS|AFT|NEXT|COR|RMK)$/.test(token));
 }
 
 function decodeMetarLine(line) {
@@ -4262,9 +4288,9 @@ function decodeTafRemarks(tokens) {
     if (token === "COR" && /^\d{4}$/.test(tokens[index + 1] || "")) remarks.push(`Corrected forecast issued at ${decodeTafBoundary(tokens[index + 1])}.`);
     const fs = token.match(/^FS(\d{5})$/);
     if (fs) remarks.push(`FS ${fs[1]} regional/system forecast status group retained for reference.`);
-    if (token === "LAST" && tokens[index + 1] === "NO" && tokens[index + 2] === "AMD") remarks.push("Last forecast, no amendments.");
-    if (token === "AFT" && /^\d{4}Z$/.test(tokens[index + 1] || "")) remarks.push(`After ${decodeTafBoundary(tokens[index + 1].slice(0, 4))}.`);
-    if (token === "NEXT" && /^\d{4}Z$/.test(tokens[index + 1] || "")) remarks.push(`Next forecast by ${decodeTafBoundary(tokens[index + 1].slice(0, 4))}.`);
+    if (token === "LAST" && tokens[index + 1] === "NO" && /^AMDS?$/.test(tokens[index + 2] || "")) remarks.push("Last forecast, no amendments.");
+    if (token === "AFT" && /^\d{4}Z?$/.test(tokens[index + 1] || "")) remarks.push(`After ${decodeTafBoundary(tokens[index + 1].slice(0, 4))}.`);
+    if (token === "NEXT" && /^\d{4}Z?$/.test(tokens[index + 1] || "")) remarks.push(`Next forecast by ${decodeTafBoundary(tokens[index + 1].slice(0, 4))}.`);
     if (token === "FZRANO") remarks.push("Freezing rain sensor not available.");
     if (token === "LTG" && tokens[index + 1] === "DSNT") remarks.push(`Lightning distant ${decodeDirection(tokens[index + 2] || "")}.`);
     if (token === "RMK") remarks.push(`Remarks: ${tokens.slice(index + 1).join(" ")}.`);
