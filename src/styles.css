@@ -2709,11 +2709,11 @@ body.search-open {
   display: none;
 }
 
-.result-card.assist-off .taf-decode-row.taf-applicable summary,
-.result-card.assist-off .taf-decode-row.taf-window summary,
-.result-card.assist-off .taf-decode-row.taf-status-green summary,
-.result-card.assist-off .taf-decode-row.taf-status-yellow summary,
-.result-card.assist-off .taf-decode-row.taf-status-red summary {
+.result-card.assist-off .taf-decode-row.taf-applicable > summary,
+.result-card.assist-off .taf-decode-row.taf-window > summary,
+.result-card.assist-off .taf-decode-row.taf-status-green > summary,
+.result-card.assist-off .taf-decode-row.taf-status-yellow > summary,
+.result-card.assist-off .taf-decode-row.taf-status-red > summary {
   background: transparent;
   border-color: transparent;
 }
@@ -2850,18 +2850,18 @@ body.search-open {
   }
 }
 
-.taf-decode-row.taf-applicable.source-focus.source-focus-red summary,
-.taf-decode-row.taf-window.source-focus.source-focus-red summary {
+.taf-decode-row.taf-applicable.source-focus.source-focus-red > summary,
+.taf-decode-row.taf-window.source-focus.source-focus-red > summary {
   box-shadow: 0 0 14px rgba(255, 95, 86, 0.42);
 }
 
-.taf-decode-row.taf-applicable.source-focus.source-focus-yellow summary,
-.taf-decode-row.taf-window.source-focus.source-focus-yellow summary {
+.taf-decode-row.taf-applicable.source-focus.source-focus-yellow > summary,
+.taf-decode-row.taf-window.source-focus.source-focus-yellow > summary {
   box-shadow: 0 0 14px rgba(243, 178, 60, 0.38);
 }
 
-.taf-decode-row.taf-applicable.source-focus.source-focus-green summary,
-.taf-decode-row.taf-window.source-focus.source-focus-green summary {
+.taf-decode-row.taf-applicable.source-focus.source-focus-green > summary,
+.taf-decode-row.taf-window.source-focus.source-focus-green > summary {
   box-shadow: 0 0 14px rgba(46, 212, 122, 0.38);
 }
 
@@ -3015,8 +3015,7 @@ dd {
   margin: 0;
 }
 
-.raw-line,
-.taf-line {
+.raw-line {
   background: #080d14;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -3024,6 +3023,14 @@ dd {
   font-size: 0.86rem;
   line-height: 1.55;
   padding: 10px 0;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.taf-line {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.86rem;
+  line-height: 1.55;
   white-space: normal;
   word-break: break-word;
 }
@@ -3178,14 +3185,13 @@ dd {
   outline: none;
 }
 
-.metar-decode-row[open] summary,
-.taf-decode-row[open] summary {
+.taf-decode-row[open] > summary {
   background: rgba(74, 163, 255, 0.12);
 }
 
 mark,
-.taf-decode-row.taf-applicable summary,
-.taf-decode-row.taf-window summary {
+.taf-decode-row.taf-applicable > summary,
+.taf-decode-row.taf-window > summary {
   background: rgba(74, 163, 255, 0.2);
   border: 1px solid var(--blue);
   border-radius: 6px;
@@ -3197,34 +3203,34 @@ mark,
   position: relative;
 }
 
-.taf-decode-row.taf-applicable summary::after,
-.taf-decode-row.taf-window summary::after {
+.taf-decode-row.taf-applicable > summary::after,
+.taf-decode-row.taf-window > summary::after {
   clear: both;
   content: "";
   display: block;
 }
 
-.taf-decode-row.taf-applicable summary > span:first-child,
-.taf-decode-row.taf-window summary > span:first-child {
+.taf-decode-row.taf-applicable > summary > span:first-child,
+.taf-decode-row.taf-window > summary > span:first-child {
   display: inline;
 }
 
-.taf-decode-row.taf-window summary {
+.taf-decode-row.taf-window > summary {
   background: rgba(102, 217, 232, 0.12);
   border-color: #66d9e8;
 }
 
-.taf-decode-row.taf-status-green summary {
+.taf-decode-row.taf-status-green > summary {
   background: rgba(46, 212, 122, 0.12);
   border-color: var(--green);
 }
 
-.taf-decode-row.taf-status-yellow summary {
+.taf-decode-row.taf-status-yellow > summary {
   background: rgba(243, 178, 60, 0.16);
   border-color: var(--yellow);
 }
 
-.taf-decode-row.taf-status-red summary {
+.taf-decode-row.taf-status-red > summary {
   background: rgba(255, 95, 86, 0.18);
   border-color: var(--red);
 }
@@ -3260,7 +3266,7 @@ mark.taf-applicable {
 }
 
 .taf-decode {
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   border-left: 2px solid var(--blue);
   margin: 6px 0 10px 8px;
   padding: 8px 10px;
@@ -3279,16 +3285,86 @@ mark.taf-applicable {
 
 .taf-decode dt {
   color: #b8dcff;
-  font-family: var(--font);
-  font-size: 0.72rem;
-  font-weight: 1000;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.86rem;
+  font-weight: 900;
+  line-height: 1.55;
   text-transform: uppercase;
 }
 
 .taf-decode dd {
   color: var(--muted);
-  font-family: var(--font);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.86rem;
+  font-weight: 900;
+  line-height: 1.55;
   margin: 0;
+}
+
+.decode-structure {
+  border-top: 1px solid rgba(74, 163, 255, 0.24);
+  display: grid;
+  margin-top: 10px;
+  padding-top: 8px;
+}
+
+.decode-structure summary {
+  align-items: center;
+  color: #b8dcff;
+  cursor: pointer;
+  display: flex;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.86rem;
+  font-weight: 900;
+  gap: 6px;
+  justify-content: space-between;
+  line-height: 1.55;
+  letter-spacing: 0;
+  list-style: none;
+  width: 100%;
+  text-transform: uppercase;
+}
+
+.decode-structure summary::-webkit-details-marker {
+  display: none;
+}
+
+.decode-structure summary::after {
+  color: var(--gold);
+  content: "+";
+  font-weight: 1000;
+}
+
+.decode-structure[open] summary::after {
+  content: "-";
+}
+
+.decode-structure summary:hover,
+.decode-structure summary:focus-visible {
+  filter: brightness(1.08);
+  outline: none;
+}
+
+.decode-structure-body {
+  display: grid;
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.decode-structure code {
+  color: var(--muted);
+  display: block;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.86rem;
+  font-weight: 900;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.decode-structure-label {
+  color: #b8dcff;
+  margin-top: 4px;
 }
 
 .taf-marker {
@@ -3511,8 +3587,8 @@ ul {
 
   .taf-decode-row summary,
   .metar-decode-row summary,
-  .taf-decode-row.taf-applicable summary,
-  .taf-decode-row.taf-window summary {
+  .taf-decode-row.taf-applicable > summary,
+  .taf-decode-row.taf-window > summary {
     margin-left: 0;
     margin-right: 0;
   }
@@ -3623,8 +3699,8 @@ ul {
     margin-bottom: 8px;
   }
 
-  .taf-decode-row.taf-applicable summary,
-  .taf-decode-row.taf-window summary {
+  .taf-decode-row.taf-applicable > summary,
+  .taf-decode-row.taf-window > summary {
     padding-bottom: 3px;
   }
 

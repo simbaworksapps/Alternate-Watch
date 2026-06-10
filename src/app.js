@@ -3484,6 +3484,7 @@ function renderTafDecode(line) {
     <dl>
       ${decoded.map(renderDecodedItem).join("")}
     </dl>
+    ${renderReportStructure("taf")}
   `;
 }
 
@@ -3544,6 +3545,43 @@ function renderMetarDecode(metar) {
     <dl>
       ${decoded.map(renderDecodedItem).join("")}
     </dl>
+    ${renderReportStructure("metar")}
+  `;
+}
+
+function renderReportStructure(type) {
+  const structures = {
+    metar: {
+      title: "METAR Structure",
+      lines: [
+        "METAR/SPECI STATION DDHHMMZ AUTO/COR WIND VIS RVR WX CLOUDS TEMP/DEW ALTIMETER RMK"
+      ]
+    },
+    taf: {
+      title: "TAF Structure",
+      lines: [
+        "TAF STATION DDHHMMZ VALID-PERIOD WIND VIS WX CLOUDS OPTIONAL-RMKS",
+        "Change options:",
+        "BECMG DDHH/DDHH",
+        "FMDDHHMM",
+        "PROBxx DDHH/DDHH",
+        "TEMPO DDHH/DDHH",
+        "FAA note:",
+        "Except FM, change groups list only changing conditions.",
+        "Omitted wind, visibility, weather, or sky condition carry over from the previous time group.",
+        "NSW clears weather only."
+      ]
+    }
+  };
+  const structure = structures[type];
+  if (!structure) return "";
+  return `
+    <details class="decode-structure">
+      <summary>${escapeHtml(structure.title)}</summary>
+      <div class="decode-structure-body">
+        ${structure.lines.map((line) => `<code class="${line.endsWith(":") ? "decode-structure-label" : ""}">${escapeHtml(line)}</code>`).join("")}
+      </div>
+    </details>
   `;
 }
 
@@ -3614,6 +3652,9 @@ function decodeTafLine(line) {
   const items = [];
   const changeType = decodeChangeType(tokens[0]);
   if (changeType) items.push({ label: "Change", value: changeType });
+  const station = tokens.find((token) => /^[A-Z0-9]{4}$/.test(token));
+  const issued = station ? tokens[tokens.indexOf(station) + 1] : "";
+  if (/^\d{6}Z$/.test(issued)) items.push({ label: "Issued", value: decodeObservedTime(issued) });
 
   const window = line.match(/\b(\d{4})\/(\d{4})\b/);
   const fm = line.match(/\bFM(\d{6})\b/);
@@ -3627,6 +3668,8 @@ function decodeTafLine(line) {
   if (wind) items.push({ label: "Wind", value: decodeWindToken(wind) });
   const variableWind = tokens.find((token) => /^\d{3}V\d{3}$/.test(token));
   if (variableWind) items.push({ label: "Wind", value: `Wind direction varying from ${variableWind.slice(0, 3)} degrees to ${variableWind.slice(4, 7)} degrees.` });
+  const windShear = tokens.find(matchWindShearToken);
+  if (windShear) items.push({ label: "Wind Shear", value: decodeWindShearToken(windShear) });
 
   const visibility = decodeVisibilityToken(tokens);
   if (visibility) items.push({ label: "Visibility", value: visibility });
@@ -3637,6 +3680,7 @@ function decodeTafLine(line) {
 
   const clouds = decodeCloudTokens(tokens);
   if (clouds.length) items.push({ label: "Clouds", value: joinDecodedPhrases(clouds) });
+  if (tokens.includes("SKC")) items.push({ label: "Clouds", value: "Sky clear." });
   if (tokens.includes("NSC")) items.push({ label: "Clouds", value: "No significant cloud." });
 
   const remarks = decodeTafRemarks(tokens);
@@ -3746,6 +3790,7 @@ function isKnownTafToken(token, index, tokens) {
   if (/^QNH\d{4}INS$/.test(token)) return true;
   if (/^QNH\d{4}$/.test(token)) return true;
   if (/^FS\d{5}$/.test(token)) return true;
+  if (matchWindShearToken(token)) return true;
   if (/^\d{4}Z$/.test(token) && ["AFT", "NEXT"].includes(tokens[index - 1])) return true;
   if (/^\d{4}$/.test(token) && tokens[index - 1] === "COR") return true;
   if (/^\d{4}(N|NE|E|SE|S|SW|W|NW)$/.test(token)) return true;
@@ -3901,6 +3946,18 @@ function decodeWindToken(match) {
     ? `, gusting ${Number(match[3])} ${unit}${match[4] === "MPS" ? ` (${Math.round(Number(match[3]) * 1.94384)} kt)` : ""}`
     : "";
   return `${direction} at ${speed} ${unit}${speedKt}${gust}.`;
+}
+
+function matchWindShearToken(token) {
+  return String(token || "").match(/^WS(\d{3})\/((?:\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS))$/);
+}
+
+function decodeWindShearToken(token) {
+  const match = matchWindShearToken(token);
+  if (!match) return token;
+  const height = (Number(match[1]) * 100).toLocaleString("en-US");
+  const wind = decodeWindToken([match[0], match[2], match[3], match[4], match[5]]);
+  return `Low-level wind shear at ${height} ft AGL: ${lowercaseFirst(wind)}`;
 }
 
 function decodeVisibilityToken(tokens) {
