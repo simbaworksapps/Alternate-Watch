@@ -3673,7 +3673,6 @@ function decodeTafLine(line) {
 
   const visibility = decodeVisibilityToken(tokens);
   if (visibility) items.push({ label: "Visibility", value: visibility });
-  if (tokens.includes("CAVOK")) items.push({ label: "Conditions", value: "Ceiling And Visibility OK: visibility 10 km or more, no significant weather, and no significant cloud below criteria." });
 
   const weather = decodeWeatherTokens(tokens);
   if (weather.length) items.push({ label: "Weather", value: joinDecodedPhrases(weather) });
@@ -3709,12 +3708,13 @@ function decodeMetarLine(line) {
 
   const visibility = decodeVisibilityToken(tokens);
   if (visibility) items.push({ label: "Visibility", value: visibility });
-  if (tokens.includes("CAVOK")) items.push({ label: "Conditions", value: "Ceiling And Visibility OK: visibility 10 km or more, no significant weather, and no significant cloud below criteria." });
 
   const rvr = decodeRvrTokens(tokens);
   if (rvr.length) items.push({ label: "Runway Visibility", value: rvr.join("; ") });
   const runwayState = decodeRunwayStateTokens(tokens);
   if (runwayState.length) items.push({ label: "Runway State", value: runwayState.join("; ") });
+  const runwayWindShear = decodeMetarRunwayWindShear(tokens);
+  if (runwayWindShear.length) items.push({ label: "Wind Shear", value: runwayWindShear.join("; ") });
 
   const weather = decodeWeatherTokens(tokens);
   if (weather.length) items.push({ label: "Weather", value: joinDecodedPhrases(weather) });
@@ -3814,6 +3814,8 @@ function isKnownMetarToken(token, index, tokens) {
   if (/^R\d{2}[LCR]?\/\d{6}$/.test(token)) return true;
   if (/^R\d{2}[LCR]?\/CLRD\d{2}$/.test(token)) return true;
   if (/^R\d{2}[LCR]?\/[PM]?\d{4}[UDN]?$/.test(token)) return true;
+  if (token === "WS" && /^R\d{2}[LCR]?$/.test(tokens[index + 1] || "")) return true;
+  if (/^R\d{2}[LCR]?$/.test(token) && tokens[index - 1] === "WS") return true;
   if (/^PP\d{3}$/.test(token)) return true;
   if (/^QFE\d{3,4}$/.test(token)) return true;
   if (/^QFE\d{3,4}\/\d{3,4}$/.test(token)) return true;
@@ -4011,6 +4013,15 @@ function decodeRunwayStateTokens(tokens) {
     const cleared = token.match(/^R(\d{2}[LCR]?)\/CLRD(\d{2})$/);
     if (cleared) return [`Runway ${cleared[1]} cleared; braking/friction code ${cleared[2]}.`];
     return [];
+  });
+}
+
+function decodeMetarRunwayWindShear(tokens) {
+  return tokens.flatMap((token, index) => {
+    if (token !== "WS") return [];
+    const runway = String(tokens[index + 1] || "").match(/^R(\d{2}[LCR]?)$/);
+    if (!runway) return [];
+    return [`Wind shear reported for runway ${runway[1]}.`];
   });
 }
 
