@@ -1577,7 +1577,7 @@ body.search-open {
 }
 
 .assist-default-toggle[aria-pressed="true"] .paw-icon {
-  color: #ffe0a3;
+  color: var(--gold);
   opacity: 1;
 }
 
