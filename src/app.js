@@ -138,6 +138,7 @@ const codeHuntTargets = [
   { id: "cavok", label: "CAVOK", hint: "Ceiling and visibility OK", pattern: /\bCAVOK\b/ },
   { id: "cbtcu", label: "CB / TCU", hint: "Convective cloud", pattern: /\b(?:FEW|SCT|BKN|OVC)\d{3}(?:CB|TCU)\b|\/\/\/CB\b/ },
   { id: "clrskc", label: "CLR / SKC", hint: "Clear sky groups", pattern: /\b(?:CLR|SKC)\b/ },
+  { id: "complexwx", label: "COMPLEX WX", hint: "Stacked weather scenario", pattern: /\b(?:PROB\d{2}|TEMPO|BECMG|FM\d{6}|TSRA|SHRA|BKN\d{3}|OVC\d{3}|CB|BR|FG)\b/, special: "complex" },
   { id: "dirvis", label: "DIR VIS", hint: "Directional visibility", pattern: /\b\d{4}(?:N|NE|E|SE|S|SW|W|NW)\b/ },
   { id: "dustsand", label: "DS / SS", hint: "Dust or sandstorm", pattern: /\b(?:DS|SS)\b/ },
   { id: "dz", label: "DZ", hint: "Drizzle", pattern: /\b[+-]?(?:FZ)?DZ\b/ },
@@ -781,7 +782,7 @@ function setupCodeHuntControls() {
   const search = document.querySelector("#code-hunt-search");
   if (!toggle || !close || !options || !search) return;
   options.innerHTML = codeHuntTargets.map((target) => `
-    <button type="button" class="secondary-button code-hunt-option" data-code-hunt="${target.id}" data-code-hunt-search="${escapeHtml(getCodeHuntSearchText(target))}">
+    <button type="button" class="secondary-button code-hunt-option${target.special ? ` code-hunt-option-${escapeHtml(target.special)}` : ""}" data-code-hunt="${target.id}" data-code-hunt-search="${escapeHtml(getCodeHuntSearchText(target))}">
       <strong>${escapeHtml(target.label)}</strong>
       <span>${escapeHtml(target.hint)}</span>
     </button>
@@ -890,12 +891,13 @@ async function runCodeHunt(target) {
         const airport = missionData.airports?.[icao];
         if (!airport) return;
         const match = getCodeHuntMatch(target, airport, takeoff, landing, missionData.pulledAt);
-        if (match.matches) found.push({ icao, ...match });
+        if (match.matches) found.push({ icao, score: getCodeHuntScore(target, airport, match), ...match });
         if (!match.matches && outsideWindowFound.length < 3 && codeHuntRawMatches(target, airport)) {
-          outsideWindowFound.push({ icao, departureMatch: true, landingMatch: true, outsideWindow: true });
+          outsideWindowFound.push({ icao, score: getCodeHuntScore(target, airport), departureMatch: true, landingMatch: true, outsideWindow: true });
         }
       });
-      if (found.length >= 3) break;
+      if (target.id !== "complexwx" && found.length >= 3) break;
+      if (target.id === "complexwx" && found.length >= 8) break;
     }
 
     if (!isActiveDiceAction(action)) return;
@@ -910,7 +912,7 @@ async function runCodeHunt(target) {
       return;
     }
 
-    const selected = selectCodeHuntMission(selectedMatches);
+    const selected = selectCodeHuntMission(rankCodeHuntMatches(target, selectedMatches));
     const foundCount = Math.min(selected.uniqueCount, 3);
     pushScenarioHistory(previousInputs);
     missionDataOverride = null;
@@ -987,8 +989,44 @@ function buildActiveCodeHunt(target, matches, outsideWindowFallback = false) {
 
 function codeHuntTextMatches(target, text) {
   if (!text) return false;
+  if (target.id === "complexwx") return getComplexWeatherScore(text) >= 7;
   target.pattern.lastIndex = 0;
   return target.pattern.test(String(text).toUpperCase());
+}
+
+function getComplexWeatherScore(text) {
+  const value = String(text || "").toUpperCase();
+  if (!value) return 0;
+  const lineCount = Math.max(1, value.split(/\r?\n/).filter((line) => line.trim()).length);
+  const changeGroups = (value.match(/\b(?:FM\d{6}|BECMG|TEMPO|INTER|PROB\d{2})\b/g) || []).length;
+  const weatherGroups = (value.match(/\b(?:TSRA|SHRA|\+TSRA|\+RA|-RA|RA|BR|FG|FZRA|FZDZ|GR|GS|SQ|VCTS|VCSH)\b/g) || []).length;
+  const cloudGroups = (value.match(/\b(?:BKN|OVC|VV|SCT)\d{3}(?:CB|TCU)?\b/g) || []).length;
+  const signals = [
+    /\b(?:PROB\d{2}|TEMPO|INTER)\b/.test(value),
+    /\b(?:TSRA|SHRA|\+TSRA|\+RA|FZRA|FZDZ|GR|GS|SQ)\b/.test(value),
+    /\b(?:BR|FG|HZ|FU|DU|SA|BLDU|BLSN|BLSA)\b/.test(value),
+    /\b(?:BKN|OVC|VV)\d{3}(?:CB|TCU)?\b/.test(value),
+    /\b(?:SCT|BKN|OVC)\d{3}(?:CB|TCU)\b|\bCB\b/.test(value),
+    /\b(?:P6SM|M?\d{1,2}(?:\/\d)?SM|\d{4})\b/.test(value) && /\b(?:BKN|OVC|VV)\d{3}\b/.test(value),
+    /\b(?:VRB|\d{3})\d{2,3}G\d{2,3}(?:KT|MPS)\b/.test(value),
+    /\bWS(?:\d{3}\/\d{3}\d{2,3}KT|\s+ALL\s+RWY|\d{3})?\b/.test(value)
+  ];
+  return signals.filter(Boolean).length
+    + Math.min(lineCount - 1, 4)
+    + Math.min(changeGroups, 5)
+    + Math.min(weatherGroups, 4)
+    + Math.min(cloudGroups, 4);
+}
+
+function getCodeHuntScore(target, airport, match = {}) {
+  if (target.id !== "complexwx") return 0;
+  const foundWeight = match.matches ? 10 : 0;
+  return foundWeight + getComplexWeatherScore([airport?.metar, airport?.tafRaw].filter(Boolean).join("\n"));
+}
+
+function rankCodeHuntMatches(target, matches) {
+  if (target.id !== "complexwx") return matches;
+  return [...matches].sort((left, right) => (right.score || 0) - (left.score || 0));
 }
 
 function codeHuntPeriodsMatch(target, periods = [], targetTime, ruleType) {
