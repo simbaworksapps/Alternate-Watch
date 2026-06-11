@@ -215,6 +215,8 @@ function getNoaaStationFileTime(lines) {
 
 function cleanNoaaWeatherReport(report) {
   return String(report || "")
+    .replace(/^TAF\s+TAF\s+/, "TAF ")
+    .replace(/^((?:METAR|SPECI)\s+)\1/, "$1")
     .replace(/\s+\$/g, "")
     .replace(/\s+$/g, "")
     .trim();

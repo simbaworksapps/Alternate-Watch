@@ -1,5 +1,5 @@
 const rulesMetadata = {
-  caoDate: "2026-06-10",
+  caoDate: "2026-06-11",
   rulesProfile: "Prototype thresholds pending current AFMAN 11-202V3 / AMC supplement mapping",
   weatherSource: "Sample",
   notamSource: "Unavailable",
@@ -248,6 +248,8 @@ function getNoaaStationFileTime(lines) {
 
 function cleanNoaaWeatherReport(report) {
   return String(report || "")
+    .replace(/^TAF\s+TAF\s+/, "TAF ")
+    .replace(/^((?:METAR|SPECI)\s+)\1/, "$1")
     .replace(/\s+\$/g, "")
     .replace(/\s+$/g, "")
     .trim();

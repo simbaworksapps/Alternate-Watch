@@ -163,7 +163,7 @@ const codeHuntTargets = [
   { id: "prob", label: "PROB", hint: "Probability group", pattern: /\bPROB\d{2}\b/ },
   { id: "qfe", label: "QFE", hint: "Field pressure remark", pattern: /\bQFE\d{3,4}(?:\/\d{3,4})?\b/ },
   { id: "qnh", label: "QNH", hint: "TAF altimeter setting", pattern: /\bQNH\d{4}(?:INS)?\b/ },
-  { id: "rab-rea", label: "RAB / RAE", hint: "Rain began or ended", pattern: /\bRA[BE]\d{2,4}\b/ },
+  { id: "rab-rea", label: "RAB / RAE", hint: "Rain began or ended", pattern: /\bRA(?:[BE]\d{2,4})+\b/ },
   { id: "recent", label: "RE WX", hint: "Recent weather", pattern: /\bRE(?:RA|SN|TS|SHRA|SHSN|DZ|FG|GR|GS)\b/ },
   { id: "rmk", label: "RMK", hint: "Remarks section", pattern: /\bRMK\b/ },
   { id: "rwywind", label: "RWY WIND", hint: "Runway wind remark", pattern: /\bRWY\d{2}[LCR]?\s+(?:\d{3}|VRB)\d{2,3}(?:G\d{2,3})?KT\b/ },
@@ -778,15 +778,24 @@ function setupCodeHuntControls() {
   const toggle = document.querySelector("#code-hunt-toggle");
   const close = document.querySelector("#code-hunt-close");
   const options = document.querySelector("#code-hunt-options");
-  if (!toggle || !close || !options) return;
+  const search = document.querySelector("#code-hunt-search");
+  if (!toggle || !close || !options || !search) return;
   options.innerHTML = codeHuntTargets.map((target) => `
-    <button type="button" class="secondary-button code-hunt-option" data-code-hunt="${target.id}">
+    <button type="button" class="secondary-button code-hunt-option" data-code-hunt="${target.id}" data-code-hunt-search="${escapeHtml(getCodeHuntSearchText(target))}">
       <strong>${escapeHtml(target.label)}</strong>
       <span>${escapeHtml(target.hint)}</span>
     </button>
   `).join("");
   toggle.addEventListener("click", toggleCodeHuntPanel);
   close.addEventListener("click", closeCodeHuntPanel);
+  search.addEventListener("input", () => filterCodeHuntOptions(search.value));
+  search.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    const firstMatch = options.querySelector(".code-hunt-option:not([hidden])");
+    if (!firstMatch) return;
+    event.preventDefault();
+    firstMatch.click();
+  });
   options.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-code-hunt]");
     if (!button) return;
@@ -795,6 +804,26 @@ function setupCodeHuntControls() {
     closeCodeHuntPanel();
     await runCodeHunt(target);
   });
+}
+
+function getCodeHuntSearchText(target) {
+  return [target.label, target.hint, target.id]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function filterCodeHuntOptions(value) {
+  const query = String(value || "").trim().toLowerCase();
+  document.querySelectorAll(".code-hunt-option").forEach((button) => {
+    button.hidden = Boolean(query) && !button.dataset.codeHuntSearch.includes(query);
+  });
+}
+
+function resetCodeHuntSearch() {
+  const search = document.querySelector("#code-hunt-search");
+  if (search) search.value = "";
+  filterCodeHuntOptions("");
 }
 
 function toggleCodeHuntPanel() {
@@ -810,12 +839,18 @@ function toggleCodeHuntPanel() {
   panel.hidden = !open;
   toggle.setAttribute("aria-expanded", String(open));
   document.body.classList.toggle("code-hunt-open", open);
+  if (open) {
+    const search = document.querySelector("#code-hunt-search");
+    filterCodeHuntOptions(search?.value || "");
+    window.setTimeout(() => search?.focus(), 0);
+  }
 }
 
 function closeCodeHuntPanel() {
   const panel = document.querySelector("#code-hunt-panel");
   const toggle = document.querySelector("#code-hunt-toggle");
   if (!panel) return;
+  resetCodeHuntSearch();
   panel.hidden = true;
   toggle?.setAttribute("aria-expanded", "false");
   document.body.classList.remove("code-hunt-open");
@@ -3989,7 +4024,7 @@ function isKnownMetarToken(token, index, tokens) {
   if (/^2[01]\d{3}$/.test(token)) return true;
   if (/^5\d{4}$/.test(token)) return true;
   if (/^DZB\d{2}E\d{2}$/.test(token)) return true;
-  if (/^RA(B|E)\d{2}(\d{2})?$/.test(token)) return true;
+  if (decodePrecipEventSequence(token)) return true;
   if (/^TS(?:B\d{2}|E\d{2})+$/.test(token)) return true;
   if ((token === "VIS" || token === "CIG") && tokens.includes("RMK")) return true;
   if (/^M?\d+(?:\/\d+)?SM?$/.test(token) && (tokens[index - 1] === "VIS" || tokens[index - 2] === "VIS")) return true;
@@ -4576,12 +4611,12 @@ function decodeThunderstormEventSequence(token) {
 }
 
 function decodePrecipEventSequence(token) {
-  const match = String(token || "").match(/^([A-Z]{2,6})((?:[BE]\d{2})+)$/);
+  const match = String(token || "").match(/^([A-Z]{2,6})((?:[BE]\d{2,4})+)$/);
   if (!match) return null;
   const eventName = decodePrecipEventName(match[1]);
   if (!eventName) return null;
-  const events = Array.from(match[2].matchAll(/([BE])(\d{2})/g))
-    .map((event) => `${event[1] === "B" ? "began" : "ended"} at ${formatObservationMinute(event[2])}`);
+  const events = Array.from(match[2].matchAll(/([BE])(\d{2}(?:\d{2})?)(?=[BE]|$)/g))
+    .map((event) => `${event[1] === "B" ? "began" : "ended"} at ${formatObservationEventTime(event[2])}`);
   return events.length ? `${eventName} ${events.join(", ")} past the hour.` : null;
 }
 
@@ -4604,6 +4639,12 @@ function decodePrecipEventName(code) {
 function formatObservationMinute(value) {
   const minute = String(value || "").padStart(2, "0");
   return `:${minute}`;
+}
+
+function formatObservationEventTime(value) {
+  const time = String(value || "");
+  if (/^\d{4}$/.test(time)) return `${time.slice(0, 2)}${time.slice(2)}Z`;
+  return formatObservationMinute(time);
 }
 
 function decodeDirection(value) {

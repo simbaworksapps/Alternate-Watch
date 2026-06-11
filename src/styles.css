@@ -1228,13 +1228,51 @@ body.search-open {
 }
 
 .code-hunt-panel {
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  height: auto;
   max-width: 760px;
+  min-height: 0;
+  overflow: hidden;
+  top: 8px;
+  transform: translateX(-50%);
+}
+
+.code-hunt-search {
+  background: var(--field-bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  margin-bottom: 10px;
+  min-height: 48px;
+  outline: none;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.code-hunt-search::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.code-hunt-search:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 199, 54, 0.16);
 }
 
 .code-hunt-grid {
+  align-content: start;
   display: grid;
+  flex: 1;
   gap: 8px;
+  grid-auto-rows: min-content;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .code-hunt-option {
@@ -1245,6 +1283,10 @@ body.search-open {
   min-height: 58px;
   padding: 8px;
   text-align: left;
+}
+
+.code-hunt-option[hidden] {
+  display: none;
 }
 
 .code-hunt-option strong {
