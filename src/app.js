@@ -238,10 +238,10 @@ function init() {
   setupAlternateListInput("#alternates", updateAlternatesCount);
   setupAlternateListInput("#default-alternates", updateDefaultAlternatesCount);
   document.querySelector("#takeoff-plus-one").addEventListener("click", () => {
-    addHoursToZuluDateTimeField("takeoffDateTime", 1);
+    resetTakeoffZuluField();
   });
   document.querySelector("#landing-plus-one").addEventListener("click", () => {
-    addHoursToZuluDateTimeField("landingDateTime", 1);
+    resetLandingZuluField();
   });
   setupCodeHuntControls();
   document.querySelector("#reset-alternates").addEventListener("click", async () => {
@@ -842,8 +842,9 @@ function toggleCodeHuntPanel() {
   document.body.classList.toggle("code-hunt-open", open);
   if (open) {
     const search = document.querySelector("#code-hunt-search");
+    const options = document.querySelector("#code-hunt-options");
     filterCodeHuntOptions(search?.value || "");
-    window.setTimeout(() => search?.focus(), 0);
+    if (options) options.scrollTop = 0;
   }
 }
 
@@ -2070,6 +2071,17 @@ function addHoursToZuluDateTimeField(fieldId, hours) {
   const currentIso = buildZuluDateTimeIso(document.querySelector(`#${fieldId}`).value);
   const target = new Date(new Date(currentIso).getTime() + hours * 60 * 60 * 1000);
   document.querySelector(`#${fieldId}`).value = formatZuluDateTimeInput(target);
+  updateZuluDateTimeReadouts();
+}
+
+function resetTakeoffZuluField() {
+  document.querySelector("#takeoffDateTime").value = formatZuluDateTimeInput(new Date());
+  updateZuluDateTimeReadouts();
+}
+
+function resetLandingZuluField() {
+  const takeoff = getZuluDateTimeFieldDate("takeoffDateTime") || new Date();
+  document.querySelector("#landingDateTime").value = formatZuluDateTimeInput(new Date(takeoff.getTime() + 3 * 60 * 60 * 1000));
   updateZuluDateTimeReadouts();
 }
 
