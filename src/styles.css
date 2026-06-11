@@ -1072,19 +1072,57 @@ body.search-open {
 .guide-glyph {
   align-items: center;
   display: inline-flex;
+  height: 28px;
   justify-content: center;
   justify-self: center;
+  width: 28px;
 }
 
 .guide-glyph {
   color: var(--ink);
-  font-size: 1.1rem;
+  font-size: 1.35rem;
   font-weight: 1000;
   line-height: 1;
 }
 
 .guide-control-list .search-icon {
   color: var(--ink);
+  height: 22px;
+  width: 22px;
+}
+
+.guide-control-list .code-hunt-icon {
+  height: 18px;
+  width: 18px;
+  z-index: 0;
+}
+
+.guide-control-list .code-hunt-icon::before {
+  height: calc(100% + 8px);
+  top: -4px;
+  width: 2.5px;
+}
+
+.guide-control-list .code-hunt-icon::after {
+  height: 2.5px;
+  left: -4px;
+  width: calc(100% + 8px);
+}
+
+.guide-control-list .reset-icon {
+  height: 22px;
+  width: 22px;
+}
+
+.guide-control-list .suggestion-icon {
+  color: var(--ink);
+  font-size: 1.9rem;
+}
+
+.guide-control-list .limit-ruler {
+  color: var(--ink);
+  height: 14px;
+  width: 24px;
 }
 
 .defaults-panel {
@@ -1459,6 +1497,7 @@ body.search-open {
 
 .dice-region-icons .code-hunt-icon {
   flex: 0 0 auto;
+  z-index: 0;
 }
 
 .dice-region-buttons {

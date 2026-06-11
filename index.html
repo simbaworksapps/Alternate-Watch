@@ -42,7 +42,7 @@
             <span>Takeoff Zulu</span>
             <div class="input-action-row">
               <input id="takeoffDateTime" name="takeoffDateTime" type="datetime-local" />
-              <button type="button" class="secondary-button time-jump-button reset-icon-button" id="takeoff-plus-one" aria-label="Reset takeoff Zulu to default" title="Reset takeoff Zulu to default"><span class="reset-icon" aria-hidden="true"></span></button>
+              <button type="button" class="secondary-button time-jump-button reset-icon-button" id="takeoff-plus-one" aria-label="Reset takeoff Zulu to now" title="Reset takeoff Zulu to now"><span class="reset-icon" aria-hidden="true"></span></button>
             </div>
           </label>
 
@@ -50,7 +50,7 @@
             <span>Landing / ETA Zulu <button type="button" class="inline-count flight-time-pill" id="flight-time-pill" aria-expanded="false" aria-controls="sortie-duration-panel" title="Change sortie duration">0300</button></span>
             <div class="input-action-row">
               <input id="landingDateTime" name="landingDateTime" type="datetime-local" />
-              <button type="button" class="secondary-button time-jump-button reset-icon-button" id="landing-plus-one" aria-label="Reset landing Zulu to default" title="Reset landing Zulu to default"><span class="reset-icon" aria-hidden="true"></span></button>
+              <button type="button" class="secondary-button time-jump-button reset-icon-button" id="landing-plus-one" aria-label="Reset landing Zulu to takeoff plus 0300" title="Reset landing Zulu to takeoff plus 0300"><span class="reset-icon" aria-hidden="true"></span></button>
             </div>
           </label>
 
@@ -101,12 +101,13 @@
             <ul class="guide-control-list">
               <li><span class="guide-symbol dice-icon" aria-hidden="true"></span><span>Random mission.</span></li>
               <li><span class="guide-symbol dice-icon risk-dice-icon" aria-hidden="true"></span><span>Random bad-weather practice mission.</span></li>
-              <li><span class="guide-symbol code-hunt-icon" aria-hidden="true"></span><span>Code Hunt. Search live weather for METAR/TAF examples like RVR, VV, MPS, TEMPO, BECMG, QFE, and TSRA.</span></li>
+              <li><span class="guide-symbol code-hunt-icon" aria-hidden="true"></span><span>Code Hunt. Search live weather for METAR/TAF examples, including complex stacked weather scenarios.</span></li>
               <li><span class="guide-symbol search-icon" aria-hidden="true"></span><span>Search airfields by ICAO, name, or city.</span></li>
-              <li><span class="guide-glyph" aria-hidden="true">&#9881;</span><span>Set the saved departure, destination, and alternates used by refresh.</span></li>
+              <li><span class="guide-symbol reset-icon" aria-hidden="true"></span><span>Reset takeoff to now, reset landing to takeoff plus 0300, or restore saved mission fields.</span></li>
+              <li><span class="guide-glyph" aria-hidden="true">&#9881;</span><span>Open Defaults to save mission fields, region settings, SIMBA assist, suggestions, and custom limits.</span></li>
               <li><span class="guide-glyph" aria-hidden="true">&#10022;</span><span>SIMBA assist. When off, weather answer colors, weather chips, and weather values are hidden so the user must evaluate the METAR and TAF.</span></li>
-              <li><span class="guide-glyph" aria-hidden="true">&#128207;</span><span>Open conversion tables for SM/KT equivalents when editing custom limits.</span></li>
-              <li><span class="guide-glyph" aria-hidden="true">&#10227;</span><span>Restore default mission fields.</span></li>
+              <li><span class="guide-symbol suggestion-icon" aria-hidden="true"></span><span>Send a suggestion or concern from Defaults.</span></li>
+              <li><span class="guide-symbol limit-ruler" aria-hidden="true"></span><span>Open conversion tables for SM/KT equivalents when editing custom limits.</span></li>
             </ul>
             <h3>Logic</h3>
             <ul>

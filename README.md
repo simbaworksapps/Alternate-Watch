@@ -167,7 +167,7 @@ If a token cannot be decoded, the app lists it in a `Not Decoded` section instea
 
 The airfield search uses the included offline airport search file. If an airport is not listed, users can still type a valid ICAO directly into the field and run the mission.
 
-The white dice generates a random practice mission. The red dice searches for bad-weather practice missions that evaluate red using the active saved limits. The region settings can include CONUS, OCONUS, or both and apply to Code Hunt, the white dice, and the red dice.
+The white dice generates a random practice mission. The red dice searches for bad-weather practice missions that evaluate red using the active saved limits. The scope button opens Code Hunt, and the reset-arrow buttons reset time fields or restore saved mission fields. The region settings can include CONUS, OCONUS, or both and apply to Code Hunt, the white dice, and the red dice.
 
 If the red dice cannot find three live red-weather fields quickly enough, the app reports what it found and may use sample fields for practice continuity.
 
@@ -186,6 +186,7 @@ Current hunt targets include:
 - `VV`: vertical visibility.
 - `MPS`: metric wind reports.
 - `CAVOK`: ceiling and visibility OK.
+- `COMPLEX WX`: stacked weather scenarios with multiple change groups or hazards.
 - `TSRA`: thunderstorm rain.
 - `TEMPO`: temporary TAF conditions.
 - `BECMG`: becoming TAF conditions.
