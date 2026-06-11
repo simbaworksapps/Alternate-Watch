@@ -1366,7 +1366,7 @@ function renderDecisionBanner(referenceDate = new Date()) {
   return `
     <p class="decision-label">${globalAssistEnabled && !assistLockedOff ? (latestEvaluation.summary.status === "green" ? "Watch Item" : latestEvaluation.summary.label) : "Review Items"}${limitModePill}${assistLockedOff ? ` <span class="assist-off-pill assist-locked-pill">⊘ ASSIST</span>` : globalAssistEnabled ? "" : ` <span class="assist-off-pill">Assist Off</span>`}</p>
     <div class="summary-issues">${itemMarkup}</div>
-    <button type="button" class="assist-toggle summary-assist-toggle${globalAssistEnabled && !assistLockedOff ? " active" : ""}${assistLockedOff ? " assist-locked" : ""}" data-summary-assist-toggle="true" aria-pressed="${globalAssistEnabled && !assistLockedOff ? "true" : "false"}" aria-label="${assistLockedOff ? "SIMBA assist disabled for outside-window example" : "Toggle all weather assist highlights"}" title="${assistLockedOff ? "SIMBA assist disabled for outside-window example" : "Toggle all weather assist highlights"}"${assistLockedOff ? " disabled" : ""}>✦</button>
+    <button type="button" class="assist-toggle summary-assist-toggle${globalAssistEnabled && !assistLockedOff ? " active" : ""}${assistLockedOff ? " assist-locked" : ""}" data-summary-assist-toggle="true" aria-pressed="${globalAssistEnabled && !assistLockedOff ? "true" : "false"}" aria-label="${assistLockedOff ? "SIMBA assist disabled for outside-window example" : "Toggle all weather assist highlights"}" title="${assistLockedOff ? "SIMBA assist disabled for outside-window example" : "Toggle all weather assist highlights"}"${assistLockedOff ? " disabled" : ""}><span class="paw-icon" aria-hidden="true"></span></button>
   `;
 }
 
@@ -3146,7 +3146,7 @@ function renderCard(result) {
           </div>
           ${chips}
           <span class="card-actions">
-            <button type="button" class="assist-toggle${assistEnabled ? " active" : ""}${assistLockedOff ? " assist-locked" : ""}" data-assist-toggle="true" aria-pressed="${assistEnabled ? "true" : "false"}" aria-label="${assistLockedOff ? "SIMBA assist disabled for outside-window example" : "Toggle weather assist highlights"}" title="${assistLockedOff ? "SIMBA assist disabled for outside-window example" : "Weather assist highlights"}"${assistLockedOff ? " disabled" : ""}>✦</button>
+            <button type="button" class="assist-toggle${assistEnabled ? " active" : ""}${assistLockedOff ? " assist-locked" : ""}" data-assist-toggle="true" aria-pressed="${assistEnabled ? "true" : "false"}" aria-label="${assistLockedOff ? "SIMBA assist disabled for outside-window example" : "Toggle weather assist highlights"}" title="${assistLockedOff ? "SIMBA assist disabled for outside-window example" : "Weather assist highlights"}"${assistLockedOff ? " disabled" : ""}><span class="paw-icon" aria-hidden="true"></span></button>
             <span class="expand-toggle" aria-hidden="true"></span>
           </span>
         </summary>
