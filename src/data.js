@@ -27,6 +27,7 @@ const airportNameFallbacks = {
   OKAS: "Ali Al Salem AB",
   OTBH: "Al Udeid AB"
 };
+const weatherFetchTimeoutMs = 25000;
 
 async function getLiveMissionData(icaos) {
   const sampleData = getMissionData();
@@ -109,14 +110,14 @@ async function fetchStationInfo(encodedIds) {
   const directUrl = `https://aviationweather.gov/api/data/stationinfo?ids=${encodedIds}&format=json`;
 
   try {
-    const proxyResponse = await fetch(proxyUrl);
+    const proxyResponse = await fetchWithTimeout(proxyUrl);
     if (proxyResponse.ok) return normalizeStationInfo(await proxyResponse.json());
   } catch (error) {
     // Static previews and GitHub Pages do not provide the proxy endpoint.
   }
 
   try {
-    const directResponse = await fetch(directUrl);
+    const directResponse = await fetchWithTimeout(directUrl);
     if (directResponse.ok) return normalizeStationInfo(await directResponse.json());
   } catch (error) {
     // Station names are helpful, but weather evaluation can continue without them.
@@ -130,7 +131,7 @@ async function fetchWeatherData(type, encodedIds) {
   const directUrl = `https://aviationweather.gov/api/data/${type}?ids=${encodedIds}&format=raw${type === "metar" ? "&hours=3" : ""}`;
 
   try {
-    const proxyResponse = await fetch(proxyUrl);
+    const proxyResponse = await fetchWithTimeout(proxyUrl);
     if (proxyResponse.ok) {
       const text = await proxyResponse.text();
       return {
@@ -142,9 +143,23 @@ async function fetchWeatherData(type, encodedIds) {
     // Static previews and GitHub Pages do not provide the proxy endpoint.
   }
 
-  const directResponse = await fetch(directUrl);
-  if (!directResponse.ok) return fillMissingWeatherReports(type, encodedIds, "");
-  return fillMissingWeatherReports(type, encodedIds, await directResponse.text());
+  try {
+    const directResponse = await fetchWithTimeout(directUrl);
+    if (!directResponse.ok) return fillMissingWeatherReports(type, encodedIds, "");
+    return fillMissingWeatherReports(type, encodedIds, await directResponse.text());
+  } catch (error) {
+    return fillMissingWeatherReports(type, encodedIds, "");
+  }
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = weatherFetchTimeoutMs) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 async function fillMissingWeatherReports(type, encodedIds, text) {
@@ -204,9 +219,13 @@ function weatherTextHasReport(text, icao) {
 
 async function fetchNoaaStationWeatherText(type, icao) {
   const folder = type === "metar" ? "observations/metar" : "forecasts/taf";
-  const response = await fetch(`https://tgftp.nws.noaa.gov/data/${folder}/stations/${icao}.TXT`);
-  if (!response.ok) return "";
-  return normalizeNoaaStationWeatherText(type, icao, await response.text());
+  try {
+    const response = await fetchWithTimeout(`https://tgftp.nws.noaa.gov/data/${folder}/stations/${icao}.TXT`, {}, 12000);
+    if (!response.ok) return "";
+    return normalizeNoaaStationWeatherText(type, icao, await response.text());
+  } catch (error) {
+    return "";
+  }
 }
 
 function normalizeNoaaStationWeatherText(type, icao, text) {

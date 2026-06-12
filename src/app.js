@@ -601,6 +601,7 @@ async function generatePracticeWeatherMission() {
   clearCodeHunt();
   button.classList.add("dice-thinking");
   setSubmitButtonStatus("scanning");
+  startRotatingDiceMessages(action, practiceScanMessages);
 
   try {
     const { takeoff, landing } = getDiceMissionTimes();
@@ -613,14 +614,14 @@ async function generatePracticeWeatherMission() {
       if (!isActiveDiceAction(action)) break;
       const chunk = scanFields.slice(index, index + practiceScanChunkSize);
       const nextScanned = Math.min(index + chunk.length, scanFields.length);
-      setRandomDiceMessage(action, practiceScanMessages, ` ${nextScanned}/${scanFields.length}`);
+      setRotatingDiceSuffix(action, ` ${nextScanned}/${scanFields.length}`);
       const missionData = await getLiveMissionData(chunk);
       if (!isActiveDiceAction(action)) break;
       const chunkSelected = findRedPracticeSelection(missionData, takeoff, landing, chunk, (count) => {
         setSubmitButtonStatus(`found-${Math.max(count, selected.count)}`);
       });
       scanned += chunk.length;
-      setRandomDiceMessage(action, practiceScanMessages, ` ${Math.min(scanned, scanFields.length)}/${scanFields.length}`);
+      setRotatingDiceSuffix(action, ` ${Math.min(scanned, scanFields.length)}/${scanFields.length}`);
       if (chunkSelected.count > selected.count) selected = chunkSelected;
       if (selected.count === 3) break;
     }
@@ -672,9 +673,35 @@ async function generatePracticeWeatherMission() {
 }
 
 function startDiceAction(type) {
-  const action = { type, id: Date.now() + Math.random(), cancelled: false, lastMessage: "" };
+  const action = { type, id: Date.now() + Math.random(), cancelled: false, lastMessage: "", messageTimer: null, messageSuffix: "" };
   activeDiceAction = action;
   return action;
+}
+
+function startRotatingDiceMessages(action, messages, suffix = "") {
+  stopRotatingDiceMessages(action);
+  action.messageSuffix = suffix;
+  action.messageMessages = messages;
+  setRandomDiceMessage(action, messages, suffix);
+  action.messageTimer = window.setInterval(() => {
+    if (!isActiveDiceAction(action)) {
+      stopRotatingDiceMessages(action);
+      return;
+    }
+    setRandomDiceMessage(action, action.messageMessages || messages, action.messageSuffix || "");
+  }, 1400);
+}
+
+function setRotatingDiceSuffix(action, suffix = "") {
+  action.messageSuffix = suffix;
+  if (!isActiveDiceAction(action)) return;
+  setRandomDiceMessage(action, action.messageMessages || practiceScanMessages, action.messageSuffix);
+}
+
+function stopRotatingDiceMessages(action) {
+  if (!action?.messageTimer) return;
+  window.clearInterval(action.messageTimer);
+  action.messageTimer = null;
 }
 
 function setRandomDiceMessage(action, messages, suffix = "") {
@@ -691,6 +718,7 @@ function pickRandomMessage(messages, previousMessage = "") {
 
 function cancelDiceAction(message, showCancelled = false) {
   if (!activeDiceAction) return;
+  stopRotatingDiceMessages(activeDiceAction);
   activeDiceAction.cancelled = true;
   activeDiceAction.showCancelled = showCancelled;
   setSubmitButtonMessage(message);
@@ -723,6 +751,7 @@ function isActiveDiceAction(action) {
 }
 
 function finishDiceAction(action) {
+  stopRotatingDiceMessages(action);
   if (activeDiceAction === action) {
     const shouldShowCancelled = action.cancelled && action.showCancelled;
     activeDiceAction = null;
@@ -866,6 +895,7 @@ async function runCodeHunt(target) {
   clearAssistLock();
   clearCodeHunt();
   setCodeHuntButtonSearching();
+  startRotatingDiceMessages(action, codeHuntMessages);
 
   try {
     const times = getCodeHuntMissionTimes();
@@ -884,7 +914,7 @@ async function runCodeHunt(target) {
     for (let index = 0; index < scanFields.length; index += practiceScanChunkSize) {
       if (!isActiveDiceAction(action)) break;
       const chunk = scanFields.slice(index, index + practiceScanChunkSize);
-      setRandomDiceMessage(action, codeHuntMessages, ` ${target.label} ${Math.min(index + chunk.length, scanFields.length)}/${scanFields.length}`);
+      setRotatingDiceSuffix(action, ` ${target.label} ${Math.min(index + chunk.length, scanFields.length)}/${scanFields.length}`);
       const missionData = await getLiveMissionData(chunk);
       if (!isActiveDiceAction(action)) break;
       chunk.forEach((icao) => {
