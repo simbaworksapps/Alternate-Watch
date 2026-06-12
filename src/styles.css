@@ -1591,8 +1591,8 @@ body.search-open {
   transform: rotate(-7deg) scale(0.82) translateY(1px);
 }
 
-.assist-default-toggle[aria-pressed="true"] .paw-icon,
-.assist-toggle.active .paw-icon {
+.assist-default-toggle.paw-tap .paw-icon,
+.assist-toggle.paw-tap .paw-icon {
   animation: pawTap 220ms cubic-bezier(0.2, 0.82, 0.32, 1.25);
 }
 

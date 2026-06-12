@@ -1466,6 +1466,14 @@ function addTapFeedback(event) {
   }, 420);
 }
 
+function triggerPawTap(button) {
+  if (!button) return;
+  button.classList.remove("paw-tap");
+  void button.offsetWidth;
+  button.classList.add("paw-tap");
+  window.setTimeout(() => button.classList.remove("paw-tap"), 260);
+}
+
 function handleSummaryIssueClick(event) {
   const hunt = event.target.closest("[data-hunt-icao]");
   if (hunt) {
@@ -1482,7 +1490,7 @@ function handleSummaryIssueClick(event) {
   const assist = event.target.closest("[data-summary-assist-toggle]");
   if (assist) {
     event.stopPropagation();
-    toggleGlobalAssist();
+    toggleGlobalAssist(true);
     return;
   }
   const icao = event.target.closest("[data-summary-icao]");
@@ -1513,7 +1521,7 @@ function handleSummaryIssueKeydown(event) {
   const assist = event.target.closest("[data-summary-assist-toggle]");
   if (assist && ["Enter", " "].includes(event.key)) {
     event.preventDefault();
-    toggleGlobalAssist();
+    toggleGlobalAssist(true);
     return;
   }
   const icao = event.target.closest("[data-summary-icao]");
@@ -1535,7 +1543,7 @@ function openSystemLimitsFromSummary() {
   openLimitsPanel("ceiling");
 }
 
-function toggleGlobalAssist() {
+function toggleGlobalAssist(animatePaws = false) {
   if (assistLockedOff) {
     showAssistLockPanel();
     return;
@@ -1546,8 +1554,10 @@ function toggleGlobalAssist() {
     const button = card.querySelector("[data-assist-toggle]");
     button?.classList.toggle("active", globalAssistEnabled);
     button?.setAttribute("aria-pressed", String(globalAssistEnabled));
+    if (animatePaws) triggerPawTap(button);
   });
   updateDecisionBanner();
+  if (animatePaws) triggerPawTap(document.querySelector("[data-summary-assist-toggle]"));
 }
 
 function clearAssistLock() {
@@ -1739,6 +1749,7 @@ function handleAssistToggle(event) {
   const enabled = card.classList.toggle("assist-off") === false;
   button.classList.toggle("active", enabled);
   button.setAttribute("aria-pressed", String(enabled));
+  triggerPawTap(button);
   button.blur();
 }
 
@@ -2560,7 +2571,8 @@ function updateLimitSummaries(limits) {
 }
 
 function setupAssistDefaultToggles() {
-  document.querySelector("#assist-default-toggle")?.addEventListener("click", () => {
+  document.querySelector("#assist-default-toggle")?.addEventListener("click", (event) => {
+    triggerPawTap(event.currentTarget);
     setAssistDefaultButtons(!getAssistDefaultFromButtons());
   });
 }
