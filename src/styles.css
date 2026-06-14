@@ -1806,10 +1806,10 @@ body.search-open {
 
 .app-install-banner {
   align-items: center;
-  background: rgba(245, 197, 66, 0.1);
-  border: 1px solid rgba(245, 197, 66, 0.46);
+  background: rgba(74, 163, 255, 0.12);
+  border: 1px solid rgba(74, 163, 255, 0.58);
   border-radius: 8px;
-  color: #ffe8a8;
+  color: #dceeff;
   display: flex;
   font-size: 0.78rem;
   font-weight: 900;
@@ -1836,8 +1836,8 @@ body.search-open {
 }
 
 .app-install-banner button {
-  border-color: rgba(245, 197, 66, 0.58);
-  color: #ffe8a8;
+  border-color: rgba(74, 163, 255, 0.62);
+  color: #dceeff;
   min-height: 34px;
   padding: 7px 10px;
 }

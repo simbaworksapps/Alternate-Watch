@@ -5224,7 +5224,7 @@ function setupAppInstallPrompt() {
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     deferredInstallPrompt = event;
-    showAppInstallBanner("Install app for quick home screen access.", "Install App");
+    showAppInstallBanner("Add to home screen.", "Install App");
   });
   window.addEventListener("appinstalled", () => {
     deferredInstallPrompt = null;
@@ -5233,7 +5233,7 @@ function setupAppInstallPrompt() {
   if (isTouchDevice()) {
     window.setTimeout(() => {
       if (!isStandaloneApp() && !deferredInstallPrompt) {
-        showAppInstallBanner("Install app for quick home screen access.", "How to Install");
+        showAppInstallBanner("Add to home screen.", "Install App");
       }
     }, 800);
   }
