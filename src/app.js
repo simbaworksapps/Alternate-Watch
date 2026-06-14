@@ -5230,7 +5230,7 @@ function setupAppInstallPrompt() {
     deferredInstallPrompt = null;
     hideAppInstallBanner();
   });
-  if (isAppleTouchDevice()) {
+  if (isTouchDevice()) {
     window.setTimeout(() => {
       if (!isStandaloneApp() && !deferredInstallPrompt) {
         showAppInstallBanner("Install app for quick home screen access.", "How to Install");
@@ -5246,6 +5246,10 @@ function isStandaloneApp() {
 function isAppleTouchDevice() {
   return /iPad|iPhone|iPod/.test(window.navigator.userAgent)
     || (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1);
+}
+
+function isTouchDevice() {
+  return window.navigator.maxTouchPoints > 0 || window.matchMedia?.("(pointer: coarse)")?.matches;
 }
 
 function showAppInstallBanner(message, buttonLabel) {
