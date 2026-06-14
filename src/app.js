@@ -5210,7 +5210,7 @@ function showAppUpdateBanner() {
 async function refreshAppFromUpdateBanner() {
   if (appUpdateButton) {
     appUpdateButton.disabled = true;
-    appUpdateButton.textContent = "Refreshing";
+    appUpdateButton.textContent = "Updating...";
   }
   if ("caches" in window) {
     const keys = await caches.keys();
@@ -5273,7 +5273,8 @@ async function handleAppInstallClick() {
     }
     return;
   }
-  showInstallHelpPanel();
+  if (appInstallMessage) appInstallMessage.textContent = "Use Share, then Add to Home Screen.";
+  window.setTimeout(showInstallHelpPanel, 0);
 }
 
 function showInstallHelpPanel() {
