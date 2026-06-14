@@ -349,6 +349,14 @@
             </div>
           </section>
 
+          <section id="install-help-panel" class="rulebook-panel install-help-panel" hidden>
+            <div class="rulebook-header">
+              <h2>Install App</h2>
+              <button type="button" class="secondary-button rulebook-close" id="install-help-close" aria-label="Close install help">X</button>
+            </div>
+            <p id="install-help-message">Use your browser menu or share button, then choose Add to Home Screen.</p>
+          </section>
+
           <section id="suggestion-panel" class="rulebook-panel suggestion-panel" hidden>
             <div class="rulebook-header">
               <h2 id="suggestion-message-label"><span class="suggestion-icon" aria-hidden="true"></span>Suggestion or concern</h2>
@@ -388,6 +396,11 @@
         <div id="app-update-banner" class="app-update-banner" hidden>
           <span>Update available.</span>
           <button type="button" class="secondary-button" id="app-update-button">Refresh App</button>
+        </div>
+
+        <div id="app-install-banner" class="app-install-banner" hidden>
+          <span id="app-install-message">Install app for quick home screen access.</span>
+          <button type="button" class="secondary-button" id="app-install-button">Install App</button>
         </div>
 
         <div id="decision-banner" class="decision-banner status-yellow">

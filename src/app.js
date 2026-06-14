@@ -8,6 +8,9 @@ const filterButtons = document.querySelectorAll(".filter-button");
 const submitButton = document.querySelector("#check-mission-button");
 const appUpdateBanner = document.querySelector("#app-update-banner");
 const appUpdateButton = document.querySelector("#app-update-button");
+const appInstallBanner = document.querySelector("#app-install-banner");
+const appInstallButton = document.querySelector("#app-install-button");
+const appInstallMessage = document.querySelector("#app-install-message");
 const defaultAlternates = "KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI, KGSB";
 const appDefaultMission = {
   departure: "KMCF",
@@ -213,6 +216,7 @@ let submitFeedbackTimer = null;
 let codeHuntFeedbackTimer = null;
 let assistLockedOff = false;
 let activeCodeHunt = null;
+let deferredInstallPrompt = null;
 let lastLiveRedPractice = null;
 let activeDiceAction = null;
 let activeAirfieldTarget = null;
@@ -260,6 +264,8 @@ function init() {
   document.querySelector("#random-mission").addEventListener("click", rollRandomMission);
   document.querySelector("#practice-weather").addEventListener("click", generatePracticeWeatherMission);
   appUpdateButton?.addEventListener("click", refreshAppFromUpdateBanner);
+  appInstallButton?.addEventListener("click", handleAppInstallClick);
+  setupAppInstallPrompt();
   setupRiskDiceAttention();
   document.querySelector("#rulebook-toggle").addEventListener("click", toggleRulebook);
   document.querySelector("#rulebook-close").addEventListener("click", closeRulebook);
@@ -286,6 +292,7 @@ function init() {
   document.querySelector("#assist-lock-close").addEventListener("click", closeAssistLockPanel);
   document.querySelector("#stale-time-close").addEventListener("click", closeStaleTimePanel);
   document.querySelector("#manual-time-window-close").addEventListener("click", closeManualTimeWindowPanel);
+  document.querySelector("#install-help-close").addEventListener("click", closeInstallHelpPanel);
   document.querySelector("#suggestion-toggle").addEventListener("click", toggleSuggestionPanel);
   document.querySelector("#suggestion-close").addEventListener("click", closeSuggestionPanel);
   document.querySelector("#suggestion-clear").addEventListener("click", clearSuggestionMessage);
@@ -352,6 +359,7 @@ function init() {
       closeAssistLockPanel();
       closeStaleTimePanel();
       closeManualTimeWindowPanel();
+      closeInstallHelpPanel();
       closeSuggestionPanel();
     }
   });
@@ -412,6 +420,10 @@ function init() {
     if (document.body.classList.contains("manual-time-window-open")) {
       const panel = document.querySelector("#manual-time-window-panel");
       if (!panel.contains(event.target)) closeManualTimeWindowPanel();
+    }
+    if (document.body.classList.contains("install-help-open")) {
+      const panel = document.querySelector("#install-help-panel");
+      if (!panel.contains(event.target)) closeInstallHelpPanel();
     }
     if (document.body.classList.contains("suggestion-open")) {
       const panel = document.querySelector("#suggestion-panel");
@@ -5205,4 +5217,77 @@ async function refreshAppFromUpdateBanner() {
     await Promise.all(keys.map((key) => caches.delete(key)));
   }
   window.location.reload();
+}
+
+function setupAppInstallPrompt() {
+  if (isStandaloneApp()) return;
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    showAppInstallBanner("Install app for quick home screen access.", "Install App");
+  });
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    hideAppInstallBanner();
+  });
+  if (isAppleTouchDevice()) {
+    window.setTimeout(() => {
+      if (!isStandaloneApp() && !deferredInstallPrompt) {
+        showAppInstallBanner("Install app for quick home screen access.", "How to Install");
+      }
+    }, 800);
+  }
+}
+
+function isStandaloneApp() {
+  return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
+}
+
+function isAppleTouchDevice() {
+  return /iPad|iPhone|iPod/.test(window.navigator.userAgent)
+    || (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1);
+}
+
+function showAppInstallBanner(message, buttonLabel) {
+  if (!appInstallBanner) return;
+  if (appInstallMessage) appInstallMessage.textContent = message;
+  if (appInstallButton) appInstallButton.textContent = buttonLabel;
+  appInstallBanner.hidden = false;
+}
+
+function hideAppInstallBanner() {
+  if (appInstallBanner) appInstallBanner.hidden = true;
+}
+
+async function handleAppInstallClick() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    const choice = await deferredInstallPrompt.userChoice;
+    if (choice?.outcome === "accepted") {
+      deferredInstallPrompt = null;
+      hideAppInstallBanner();
+    }
+    return;
+  }
+  showInstallHelpPanel();
+}
+
+function showInstallHelpPanel() {
+  const panel = document.querySelector("#install-help-panel");
+  const message = document.querySelector("#install-help-message");
+  if (!panel) return;
+  if (message) {
+    message.textContent = isAppleTouchDevice()
+      ? "On iPad or iPhone, open this site in Safari, tap Share, then choose Add to Home Screen."
+      : "Use your browser menu or address bar install icon, then choose Install or Add to Home Screen.";
+  }
+  panel.hidden = false;
+  document.body.classList.add("install-help-open");
+}
+
+function closeInstallHelpPanel() {
+  const panel = document.querySelector("#install-help-panel");
+  if (!panel) return;
+  panel.hidden = true;
+  document.body.classList.remove("install-help-open");
 }

@@ -909,6 +909,7 @@ body.code-hunt-open::before,
 body.assist-lock-open::before,
 body.stale-time-open::before,
 body.manual-time-window-open::before,
+body.install-help-open::before,
 body.suggestion-open::before,
 body.search-open::before {
   content: none;
@@ -924,6 +925,7 @@ body.code-hunt-open,
 body.assist-lock-open,
 body.stale-time-open,
 body.manual-time-window-open,
+body.install-help-open,
 body.suggestion-open,
 body.search-open {
   overflow: hidden;
@@ -1802,13 +1804,40 @@ body.search-open {
   text-transform: uppercase;
 }
 
+.app-install-banner {
+  align-items: center;
+  background: rgba(245, 197, 66, 0.1);
+  border: 1px solid rgba(245, 197, 66, 0.46);
+  border-radius: 8px;
+  color: #ffe8a8;
+  display: flex;
+  font-size: 0.78rem;
+  font-weight: 900;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 8px;
+  text-transform: uppercase;
+}
+
 .app-update-banner[hidden] {
+  display: none;
+}
+
+.app-install-banner[hidden] {
   display: none;
 }
 
 .app-update-banner button {
   border-color: rgba(74, 163, 255, 0.62);
   color: #dceeff;
+  min-height: 34px;
+  padding: 7px 10px;
+}
+
+.app-install-banner button {
+  border-color: rgba(245, 197, 66, 0.58);
+  color: #ffe8a8;
   min-height: 34px;
   padding: 7px 10px;
 }
