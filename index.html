@@ -326,6 +326,29 @@
             <p id="assist-lock-message">Could not find that item inside the specified mission window. An outside-window example was loaded and SIMBA Assist was disabled.</p>
           </section>
 
+          <section id="stale-time-panel" class="rulebook-panel stale-time-panel" hidden>
+            <div class="rulebook-header">
+              <h2>Time Inputs Replaced</h2>
+              <button type="button" class="secondary-button rulebook-close" id="stale-time-close" aria-label="Close old times notice">X</button>
+            </div>
+            <p id="stale-time-message">The entered takeoff and landing times were outside the live weather window (now -0100 to now +2400), so they were replaced with current training times.</p>
+          </section>
+
+          <section id="manual-time-window-panel" class="rulebook-panel manual-time-window-panel" hidden>
+            <div class="rulebook-header">
+              <h2>Live Weather Window</h2>
+              <button type="button" class="secondary-button rulebook-close" id="manual-time-window-close" aria-label="Close live weather window notice">X</button>
+            </div>
+            <p id="manual-time-window-message">Your live weather pull remains current, but one or more mission times are outside the live weather window (now -0100 to now +2400).</p>
+            <p id="manual-time-window-detail">The TAF timing markers may not populate for that requested time:</p>
+            <div class="manual-time-window-markers" aria-label="TAF line markers">
+              <span class="taf-marker marker-green">T</span>
+              <span class="taf-marker marker-green">L</span>
+              <span class="taf-marker marker-green">ETA-1</span>
+              <span class="taf-marker marker-green">ETA+1</span>
+            </div>
+          </section>
+
           <section id="suggestion-panel" class="rulebook-panel suggestion-panel" hidden>
             <div class="rulebook-header">
               <h2 id="suggestion-message-label"><span class="suggestion-icon" aria-hidden="true"></span>Suggestion or concern</h2>
@@ -361,6 +384,11 @@
         </div>
 
         <div id="mission-summary" class="mission-summary">Mission summary unavailable.</div>
+
+        <div id="app-update-banner" class="app-update-banner" hidden>
+          <span>Update available.</span>
+          <button type="button" class="secondary-button" id="app-update-button">Refresh App</button>
+        </div>
 
         <div id="decision-banner" class="decision-banner status-yellow">
           <p class="decision-label">Ready</p>

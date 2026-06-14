@@ -785,6 +785,18 @@ input[type="date"] {
   text-transform: none;
 }
 
+.stale-time-input {
+  background: rgba(255, 95, 86, 0.16);
+  border-color: var(--red);
+  box-shadow: inset 0 0 0 1px rgba(255, 95, 86, 0.34), 0 0 0 2px rgba(255, 95, 86, 0.14);
+  color: #ffd5d2;
+}
+
+.stale-time-input:focus {
+  border-color: var(--red);
+  box-shadow: inset 0 0 0 1px rgba(255, 95, 86, 0.42), 0 0 0 3px rgba(255, 95, 86, 0.2);
+}
+
 button {
   background: var(--gold);
   border: 0;
@@ -895,6 +907,8 @@ body.visibility-table-open::before,
 body.wind-table-open::before,
 body.code-hunt-open::before,
 body.assist-lock-open::before,
+body.stale-time-open::before,
+body.manual-time-window-open::before,
 body.suggestion-open::before,
 body.search-open::before {
   content: none;
@@ -908,6 +922,8 @@ body.visibility-table-open,
 body.wind-table-open,
 body.code-hunt-open,
 body.assist-lock-open,
+body.stale-time-open,
+body.manual-time-window-open,
 body.suggestion-open,
 body.search-open {
   overflow: hidden;
@@ -1768,6 +1784,33 @@ body.search-open {
   margin-bottom: 12px;
   padding: 10px 8px;
   text-transform: uppercase;
+}
+
+.app-update-banner {
+  align-items: center;
+  background: rgba(74, 163, 255, 0.12);
+  border: 1px solid rgba(74, 163, 255, 0.58);
+  border-radius: 8px;
+  color: #dceeff;
+  display: flex;
+  font-size: 0.78rem;
+  font-weight: 900;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 8px;
+  text-transform: uppercase;
+}
+
+.app-update-banner[hidden] {
+  display: none;
+}
+
+.app-update-banner button {
+  border-color: rgba(74, 163, 255, 0.62);
+  color: #dceeff;
+  min-height: 34px;
+  padding: 7px 10px;
 }
 
 .decision-banner,
@@ -3565,6 +3608,19 @@ mark.taf-applicable {
   float: right;
   gap: 4px;
   margin: 1px -5px 0 6px;
+}
+
+.manual-time-window-markers {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.manual-time-window-markers .taf-marker {
+  height: 22px;
+  min-width: 24px;
 }
 
 .taf-window .taf-marker {

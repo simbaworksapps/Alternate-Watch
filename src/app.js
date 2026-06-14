@@ -6,6 +6,8 @@ const pulledAt = document.querySelector("#pulled-at");
 const missionSummary = document.querySelector("#mission-summary");
 const filterButtons = document.querySelectorAll(".filter-button");
 const submitButton = document.querySelector("#check-mission-button");
+const appUpdateBanner = document.querySelector("#app-update-banner");
+const appUpdateButton = document.querySelector("#app-update-button");
 const defaultAlternates = "KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI, KGSB";
 const appDefaultMission = {
   departure: "KMCF",
@@ -82,6 +84,8 @@ const globalPracticeWeatherFields = [
   "SBPA", "SBRF", "SBSV", "SPJC", "SKBO", "SEQM", "SUMU", "SABE", "SACO", "SAME"
 ];
 const practiceScanChunkSize = 75;
+const codeHuntStaleWindowHours = 1;
+const codeHuntFutureWindowHours = 24;
 const practiceScanMessages = [
   "HUNTING BAD WEATHER",
   "PULLING AWC WX",
@@ -231,7 +235,9 @@ function init() {
     clearAssistLock();
     clearCodeHunt();
     updateZuluDateTimeReadouts();
+    const showManualTimeNotice = hasManualMissionTimeOutsideLiveWindow();
     await render(true);
+    if (showManualTimeNotice) showManualTimeWindowPanel("check");
   });
   setupZuluDateTimeControls();
   setupMissionKeyboardFlow();
@@ -253,6 +259,7 @@ function init() {
   resetRandomMissionButton();
   document.querySelector("#random-mission").addEventListener("click", rollRandomMission);
   document.querySelector("#practice-weather").addEventListener("click", generatePracticeWeatherMission);
+  appUpdateButton?.addEventListener("click", refreshAppFromUpdateBanner);
   setupRiskDiceAttention();
   document.querySelector("#rulebook-toggle").addEventListener("click", toggleRulebook);
   document.querySelector("#rulebook-close").addEventListener("click", closeRulebook);
@@ -277,6 +284,8 @@ function init() {
     closeWindTable();
   });
   document.querySelector("#assist-lock-close").addEventListener("click", closeAssistLockPanel);
+  document.querySelector("#stale-time-close").addEventListener("click", closeStaleTimePanel);
+  document.querySelector("#manual-time-window-close").addEventListener("click", closeManualTimeWindowPanel);
   document.querySelector("#suggestion-toggle").addEventListener("click", toggleSuggestionPanel);
   document.querySelector("#suggestion-close").addEventListener("click", closeSuggestionPanel);
   document.querySelector("#suggestion-clear").addEventListener("click", clearSuggestionMessage);
@@ -341,6 +350,8 @@ function init() {
       closeCodeHuntPanel();
       closeLimitsPanel();
       closeAssistLockPanel();
+      closeStaleTimePanel();
+      closeManualTimeWindowPanel();
       closeSuggestionPanel();
     }
   });
@@ -393,6 +404,14 @@ function init() {
     if (document.body.classList.contains("assist-lock-open")) {
       const panel = document.querySelector("#assist-lock-panel");
       if (!panel.contains(event.target)) closeAssistLockPanel();
+    }
+    if (document.body.classList.contains("stale-time-open")) {
+      const panel = document.querySelector("#stale-time-panel");
+      if (!panel.contains(event.target)) closeStaleTimePanel();
+    }
+    if (document.body.classList.contains("manual-time-window-open")) {
+      const panel = document.querySelector("#manual-time-window-panel");
+      if (!panel.contains(event.target)) closeManualTimeWindowPanel();
     }
     if (document.body.classList.contains("suggestion-open")) {
       const panel = document.querySelector("#suggestion-panel");
@@ -486,6 +505,7 @@ function setDefaultTimes() {
 }
 
 function resetMissionDefaults() {
+  clearCodeHuntStaleTimeInputs();
   const takeoff = new Date();
   const landing = new Date(takeoff.getTime() + 3 * 60 * 60 * 1000);
   const defaults = getMissionDefaults();
@@ -514,18 +534,72 @@ function generateRandomMission() {
   clearCodeHunt();
   missionNotice = "";
   const [departure, destination, alternate] = pickUnique(getDiceAirfieldPool(), 3);
-  const { takeoff, landing } = getDiceMissionTimes();
+  const { takeoff, landing, staleReset, windowNotice } = getDiceMissionTimes();
+  let staleTimeMessage = "";
+  if (staleReset) {
+    missionNotice = "TIME INPUTS REPLACED";
+    staleTimeMessage = formatReplacedTimeMessage("Dice", takeoff, landing);
+  }
   applyMissionFields(departure, destination, [alternate], takeoff, landing);
+  return { staleTimeMessage, windowNotice };
 }
 
 function getDiceMissionTimes() {
   const now = new Date();
   const takeoff = getZuluDateTimeFieldDate("takeoffDateTime") || now;
   const landing = getZuluDateTimeFieldDate("landingDateTime") || new Date(takeoff.getTime() + 3 * 60 * 60 * 1000);
+  const windowNotice = [takeoff, landing].some((date) => isMissionTimeOutsideLiveWindow(date, now));
+  if (areBothMissionTimesOutsideLiveWindow(takeoff, landing, now)) {
+    return {
+      takeoff: now,
+      landing: new Date(now.getTime() + 3 * 60 * 60 * 1000),
+      staleReset: true,
+      windowNotice: false
+    };
+  }
   return {
     takeoff,
-    landing
+    landing,
+    staleReset: false,
+    windowNotice
   };
+}
+
+function areBothMissionTimesOutsideLiveWindow(takeoff, landing, referenceDate = new Date()) {
+  return areBothMissionTimesStale(takeoff, landing, referenceDate)
+    || areBothMissionTimesTooFarFuture(takeoff, landing, referenceDate);
+}
+
+function areBothMissionTimesStale(takeoff, landing, referenceDate = new Date()) {
+  const cutoff = referenceDate.getTime() - codeHuntStaleWindowHours * 60 * 60 * 1000;
+  return areMissionTimesOnSameSideOfCutoff(takeoff, landing, (time) => time < cutoff);
+}
+
+function areBothMissionTimesTooFarFuture(takeoff, landing, referenceDate = new Date()) {
+  const cutoff = referenceDate.getTime() + codeHuntFutureWindowHours * 60 * 60 * 1000;
+  return areMissionTimesOnSameSideOfCutoff(takeoff, landing, (time) => time > cutoff);
+}
+
+function areMissionTimesOnSameSideOfCutoff(takeoff, landing, predicate) {
+  return [takeoff, landing].every((date) => {
+    const time = date instanceof Date ? date.getTime() : NaN;
+    return Number.isFinite(time) && predicate(time);
+  });
+}
+
+function isMissionTimeOutsideLiveWindow(date, referenceDate = new Date()) {
+  const time = date instanceof Date ? date.getTime() : NaN;
+  if (!Number.isFinite(time)) return false;
+  const referenceTime = referenceDate.getTime();
+  return referenceTime - time > codeHuntStaleWindowHours * 60 * 60 * 1000
+    || time - referenceTime > codeHuntFutureWindowHours * 60 * 60 * 1000;
+}
+
+function hasManualMissionTimeOutsideLiveWindow(referenceDate = new Date()) {
+  return ["takeoffDateTime", "landingDateTime"].some((fieldId) => {
+    const date = parseZuluDateTimeInput(document.querySelector(`#${fieldId}`)?.value);
+    return isMissionTimeOutsideLiveWindow(date, referenceDate);
+  });
 }
 
 function getZuluDateTimeFieldDate(fieldId) {
@@ -563,7 +637,7 @@ async function rollRandomMission() {
   try {
     setRandomDiceMessage(action, randomMissionMessages);
     pushScenarioHistory(previousInputs);
-    generateRandomMission();
+    const { staleTimeMessage, windowNotice } = generateRandomMission();
     if (!isActiveDiceAction(action)) {
       setRawInputValues(previousInputs);
       scenarioHistory.pop();
@@ -572,6 +646,8 @@ async function rollRandomMission() {
     }
 
     await render({ showSubmitFeedback: true, preserveButtonMessage: true });
+    if (staleTimeMessage && isActiveDiceAction(action)) showStaleTimePanel(staleTimeMessage);
+    if (!staleTimeMessage && windowNotice && isActiveDiceAction(action)) showManualTimeWindowPanel("search");
     if (!isActiveDiceAction(action)) {
       setRawInputValues(previousInputs);
       scenarioHistory.pop();
@@ -604,7 +680,8 @@ async function generatePracticeWeatherMission() {
   startRotatingDiceMessages(action, practiceScanMessages);
 
   try {
-    const { takeoff, landing } = getDiceMissionTimes();
+    const { takeoff, landing, staleReset, windowNotice } = getDiceMissionTimes();
+    let staleTimeMessage = "";
     const practicePool = getDiceAirfieldPool();
     const scanFields = pickUnique(practicePool, practicePool.length);
     let selected = { count: 0 };
@@ -645,6 +722,10 @@ async function generatePracticeWeatherMission() {
       missionDataOverride = practiceData;
       missionNotice = "RED WX: SAMPLE SET";
     }
+    if (staleReset) {
+      missionNotice = missionNotice ? `${missionNotice}; TIME INPUTS REPLACED` : "TIME INPUTS REPLACED";
+      staleTimeMessage = formatReplacedTimeMessage("Red dice", takeoff, landing);
+    }
 
     pushScenarioHistory(previousInputs);
     applyMissionFields(selected.departure, selected.destination, [selected.alternate], takeoff, landing);
@@ -655,6 +736,8 @@ async function generatePracticeWeatherMission() {
       return;
     }
     await render({ showSubmitFeedback: false, preserveButtonMessage: true });
+    if (staleTimeMessage && isActiveDiceAction(action)) showStaleTimePanel(staleTimeMessage);
+    if (!staleTimeMessage && windowNotice && isActiveDiceAction(action)) showManualTimeWindowPanel("search");
     if (!isActiveDiceAction(action)) {
       setRawInputValues(previousInputs);
       scenarioHistory.pop();
@@ -905,7 +988,10 @@ async function runCodeHunt(target) {
       settleCodeHuntButton();
       return;
     }
-    const { takeoff, landing } = times;
+    let { takeoff, landing } = times;
+    const staleTimeSearch = times.stale === true;
+    const windowNotice = times.windowNotice === true;
+    if (staleTimeSearch) markCodeHuntStaleTimeInputs();
     const pool = getDiceAirfieldPool();
     const scanFields = pickUnique(pool, pool.length);
     const found = [];
@@ -921,6 +1007,18 @@ async function runCodeHunt(target) {
         if (found.some((match) => match.icao === icao)) return;
         const airport = missionData.airports?.[icao];
         if (!airport) return;
+        if (staleTimeSearch && codeHuntRawMatches(target, airport)) {
+          found.push({
+            icao,
+            score: getCodeHuntScore(target, airport, { matches: true }),
+            matches: true,
+            departureMatch: true,
+            landingMatch: true,
+            foundIn: ["current raw weather"],
+            noTimeRestriction: true
+          });
+          return;
+        }
         const match = getCodeHuntMatch(target, airport, takeoff, landing, missionData.pulledAt);
         if (match.matches) found.push({ icao, score: getCodeHuntScore(target, airport, match), ...match });
         if (!match.matches && outsideWindowFound.length < 3 && codeHuntRawMatches(target, airport)) {
@@ -947,10 +1045,17 @@ async function runCodeHunt(target) {
     const foundCount = Math.min(selected.uniqueCount, 3);
     pushScenarioHistory(previousInputs);
     missionDataOverride = null;
-    activeCodeHunt = buildActiveCodeHunt(target, selectedMatches, outsideWindowFallback);
+    activeCodeHunt = buildActiveCodeHunt(target, selectedMatches, outsideWindowFallback || staleTimeSearch);
     if (outsideWindowFallback) {
       lockAssistForOutsideWindowCodeHunt(target.label);
       missionNotice = `${target.label} FOUND: OUTSIDE WINDOW; ASSIST OFF`;
+    } else if (staleTimeSearch) {
+      const currentTimes = getCurrentCodeHuntTrainingTimes();
+      takeoff = currentTimes.takeoff;
+      landing = currentTimes.landing;
+      clearCodeHuntStaleTimeInputs();
+      missionNotice = `${target.label} FOUND: TIME INPUTS REPLACED`;
+      showStaleTimePanel(formatReplacedTimeMessage(`Code Hunt ${target.label}`, takeoff, landing));
     } else {
       missionNotice = `${target.label} FOUND: ${selected.foundInLabel} (${foundCount}/3)`;
     }
@@ -958,6 +1063,7 @@ async function runCodeHunt(target) {
     await render({ showSubmitFeedback: false, preserveButtonMessage: true });
     setSubmitButtonStatus(outsideWindowFallback ? "code-1" : selected.uniqueCount >= 3 ? "code-success" : `code-${foundCount}`);
     if (outsideWindowFallback) showAssistLockPanel(target.label);
+    if (!outsideWindowFallback && !staleTimeSearch && windowNotice && isActiveDiceAction(action)) showManualTimeWindowPanel("search");
     settleCodeHuntButton();
   } finally {
     if (action.cancelled) resetCodeHuntButton();
@@ -974,7 +1080,33 @@ function getCodeHuntMissionTimes() {
   if (!landing) {
     return { valid: false, message: "Enter a valid landing Zulu time before Code Hunt." };
   }
-  return { valid: true, takeoff, landing };
+  return {
+    valid: true,
+    takeoff,
+    landing,
+    stale: areBothMissionTimesOutsideLiveWindow(takeoff, landing),
+    windowNotice: [takeoff, landing].some((date) => isMissionTimeOutsideLiveWindow(date))
+  };
+}
+
+function getCurrentCodeHuntTrainingTimes() {
+  const takeoff = new Date();
+  return {
+    takeoff,
+    landing: new Date(takeoff.getTime() + 3 * 60 * 60 * 1000)
+  };
+}
+
+function markCodeHuntStaleTimeInputs() {
+  ["takeoffDateTime", "landingDateTime"].forEach((fieldId) => {
+    document.querySelector(`#${fieldId}`)?.classList.add("stale-time-input");
+  });
+}
+
+function clearCodeHuntStaleTimeInputs() {
+  ["takeoffDateTime", "landingDateTime"].forEach((fieldId) => {
+    document.querySelector(`#${fieldId}`)?.classList.remove("stale-time-input");
+  });
 }
 
 function getCodeHuntMatch(target, airport, takeoff, landing, referenceValue = new Date()) {
@@ -1273,6 +1405,7 @@ function selectRedPracticeRoles(redOptions, fields) {
 }
 
 function applyMissionFields(departure, destination, alternates, takeoff = new Date(), landing = null) {
+  clearCodeHuntStaleTimeInputs();
   const eta = landing || new Date(takeoff.getTime() + 3 * 60 * 60 * 1000);
   document.querySelector("#departure").value = departure;
   document.querySelector("#destination").value = destination;
@@ -1621,6 +1754,50 @@ function closeAssistLockPanel() {
   if (!panel) return;
   panel.hidden = true;
   document.body.classList.remove("assist-lock-open");
+}
+
+function showStaleTimePanel(message = "") {
+  const panel = document.querySelector("#stale-time-panel");
+  const messageElement = document.querySelector("#stale-time-message");
+  if (!panel) return;
+  if (messageElement && message) messageElement.textContent = message;
+  panel.hidden = false;
+  document.body.classList.add("stale-time-open");
+}
+
+function closeStaleTimePanel() {
+  const panel = document.querySelector("#stale-time-panel");
+  if (!panel) return;
+  panel.hidden = true;
+  document.body.classList.remove("stale-time-open");
+}
+
+function showManualTimeWindowPanel(mode = "check") {
+  const panel = document.querySelector("#manual-time-window-panel");
+  const message = document.querySelector("#manual-time-window-message");
+  const detail = document.querySelector("#manual-time-window-detail");
+  if (!panel) return;
+  if (message) {
+    message.textContent = "Your live weather pull remains current, but one or more mission times are outside the live weather window (now -0100 to now +2400).";
+  }
+  if (detail) {
+    detail.textContent = mode === "search"
+      ? "Code Hunt or dice may have a hard time finding weather inside the requested takeoff or landing window, and these TAF timing markers may not populate:"
+      : "Check Mission will still show live weather for the selected airfields, but these TAF timing markers may not populate for that requested time:";
+  }
+  panel.hidden = false;
+  document.body.classList.add("manual-time-window-open");
+}
+
+function closeManualTimeWindowPanel() {
+  const panel = document.querySelector("#manual-time-window-panel");
+  if (!panel) return;
+  panel.hidden = true;
+  document.body.classList.remove("manual-time-window-open");
+}
+
+function formatReplacedTimeMessage(sourceLabel, takeoff, landing) {
+  return `${sourceLabel} replaced time inputs outside the live weather window (now -0100 to now +2400) with T/O ${formatZuluFromIso(takeoff.toISOString())} (now) and LND ${formatZuluFromIso(landing.toISOString())} (now + 0300), then searched current weather.`;
 }
 
 function scrollToAirfieldCard(icao) {
@@ -2031,8 +2208,14 @@ function getRequestedIcaos(inputs) {
 
 function setupZuluDateTimeControls() {
   ["takeoffDateTime", "landingDateTime"].forEach((fieldId) => {
-    document.querySelector(`#${fieldId}`).addEventListener("input", updateZuluDateTimeReadouts);
-    document.querySelector(`#${fieldId}`).addEventListener("change", updateZuluDateTimeReadouts);
+    document.querySelector(`#${fieldId}`).addEventListener("input", () => {
+      clearCodeHuntStaleTimeInputs();
+      updateZuluDateTimeReadouts();
+    });
+    document.querySelector(`#${fieldId}`).addEventListener("change", () => {
+      clearCodeHuntStaleTimeInputs();
+      updateZuluDateTimeReadouts();
+    });
   });
   updateZuluDateTimeReadouts();
 }
@@ -2116,11 +2299,13 @@ function addHoursToZuluDateTimeField(fieldId, hours) {
 }
 
 function resetTakeoffZuluField() {
+  clearCodeHuntStaleTimeInputs();
   document.querySelector("#takeoffDateTime").value = formatZuluDateTimeInput(new Date());
   updateZuluDateTimeReadouts();
 }
 
 function resetLandingZuluField() {
+  clearCodeHuntStaleTimeInputs();
   const takeoff = getZuluDateTimeFieldDate("takeoffDateTime") || new Date();
   document.querySelector("#landingDateTime").value = formatZuluDateTimeInput(new Date(takeoff.getTime() + 3 * 60 * 60 * 1000));
   updateZuluDateTimeReadouts();
@@ -2129,6 +2314,7 @@ function resetLandingZuluField() {
 function updateZuluDateTimeReadouts(referenceDate = new Date()) {
   const pill = document.querySelector("#flight-time-pill");
   if (!pill) return;
+  updateOldZuluDateTimeInputStates(referenceDate);
   const duration = getFlightDurationState(
     document.querySelector("#takeoffDateTime").value,
     document.querySelector("#landingDateTime").value,
@@ -2137,6 +2323,15 @@ function updateZuluDateTimeReadouts(referenceDate = new Date()) {
   pill.textContent = duration.label;
   pill.classList.toggle("flight-time-good", duration.status === "good");
   pill.classList.toggle("flight-time-bad", duration.status === "bad");
+}
+
+function updateOldZuluDateTimeInputStates(referenceDate = new Date()) {
+  ["takeoffDateTime", "landingDateTime"].forEach((fieldId) => {
+    const field = document.querySelector(`#${fieldId}`);
+    if (!field) return;
+    const date = parseZuluDateTimeInput(field.value);
+    field.classList.toggle("stale-time-input", isMissionTimeOutsideLiveWindow(date, referenceDate));
+  });
 }
 
 function toggleRulebook() {
@@ -4978,8 +5173,36 @@ function parseDurationInput(value) {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator && window.location.protocol.startsWith("http")) {
-    navigator.serviceWorker.register("./sw.js").catch(() => {
+    navigator.serviceWorker.register("./sw.js").then((registration) => {
+      registration.addEventListener("updatefound", () => {
+        const worker = registration.installing;
+        if (!worker) return;
+        worker.addEventListener("statechange", () => {
+          if (worker.state === "installed" && navigator.serviceWorker.controller) {
+            showAppUpdateBanner();
+          }
+        });
+      });
+      if (registration.waiting && navigator.serviceWorker.controller) showAppUpdateBanner();
+    }).catch(() => {
       // Local previews still work without offline caching.
     });
   }
+}
+
+function showAppUpdateBanner() {
+  if (!appUpdateBanner) return;
+  appUpdateBanner.hidden = false;
+}
+
+async function refreshAppFromUpdateBanner() {
+  if (appUpdateButton) {
+    appUpdateButton.disabled = true;
+    appUpdateButton.textContent = "Refreshing";
+  }
+  if ("caches" in window) {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+  }
+  window.location.reload();
 }
