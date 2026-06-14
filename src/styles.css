@@ -54,7 +54,10 @@ textarea {
 }
 
 input[type="datetime-local"] {
+  appearance: none;
+  -webkit-appearance: none;
   color-scheme: dark;
+  max-width: 100%;
   min-width: 0;
   text-transform: none;
 }
@@ -423,6 +426,17 @@ h1::after {
   display: grid;
   gap: 8px;
   grid-template-columns: minmax(0, 1fr) 54px;
+}
+
+.time-input-row {
+  align-items: stretch;
+  grid-template-columns: minmax(0, calc(100% - 62px)) 54px;
+}
+
+.time-input-row input[type="datetime-local"] {
+  display: block;
+  overflow: hidden;
+  width: 100%;
 }
 
 .now-reference {
