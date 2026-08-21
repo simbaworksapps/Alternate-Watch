@@ -11,6 +11,7 @@ const appUpdateButton = document.querySelector("#app-update-button");
 const appInstallBanner = document.querySelector("#app-install-banner");
 const appInstallButton = document.querySelector("#app-install-button");
 const appInstallMessage = document.querySelector("#app-install-message");
+const shareLink = document.querySelector("#share-link");
 const defaultAlternates = "KTPA, KCOF, KHST, KPAM, KVPS, KWRB, KCHS, KBHM, KMEI, KGSB";
 const appDefaultMission = {
   departure: "KMCF",
@@ -217,6 +218,7 @@ let codeHuntFeedbackTimer = null;
 let assistLockedOff = false;
 let activeCodeHunt = null;
 let deferredInstallPrompt = null;
+let waitingAppWorker = null;
 let lastLiveRedPractice = null;
 let activeDiceAction = null;
 let activeAirfieldTarget = null;
@@ -265,6 +267,7 @@ function init() {
   document.querySelector("#practice-weather").addEventListener("click", generatePracticeWeatherMission);
   appUpdateButton?.addEventListener("click", refreshAppFromUpdateBanner);
   appInstallButton?.addEventListener("click", handleAppInstallClick);
+  shareLink?.addEventListener("click", copyShareLink);
   setupAppInstallPrompt();
   setupRiskDiceAttention();
   document.querySelector("#rulebook-toggle").addEventListener("click", toggleRulebook);
@@ -437,6 +440,45 @@ function init() {
       if (!panel.contains(event.target) && !clickedToggle) closeAirfieldSearch();
     }
   });
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "-1000px";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("Copy failed");
+}
+
+function showCopiedLinkNotice(message = "Link copied — share it or paste it into Chrome.") {
+  document.querySelector(".copy-link-notice")?.remove();
+  const notice = document.createElement("div");
+  notice.className = "copy-link-notice";
+  notice.setAttribute("role", "status");
+  notice.setAttribute("aria-live", "polite");
+  notice.textContent = message;
+  document.body.appendChild(notice);
+  window.setTimeout(() => notice.remove(), 3000);
+}
+
+async function copyShareLink(event) {
+  event.preventDefault();
+  showCopiedLinkNotice();
+  try {
+    await copyText("https://simbaops.com");
+  } catch {
+    showCopiedLinkNotice("Unable to copy automatically. The address is simbaops.com.");
+  }
 }
 
 function setupNowReference() {
@@ -3350,11 +3392,6 @@ function renderCard(result) {
     ? `<div class="taf-line">${renderHighlightedTaf(result)}</div>`
     : `<p class="raw-line">No TAF available.</p>`;
 
-  const notams = result.notams.length
-    ? `<ul class="notam-list">${result.notams.map(renderNotam).join("")}</ul>`
-    : rulesMetadata.notamAvailable
-      ? '<p class="notam-unavailable">No active NOTAMs for selected time.</p>'
-      : '<p class="notam-unavailable">NOTAM feature currently unavailable.</p>';
   const cardChips = [
     ...getCodeHuntChips(result.icao),
     ...getDisplayIssueChips(result),
@@ -3387,7 +3424,7 @@ function renderCard(result) {
             </div>
             <div class="card-meta">
               <p class="evaluated-at">${renderEvaluationLabel(result)}: ${formatCompactDateTime(result.evaluatedAt)} ${renderEvaluationDeltaBadge(result.evaluatedAt)}</p>
-              <p class="source-labels">WX: <span class="${wxSourceFailed ? "wx-failed" : ""}">${escapeHtml(wxSource)}</span> | NOTAM: ${escapeHtml(rulesMetadata.notamSource)}</p>
+              <p class="source-labels">WX: <span class="${wxSourceFailed ? "wx-failed" : ""}">${escapeHtml(wxSource)}</span></p>
             </div>
             <div class="card-status">
               <span class="status-pill">${cardStatus}</span>
@@ -3409,10 +3446,6 @@ function renderCard(result) {
             <section class="taf-block">
               <h4 class="taf-title">TAF ${renderTafValidityBadge(result.tafRaw)} ${renderTafEvaluationTime(result)}</h4>
               ${taf}
-            </section>
-            <section class="notam-block">
-              <h4>NOTAMs</h4>
-              ${notams}
             </section>
           </section>
           <span class="card-nav-buttons">
@@ -3695,11 +3728,6 @@ function updateTafEvalBadges() {
 function formatTafReferenceTime(value) {
   const date = new Date(value);
   return `${String(date.getUTCDate()).padStart(2, "0")}${String(date.getUTCHours()).padStart(2, "0")}${String(date.getUTCMinutes()).padStart(2, "0")}Z`;
-}
-
-function renderNotam(notam) {
-  const impactClass = notam.impact === "closed" ? " notam-closed" : notam.impact === "limiting" ? " notam-limiting" : "";
-  return `<li class="notam-item${impactClass}"><strong>${escapeHtml(notam.id)}</strong> ${escapeHtml(notam.raw)}</li>`;
 }
 
 function impactClass(status) {
@@ -5184,39 +5212,43 @@ function parseDurationInput(value) {
 }
 
 function registerServiceWorker() {
-  if ("serviceWorker" in navigator && window.location.protocol.startsWith("http")) {
-    navigator.serviceWorker.register("./sw.js").then((registration) => {
-      registration.addEventListener("updatefound", () => {
-        const worker = registration.installing;
-        if (!worker) return;
-        worker.addEventListener("statechange", () => {
-          if (worker.state === "installed" && navigator.serviceWorker.controller) {
-            showAppUpdateBanner();
-          }
-        });
-      });
-      if (registration.waiting && navigator.serviceWorker.controller) showAppUpdateBanner();
-    }).catch(() => {
-      // Local previews still work without offline caching.
-    });
-  }
+  if (!("serviceWorker" in navigator) || !window.location.protocol.startsWith("http")) return;
+  navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then((registration) => {
+    if (registration.waiting) showAppUpdateBanner(registration.waiting);
+    watchServiceWorker(registration.installing);
+    registration.addEventListener("updatefound", () => watchServiceWorker(registration.installing));
+    registration.update().then(() => {
+      if (registration.waiting) showAppUpdateBanner(registration.waiting);
+      watchServiceWorker(registration.installing);
+    }).catch(() => {});
+  }).catch(() => {
+    // Local previews still work without offline caching.
+  });
+  navigator.serviceWorker.addEventListener("controllerchange", () => window.location.reload());
 }
 
-function showAppUpdateBanner() {
+function watchServiceWorker(worker) {
+  if (!worker) return;
+  const reconcileWorkerState = () => {
+    if (worker.state === "installed" && navigator.serviceWorker.controller) showAppUpdateBanner(worker);
+  };
+  reconcileWorkerState();
+  worker.addEventListener("statechange", reconcileWorkerState);
+}
+
+function showAppUpdateBanner(worker) {
   if (!appUpdateBanner) return;
+  waitingAppWorker = worker;
   appUpdateBanner.hidden = false;
 }
 
-async function refreshAppFromUpdateBanner() {
+function refreshAppFromUpdateBanner() {
   if (appUpdateButton) {
     appUpdateButton.disabled = true;
     appUpdateButton.textContent = "Updating...";
   }
-  if ("caches" in window) {
-    const keys = await caches.keys();
-    await Promise.all(keys.map((key) => caches.delete(key)));
-  }
-  window.location.reload();
+  if (waitingAppWorker) waitingAppWorker.postMessage({ type: "SKIP_WAITING" });
+  else window.location.reload();
 }
 
 function setupAppInstallPrompt() {

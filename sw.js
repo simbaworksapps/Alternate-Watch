@@ -1,4 +1,4 @@
-const CACHE_NAME = "simba-alternate-watch-v582";
+const CACHE_NAME = "simba-alternate-watch-v591";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -18,7 +18,6 @@ const APP_SHELL = [
 ];
 
 self.addEventListener("install", (event) => {
-  self.skipWaiting();
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
 });
 
@@ -29,6 +28,10 @@ self.addEventListener("activate", (event) => {
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("fetch", (event) => {

@@ -89,7 +89,7 @@ input[type="datetime-local"] {
 .brand-row {
   align-items: center;
   --impact-x: clamp(228px, 68vw, 304px);
-  --impact-y: 33px;
+  --impact-y: 19px;
   --tracer-travel: 92px;
   --tracer-width: 92px;
   display: flex;
@@ -101,11 +101,61 @@ input[type="datetime-local"] {
 }
 
 .brand-title-area {
+  align-items: start;
+  display: grid;
+  font-size: 1.65rem;
+  gap: 5px;
+  min-width: 0;
+}
+
+.header-reference {
   align-items: center;
   display: flex;
-  font-size: 1.65rem;
-  gap: 8px;
-  min-width: 0;
+  gap: 14px;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.cao-line {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.share-link {
+  color: var(--gold);
+  font-size: 0.76rem;
+  font-weight: 760;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.share-link:hover,
+.share-link:focus-visible {
+  text-decoration: underline;
+}
+
+.copy-link-notice {
+  background: #121d2e;
+  border: 1px solid var(--gold);
+  border-radius: 9px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 650;
+  left: 50%;
+  max-width: calc(100vw - 28px);
+  padding: 10px 14px;
+  position: fixed;
+  text-align: center;
+  transform: translateX(-50%);
+  width: max-content;
+  z-index: 5000;
 }
 
 .brand-mark {
@@ -208,7 +258,7 @@ input[type="datetime-local"] {
   opacity: 0;
   pointer-events: none;
   position: absolute;
-  top: 34px;
+  top: 20px;
   transform-origin: 90% 50%;
   width: var(--tracer-width);
   z-index: 5;
@@ -2807,8 +2857,7 @@ body.search-open {
 .reason,
 .airport-name,
 .raw-line,
-.metar-block p,
-.notam-block li {
+.metar-block p {
   color: var(--muted);
   line-height: 1.45;
 }
@@ -3139,42 +3188,6 @@ body.search-open {
   box-shadow: 0 0 14px rgba(46, 212, 122, 0.38);
 }
 
-.notam-item {
-  border-radius: 6px;
-  margin: 4px 0;
-  padding: 4px 6px;
-}
-
-.notam-closed {
-  background: rgba(255, 95, 86, 0.18);
-  border: 1px solid var(--red);
-  color: #ffd5d2;
-  font-weight: 900;
-}
-
-.notam-limiting {
-  background: rgba(243, 178, 60, 0.14);
-  border: 1px solid rgba(243, 178, 60, 0.45);
-}
-
-.notam-unavailable {
-  background: rgba(243, 178, 60, 0.12);
-  border: 1px solid rgba(243, 178, 60, 0.36);
-  border-radius: 6px;
-  color: #ffe0a3;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 0.86rem;
-  font-weight: 900;
-  line-height: 1.55;
-  margin: 0;
-  padding: 6px 8px;
-}
-
-.notam-list {
-  margin: 0;
-  padding-left: 18px;
-}
-
 .wx-grid {
   display: grid;
   gap: 8px;
@@ -3308,8 +3321,7 @@ dd {
 }
 
 .metar-block,
-.taf-block,
-.notam-block {
+.taf-block {
   margin-top: 12px;
 }
 
